@@ -4,7 +4,7 @@ use warpui::{Entity, EntityId, ModelContext, SingletonEntity, WindowId};
 
 use crate::PaneViewLocator;
 use crate::ai::execution_profiles::ExecutionProfileId;
-use crate::pane_group::{ExecutionProfileEditorPane, PaneContent};
+use crate::pane_group::{ PaneContent};
 
 /// Manages execution profile editor panes across different windows and profiles.
 ///
@@ -34,23 +34,6 @@ impl ExecutionProfileEditorManager {
             .map(|d| d.locator)
     }
 
-    pub fn register_pane(
-        &mut self,
-        pane: &ExecutionProfileEditorPane,
-        pane_group_id: EntityId,
-        window_id: WindowId,
-        profile_id: ExecutionProfileId,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        let locator = PaneViewLocator {
-            pane_group_id,
-            pane_id: pane.id(),
-        };
-        self.panes
-            .entry(window_id)
-            .or_default()
-            .insert(profile_id, ExecutionProfileEditorPaneData { locator });
-    }
 
     pub fn deregister_pane(&mut self, window_id: &WindowId, profile_id: &ExecutionProfileId) {
         if let Some(map) = self.panes.get_mut(window_id) {

@@ -260,17 +260,6 @@ impl ConversationEndedTombstoneView {
         ctx.subscribe_to_view(
             &view.artifact_buttons_view,
             |_, _, event, ctx| match event {
-                ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                    send_telemetry_from_ctx!(
-                        AgentManagementTelemetryEvent::TombstoneArtifactClicked {
-                            artifact_type: ArtifactType::Plan
-                        },
-                        ctx
-                    );
-                    ctx.dispatch_typed_action(&WorkspaceAction::OpenNotebook {
-                        id: SyncId::ServerId((*notebook_uid).into()),
-                    });
-                }
                 ArtifactButtonsRowEvent::CopyBranch { branch } => {
                     send_telemetry_from_ctx!(
                         AgentManagementTelemetryEvent::TombstoneArtifactClicked {

@@ -4,7 +4,7 @@ use warpui::{Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, Window
 
 use crate::PaneViewLocator;
 use crate::ai::facts::AIFactView;
-use crate::pane_group::{AIFactPane, PaneContent};
+use crate::pane_group::{ PaneContent};
 
 /// Singleton model to manage state of AI fact panes across multiple windows
 /// (where only one AI fact pane can exist per window). Specifically:
@@ -51,22 +51,6 @@ impl AIFactManager {
         self.panes.get(&window_id).and_then(|data| data.locator)
     }
 
-    pub fn register_pane(
-        &mut self,
-        pane: &AIFactPane,
-        pane_group_id: EntityId,
-        window_id: WindowId,
-        _ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(data) = self.panes.get_mut(&window_id) {
-            data.locator = Some(PaneViewLocator {
-                pane_group_id,
-                pane_id: pane.id(),
-            });
-        } else {
-            log::warn!("AI fact view should already exist for AI fact pane");
-        }
-    }
 
     pub fn deregister_pane(&mut self, window_id: &WindowId, _ctx: &mut ModelContext<Self>) {
         if let Some(data) = self.panes.get_mut(window_id) {

@@ -4366,11 +4366,6 @@ impl TerminalView {
                     me.is_conversation_details_panel_open = false;
                     ctx.notify();
                 }
-                ConversationDetailsPanelEvent::OpenPlanNotebook { notebook_uid } => {
-                    // Convert NotebookId -> SyncId -> ObjectUid (String)
-                    let object_uid = SyncId::from(*notebook_uid).uid();
-                    ctx.emit(Event::OpenWarpDriveObjectInPane(object_uid));
-                }
             }
         });
 

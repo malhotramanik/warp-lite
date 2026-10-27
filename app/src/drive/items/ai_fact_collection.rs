@@ -42,7 +42,8 @@ impl WarpDriveItem for WarpDriveAIFactCollection {
     }
 
     fn click_action(&self) -> Option<DriveIndexAction> {
-        Some(DriveIndexAction::OpenAIFactCollection)
+        // warp-lite: the AI rules pane is removed.
+        None
     }
 
     fn preview(&self, _appearance: &Appearance) -> Option<Box<dyn Element>> {
@@ -50,7 +51,7 @@ impl WarpDriveItem for WarpDriveAIFactCollection {
     }
 
     fn warp_drive_id(&self) -> WarpDriveItemId {
-        WarpDriveItemId::AIFactCollection
+        unreachable!("warp-lite: AI fact collections are never listed in Warp Drive")
     }
 
     fn sync_status_icon(

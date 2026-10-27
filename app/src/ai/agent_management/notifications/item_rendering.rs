@@ -456,17 +456,6 @@ pub(crate) fn handle_notification_artifact_buttons_event(
     ctx: &mut ViewContext<impl View>,
 ) {
     match event {
-        ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-            send_telemetry_from_ctx!(
-                AgentManagementTelemetryEvent::ArtifactClicked {
-                    artifact_type: ArtifactType::Plan
-                },
-                ctx
-            );
-            ctx.dispatch_typed_action(&WorkspaceAction::OpenNotebook {
-                id: (*notebook_uid).into(),
-            });
-        }
         ArtifactButtonsRowEvent::CopyBranch { branch } => {
             send_telemetry_from_ctx!(
                 AgentManagementTelemetryEvent::ArtifactClicked {

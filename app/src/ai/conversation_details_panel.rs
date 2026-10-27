@@ -638,7 +638,6 @@ impl ConversationDetailsData {
 #[derive(Debug, Clone)]
 pub enum ConversationDetailsPanelEvent {
     Close,
-    OpenPlanNotebook { notebook_uid: NotebookId },
 }
 
 /// Actions for the ConversationDetailsPanel.
@@ -938,11 +937,6 @@ impl ConversationDetailsPanel {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
-            ArtifactButtonsRowEvent::OpenPlan { notebook_uid } => {
-                ctx.emit(ConversationDetailsPanelEvent::OpenPlanNotebook {
-                    notebook_uid: *notebook_uid,
-                });
-            }
             ArtifactButtonsRowEvent::CopyBranch { branch } => {
                 ctx.clipboard()
                     .write(ClipboardContent::plain_text(branch.clone()));

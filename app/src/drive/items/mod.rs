@@ -57,7 +57,6 @@ pub trait WarpDriveItem {
 impl WarpDriveItemId {
     pub fn drive_row_position_id(&self) -> String {
         match self {
-            Self::AIFactCollection => "AI_fact_collection".to_string(),
             Self::MCPServerCollection => "MCP_server_collection".to_string(),
             Self::Object(object_id) => object_id.drive_row_position_id(),
             Self::Space(space) => {
@@ -71,7 +70,6 @@ impl WarpDriveItemId {
 /// Includes spaces (which CloudObjectTypeAndId does not entail)
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
 pub enum WarpDriveItemId {
-    AIFactCollection,
     MCPServerCollection,
     Object(CloudObjectTypeAndId),
     Space(Space),

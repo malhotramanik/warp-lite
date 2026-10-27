@@ -15,7 +15,7 @@ use super::notebook::NotebookView;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::drive::OpenWarpDriveObjectSettings;
-use crate::pane_group::{NotebookPane, PaneContent};
+use crate::pane_group::{ PaneContent};
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
@@ -167,92 +167,8 @@ impl NotebookManager {
         }
     }
 
-    /// Unconditionally create a new notebook pane.
-    pub fn create_pane(
-        &mut self,
-        source: &NotebookSource,
-        settings: &OpenWarpDriveObjectSettings,
-        window_id: WindowId,
-        ctx: &mut ModelContext<Self>,
-    ) -> NotebookPane {
-        let view = ctx.add_typed_action_view(window_id, NotebookView::new);
 
-        match source {
-            NotebookSource::Existing(notebook_id) => {
-                let notebook = CloudModel::as_ref(ctx).get_notebook(notebook_id).cloned();
-                if let Some(notebook) = notebook {
-                    view.update(ctx, |view, ctx| view.load(notebook, settings, ctx));
-                } else {
-                    // If the notebook doesn't exist yet, try waiting for initial load and check again
-                    view.update(ctx, |view, ctx| {
-                        view.wait_for_initial_load_then_load(*notebook_id, settings, window_id, ctx)
-                    });
-                }
-            }
-            NotebookSource::New {
-                title,
-                owner,
-                initial_folder_id,
-            } => view.update(ctx, |view, ctx| {
-                view.open_new_notebook(title.clone(), *owner, *initial_folder_id, ctx);
-            }),
-        }
 
-        NotebookPane::new(view, ctx)
-    }
-
-    /// Register an open notebook pane once it's bound to a pane group.
-    pub fn register_pane(
-        &mut self,
-        pane: &NotebookPane,
-        pane_group_id: EntityId,
-        window_id: WindowId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(notebook_id) = pane.notebook_view(ctx).as_ref(ctx).notebook_id(ctx) else {
-            log::warn!("Notebook pane has no notebook ID");
-            return;
-        };
-
-        let entry = self.panes_by_hashed_id.entry(notebook_id.uid());
-        if let Entry::Vacant(entry) = entry {
-            entry.insert(NotebookPaneData {
-                notebook_id,
-                window_id,
-                locator: PaneViewLocator {
-                    pane_group_id,
-                    pane_id: pane.id(),
-                },
-                handle: pane.notebook_view(ctx).downgrade(),
-            });
-        } else {
-            safe_warn!(
-                safe: ("Ignoring duplicate notebook pane registration"),
-                full: ("Ignoring duplicate notebook pane registration for {notebook_id}")
-            );
-        }
-    }
-
-    // De-register an open notebook pane when it's removed from a pane group.
-    pub fn deregister_pane(&mut self, pane: &NotebookPane, ctx: &mut ModelContext<Self>) {
-        let Some(notebook_id) = pane.notebook_view(ctx).as_ref(ctx).notebook_id(ctx) else {
-            log::warn!("Notebook pane has no notebook ID");
-            return;
-        };
-
-        // If a notebook pane is restored, the notebook may have been reopened in the meantime. In
-        // that case, don't let closing the original pane clear out the new pane.
-        if let Entry::Occupied(entry) = self.panes_by_hashed_id.entry(notebook_id.uid()) {
-            if entry.get().locator.pane_id == pane.id() {
-                entry.remove();
-            } else {
-                log::warn!(
-                    "Ignoring duplicate registration of panes for {}",
-                    notebook_id.uid()
-                );
-            }
-        }
-    }
 
     /// Spawns an async thread to compute the notebook's raw text, adds this
     /// result to the cache ones the operation has been completed.

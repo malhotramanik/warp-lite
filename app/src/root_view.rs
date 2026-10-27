@@ -483,11 +483,6 @@ pub fn init(app: &mut AppContext) {
         RootView::open_linear_issue_work_in_existing_window,
     );
 
-    app.add_action("root_view:add_file_pane", RootView::add_file_pane);
-    app.add_global_action(
-        "root_view:open_new_with_file_notebook",
-        open_new_with_file_notebook,
-    );
 
     app.register_fixed_bindings([
         FixedBinding::empty(
@@ -1168,16 +1163,6 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
 
 fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
     match arg.object_type {
-        ObjectType::Notebook => open_new_workspace_with_notebook_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
-        ObjectType::Workflow => open_new_workspace_with_workflow_open(
-            SyncId::ServerId(arg.server_id),
-            arg.settings.clone(),
-            ctx,
-        ),
         _ => log::info!("Open object type {:?} not yet supported", arg.object_type),
     }
 }
@@ -1189,43 +1174,8 @@ fn display_object_missing_error_in_window(window_id: WindowId, ctx: &mut AppCont
     });
 }
 
-fn open_new_workspace_with_notebook_open(
-    notebook_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::NotebookById {
-            id: notebook_id,
-            settings,
-        },
-        ctx,
-    );
-}
 
-fn open_new_workspace_with_workflow_open(
-    workflow_id: SyncId,
-    settings: OpenWarpDriveObjectSettings,
-    ctx: &mut AppContext,
-) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::WorkflowById {
-            id: workflow_id,
-            settings,
-        },
-        ctx,
-    );
-}
 
-/// Opens a new window with a file-based notebook open.
-fn open_new_with_file_notebook(arg: &PathBuf, ctx: &mut AppContext) {
-    open_new_with_workspace_source(
-        NewWorkspaceSource::NotebookFromFilePath {
-            file_path: Some(arg.to_owned()),
-        },
-        ctx,
-    );
-}
 
 /// Creates a new window and returns its [`WindowId`] and root view's [`ViewHandle`].
 pub(crate) fn open_new_window_get_handles(
@@ -1612,17 +1562,6 @@ pub enum NewWorkspaceSource {
     FromCloudConversationId {
         conversation_id: ServerConversationToken,
     },
-    NotebookFromFilePath {
-        file_path: Option<PathBuf>,
-    },
-    NotebookById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
-    },
-    WorkflowById {
-        id: SyncId,
-        settings: OpenWarpDriveObjectSettings,
-    },
     AgentSession {
         options: Box<NewTerminalOptions>,
         initial_query: Option<String>,
@@ -1696,9 +1635,6 @@ impl NewWorkspaceSource {
             | Self::Session { .. }
             | Self::SharedSessionAsViewer { .. }
             | Self::FromCloudConversationId { .. }
-            | Self::NotebookFromFilePath { .. }
-            | Self::NotebookById { .. }
-            | Self::WorkflowById { .. }
             | Self::AgentSession { .. }
             | Self::AmbientAgent => None,
             Self::TeamSwitched { team_uid } => return Some(*team_uid),
@@ -3145,12 +3081,6 @@ impl RootView {
                         let notebook_id = SyncId::ServerId(arg.server_id);
                         let settings = arg.settings.clone();
                         let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_notebook(
-                                &NotebookSource::Existing(notebook_id),
-                                &settings,
-                                ctx,
-                                false,
-                            );
                         });
                     });
                 }
@@ -3161,7 +3091,6 @@ impl RootView {
                         let workflow_id = SyncId::ServerId(arg.server_id);
                         let settings = arg.settings.clone();
                         let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
-                            workspace.open_workflow_from_intent(workflow_id, &settings, ctx);
                         });
                     });
                 }
@@ -3351,19 +3280,6 @@ impl RootView {
         true
     }
 
-    pub fn add_file_pane(&mut self, path: &PathBuf, ctx: &mut ViewContext<Self>) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.add_tab_for_file_notebook(Some(path.to_owned()), ctx);
-            });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-            ctx.notify();
-        } else {
-            log::warn!("Auth not complete before trying to open file pane");
-        }
-        true
-    }
 
     /// Insert a command that should create a subshell. If we support bootstrapping AKA
     /// "warpifying" its [`ShellType`], set a flag to automatically bootstrap it when the command's

@@ -256,7 +256,6 @@ pub enum DriveIndexAction {
         space: Space,
         initial_folder_id: Option<SyncId>,
     },
-    OpenAIFactCollection,
     OpenMCPServerCollection,
     CreateObject {
         object_type: DriveObjectType,
@@ -319,7 +318,6 @@ pub enum DriveIndexAction {
         space: Space,
         initial_folder_id: Option<SyncId>,
     },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
     ToggleFolderOpen(SyncId),
     CollapseAllInLocation(CloudObjectLocation),
     InvokeEnvVarCollectionInSubshell(CloudObjectTypeAndId),
@@ -462,7 +460,6 @@ pub enum DriveIndexEvent {
         fact: AIFact,
         initial_folder_id: Option<SyncId>,
     },
-    OpenAIFactCollection,
     OpenMCPServerCollection,
     OpenObject(CloudObjectTypeAndId),
     OpenWorkflowInPane {
@@ -482,7 +479,6 @@ pub enum DriveIndexEvent {
         space: Space,
         initial_folder_id: Option<SyncId>,
     },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
     FocusWarpDrive,
     OpenSharedObjectsCreationDeniedModal(DriveObjectType, ServerId),
     AttachPlanAsContext(AIDocumentId),
@@ -890,7 +886,6 @@ impl DriveIndex {
                             self.ordered_items
                                 .push(WarpDriveItemId::MCPServerCollection);
                         }
-                        self.ordered_items.push(WarpDriveItemId::AIFactCollection);
                     }
                     // Sort and add the rest of the items in the space
                     let Some(uids) = self
@@ -1923,40 +1918,6 @@ impl DriveIndex {
         .finish()
     }
 
-    fn render_ai_fact_collection_item(
-        &self,
-        space: Space,
-        appearance: &Appearance,
-        app: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        let warp_drive_item_id = WarpDriveItemId::AIFactCollection;
-        let is_selected = self.selected == Some(warp_drive_item_id);
-        let mut is_focused = false;
-        if let Some(focused_index) = self.focused_index
-            && let Some(&WarpDriveItemId::AIFactCollection) = self.ordered_items.get(focused_index)
-        {
-            is_focused = true;
-        }
-
-        let row = WarpDriveRow::new(
-            Box::new(self.ai_fact_collection.clone()),
-            self.ai_fact_collection_item_mouse_states.clone(),
-            space,
-            0,
-            self.menu.clone(),
-            false, /* can_move */
-            !self.menu_items(&space, &warp_drive_item_id, app).is_empty(),
-            false,
-            false, /* share_dialog_open */
-            is_selected,
-            is_focused,
-            false, /* sync_queue_is_dequeueing */
-            tools_panel_menu_direction(app),
-            appearance,
-        )?;
-
-        Some(row.build().finish())
-    }
 
     fn render_mcp_server_collection_item(
         &self,
@@ -2356,11 +2317,6 @@ impl DriveIndex {
                                     self.render_mcp_server_collection_item(space, appearance, app)
                             {
                                 rendered_space.push(mcp_server_collection_item);
-                            }
-                            if let Some(ai_fact_collection_item) =
-                                self.render_ai_fact_collection_item(space, appearance, app)
-                            {
-                                rendered_space.push(ai_fact_collection_item);
                             }
                         }
 
@@ -5099,11 +5055,6 @@ impl DriveIndex {
                 return;
             };
             match focused_item_id {
-                WarpDriveItemId::AIFactCollection => {
-                    if let DriveIndexAction::EnterKey = key {
-                        ctx.emit(DriveIndexEvent::OpenAIFactCollection);
-                    }
-                }
                 WarpDriveItemId::MCPServerCollection => {
                     if let DriveIndexAction::EnterKey = key {
                         ctx.emit(DriveIndexEvent::OpenMCPServerCollection);
@@ -5382,9 +5333,6 @@ impl TypedActionView for DriveIndex {
             DriveIndexAction::RenameFolder { folder_id } => {
                 self.rename_folder(*folder_id, ctx);
             }
-            DriveIndexAction::OpenAIFactCollection => {
-                ctx.emit(DriveIndexEvent::OpenAIFactCollection);
-            }
             DriveIndexAction::OpenMCPServerCollection => {
                 ctx.emit(DriveIndexEvent::OpenMCPServerCollection);
             }
@@ -5589,11 +5537,6 @@ impl TypedActionView for DriveIndex {
                 space: *space,
                 initial_folder_id: *initial_folder_id,
             }),
-            DriveIndexAction::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                ctx.emit(DriveIndexEvent::OpenWorkflowModalWithCloudWorkflow(
-                    *workflow_id,
-                ));
-            }
             DriveIndexAction::ToggleFolderOpen(id) => {
                 // If WD is focused, then clicking a folder will set that folder to be focused
                 if self.focused_index.is_some() {

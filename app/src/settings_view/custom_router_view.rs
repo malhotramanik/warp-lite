@@ -23,15 +23,12 @@ const HEADER_BUTTON_HEIGHT: f32 = 28.;
 #[derive(Debug, Clone)]
 pub enum CustomRouterViewAction {
     OpenFile,
-    Edit,
     Delete,
 }
 
 pub enum CustomRouterViewEvent {
     #[cfg(feature = "local_fs")]
     OpenFile(PathBuf),
-    #[cfg(feature = "local_fs")]
-    Edit,
     #[cfg(feature = "local_fs")]
     Delete,
 }
@@ -65,9 +62,7 @@ impl CustomRouterView {
                 .with_icon(Icon::Pencil)
                 .with_size(ButtonSize::Small)
                 .with_height(HEADER_BUTTON_HEIGHT)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(CustomRouterViewAction::Edit);
-                })
+                .on_click(|_ctx| {})
         });
         edit_button.update(ctx, |button, ctx| {
             button.set_disabled(!is_any_ai_enabled, ctx);
@@ -240,7 +235,6 @@ impl warpui::TypedActionView for CustomRouterView {
                     ctx.emit(CustomRouterViewEvent::OpenFile(path));
                 }
             }
-            CustomRouterViewAction::Edit => ctx.emit(CustomRouterViewEvent::Edit),
             CustomRouterViewAction::Delete => ctx.emit(CustomRouterViewEvent::Delete),
         }
     }

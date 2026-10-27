@@ -983,9 +983,7 @@ impl WarpAgentPageView {
         let add_router_button = ctx.add_typed_action_view(|_| {
             ActionButton::new("+ Add router", SecondaryTheme)
                 .with_size(ButtonSize::Small)
-                .on_click(|ctx| {
-                    ctx.dispatch_typed_action(WarpAgentPageAction::OpenAddCustomRouter);
-                })
+                .on_click(|_ctx| {})
         });
         #[cfg(feature = "local_fs")]
         {
@@ -2486,10 +2484,6 @@ impl WarpAgentPageView {
                     CustomRouterViewEvent::OpenFile(path) => {
                         ctx.emit(WarpAgentPageEvent::OpenCustomRouterFile(path.clone()));
                     }
-                    CustomRouterViewEvent::Edit => {
-                        let r = router_clone.clone();
-                        ctx.emit(WarpAgentPageEvent::OpenCustomRouterEditor(Some(r)));
-                    }
                     CustomRouterViewEvent::Delete => {
                         if let Some(path) = &router_clone.source_path {
                             #[cfg(feature = "local_fs")]
@@ -2524,8 +2518,6 @@ impl View for WarpAgentPageView {
 #[allow(clippy::large_enum_variant)]
 pub enum WarpAgentPageEvent {
     FocusModal,
-    #[cfg(feature = "local_fs")]
-    OpenCustomRouterEditor(Option<crate::ai::custom_model_routers::CustomModelRouter>),
     #[cfg(feature = "local_fs")]
     OpenCustomRouterFile(PathBuf),
     SignupAnonymousUser,
@@ -2576,9 +2568,6 @@ pub enum WarpAgentPageAction {
     ToggleAutoApproveBypassesCommandDenylist,
     ToggleAgentAttribution,
 
-    // Custom model routers
-    #[cfg(feature = "local_fs")]
-    OpenAddCustomRouter,
 
     // Custom inference
     OpenAddCustomEndpointModal,
@@ -3087,10 +3076,6 @@ impl TypedActionView for WarpAgentPageView {
                     );
                 });
                 ctx.notify();
-            }
-            #[cfg(feature = "local_fs")]
-            WarpAgentPageAction::OpenAddCustomRouter => {
-                ctx.emit(WarpAgentPageEvent::OpenCustomRouterEditor(None));
             }
             WarpAgentPageAction::OpenAddCustomEndpointModal => {
                 self.show_add_custom_endpoint_modal(ctx);

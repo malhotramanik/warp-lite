@@ -52,7 +52,8 @@ impl WarpDriveItem for WarpDriveAIFact {
     }
 
     fn click_action(&self) -> Option<DriveIndexAction> {
-        Some(DriveIndexAction::OpenAIFactCollection)
+        // warp-lite: the AI rules pane is removed.
+        None
     }
 
     fn preview(&self, appearance: &Appearance) -> Option<Box<dyn Element>> {

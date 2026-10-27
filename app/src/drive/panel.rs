@@ -73,7 +73,6 @@ pub enum DrivePanelEvent {
     OpenSearch,
     OpenSharedObjectsCreationDeniedModal(DriveObjectType, ServerId),
     OpenTeamSettingsPage,
-    OpenAIFactCollection,
     OpenMCPServerCollection,
     OpenImportModal {
         owner: Owner,
@@ -83,10 +82,6 @@ pub enum DrivePanelEvent {
         space: Space,
         initial_folder_id: Option<SyncId>,
     },
-    OpenWorkflowModalWithCloudWorkflow(SyncId),
-    OpenNotebook(NotebookSource),
-    OpenEnvVarCollection(EnvVarCollectionSource),
-    OpenWorkflowInPane(WorkflowOpenSource, WorkflowViewMode),
     FocusWarpDrive,
     AttachPlanAsContext(AIDocumentId),
 }
@@ -143,13 +138,8 @@ impl DrivePanel {
                 title,
                 initial_folder_id,
             } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
-                Some(owner) => {
-                    ctx.emit(DrivePanelEvent::OpenNotebook(NotebookSource::New {
-                        title: title.clone(),
-                        owner,
-                        initial_folder_id: *initial_folder_id,
-                    }));
-                }
+                // warp-lite: Warp Drive object panes are removed.
+                Some(_) => {}
                 None => {
                     report_error!(
                         "Cannot identify a notebook owner",
@@ -203,13 +193,8 @@ impl DrivePanel {
                 title,
                 initial_folder_id,
             } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
-                Some(owner) => ctx.emit(DrivePanelEvent::OpenEnvVarCollection(
-                    EnvVarCollectionSource::New {
-                        title: title.clone(),
-                        owner,
-                        initial_folder_id: *initial_folder_id,
-                    },
-                )),
+                // warp-lite: Warp Drive object panes are removed.
+                Some(_) => {}
                 None => {
                     report_error!(
                         "Cannot identify an env var owner",
@@ -224,16 +209,10 @@ impl DrivePanel {
                 is_for_agent_mode,
                 content,
             } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
-                Some(owner) => ctx.emit(DrivePanelEvent::OpenWorkflowInPane(
-                    WorkflowOpenSource::New {
-                        title: title.clone(),
-                        content: content.clone(),
-                        owner,
-                        initial_folder_id: *initial_folder_id,
-                        is_for_agent_mode: *is_for_agent_mode,
-                    },
-                    WorkflowViewMode::Create,
-                )),
+                // warp-lite: Warp Drive workflow panes are removed.
+                Some(_) => {
+                    let _ = (title, content, is_for_agent_mode);
+                }
                 None => {
                     report_error!(
                         "Cannot identify a workflow owner",
@@ -241,9 +220,6 @@ impl DrivePanel {
                     );
                 }
             },
-            DriveIndexEvent::OpenAIFactCollection => {
-                self.open_ai_fact_collection_pane(ctx);
-            }
             DriveIndexEvent::OpenMCPServerCollection => {
                 self.open_mcp_server_collection_pane(ctx);
             }
@@ -256,7 +232,6 @@ impl DrivePanel {
 
                 let workflow: Option<&CloudWorkflow> = object.and_then(|object| object.into());
                 if let Some(workflow) = workflow {
-                    self.open_existing_workflow_in_pane(workflow.id, *open_mode, ctx);
                 }
             }
             DriveIndexEvent::OpenObject(cloud_object_type_and_id) => {
@@ -276,11 +251,8 @@ impl DrivePanel {
                 });
 
                 if let Some(notebook_id) = notebook_id {
-                    self.open_existing_notebook(notebook_id, ctx);
                 } else if let Some(workflow) = workflow {
-                    self.open_workflow_modal_with_existing(workflow.id, ctx);
                 } else if let Some(env_var_collection_id) = env_var_collection_id {
-                    self.open_existing_env_var_collection(env_var_collection_id, ctx);
                 }
             }
             DriveIndexEvent::DuplicateObject(cloud_object_type_and_id) => {
@@ -317,9 +289,6 @@ impl DrivePanel {
                 space,
                 initial_folder_id,
             } => self.open_workflow_modal_with_new(ctx, *space, *initial_folder_id),
-            DriveIndexEvent::OpenWorkflowModalWithCloudWorkflow(workflow_id) => {
-                self.open_workflow_modal_with_existing(*workflow_id, ctx)
-            }
             DriveIndexEvent::FocusWarpDrive => ctx.emit(DrivePanelEvent::FocusWarpDrive),
             DriveIndexEvent::OpenSharedObjectsCreationDeniedModal(object_type, team_uid) => ctx
                 .emit(DrivePanelEvent::OpenSharedObjectsCreationDeniedModal(
@@ -500,18 +469,6 @@ impl DrivePanel {
         ctx.notify();
     }
 
-    pub fn open_existing_workflow_in_pane(
-        &self,
-        workflow_id: SyncId,
-        open_mode: WorkflowViewMode,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(DrivePanelEvent::OpenWorkflowInPane(
-            WorkflowOpenSource::Existing(workflow_id),
-            open_mode,
-        ));
-        ctx.notify();
-    }
 
     pub fn open_workflow_modal_with_new(
         &mut self,
@@ -525,34 +482,8 @@ impl DrivePanel {
         });
     }
 
-    pub fn open_existing_notebook(&self, notebook_id: SyncId, ctx: &mut ViewContext<Self>) {
-        ctx.emit(DrivePanelEvent::OpenNotebook(NotebookSource::Existing(
-            notebook_id,
-        )));
-        ctx.notify();
-    }
 
-    pub fn open_workflow_modal_with_existing(
-        &mut self,
-        workflow_id: SyncId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(DrivePanelEvent::OpenWorkflowModalWithCloudWorkflow(
-            workflow_id,
-        ));
-        ctx.notify();
-    }
 
-    pub fn open_existing_env_var_collection(
-        &mut self,
-        env_var_collection_id: SyncId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(DrivePanelEvent::OpenEnvVarCollection(
-            EnvVarCollectionSource::Existing(env_var_collection_id),
-        ));
-        ctx.notify();
-    }
 
     pub fn open_cloud_object_dialog(
         &mut self,
@@ -594,9 +525,6 @@ impl DrivePanel {
         ctx.notify();
     }
 
-    pub fn open_ai_fact_collection_pane(&mut self, ctx: &mut ViewContext<Self>) {
-        ctx.emit(DrivePanelEvent::OpenAIFactCollection);
-    }
 
     pub fn open_mcp_server_collection_pane(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(DrivePanelEvent::OpenMCPServerCollection);

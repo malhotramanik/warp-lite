@@ -103,7 +103,6 @@ pub enum TranscriptAction {
     PasteInTerminalInput {
         code_block_index: CodeBlockIndex,
     },
-    OpenWorkflowModal(CodeBlockIndex),
     ClickedCodeBlock {
         code_block_index: CodeBlockIndex,
     },
@@ -118,7 +117,6 @@ pub enum TranscriptEvent {
     FocusEditor,
     FocusTranscript,
     ClickedCodeBlock,
-    OpenWorkflowModalWithCommand(String),
 }
 
 impl Entity for Transcript {
@@ -158,7 +156,6 @@ impl TypedActionView for Transcript {
             PasteInTerminalInput { code_block_index } => {
                 self.paste_in_terminal_input(*code_block_index, ctx);
             }
-            OpenWorkflowModal(code_block_index) => self.open_workflow_modal(*code_block_index, ctx),
             ClickedUrl(url) => {
                 ctx.open_url(&url.url);
             }
@@ -224,22 +221,6 @@ impl Transcript {
         );
     }
 
-    fn open_workflow_modal(
-        &mut self,
-        code_block_index: CodeBlockIndex,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if let Some(code) = self.code_for_index(code_block_index, ctx) {
-            ctx.emit(TranscriptEvent::OpenWorkflowModalWithCommand(code));
-        }
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::SaveAsWorkflowModal {
-                source: SaveAsWorkflowModalSource::WarpAIPanel
-            },
-            ctx
-        );
-    }
 
     fn handle_keydown(&mut self, keystroke: &Keystroke, ctx: &mut ViewContext<Self>) {
         let Some(selected_block_index) = self.selected_code_block else {
@@ -267,7 +248,6 @@ impl Transcript {
         } else if keystroke.cmd && keystroke.key == "enter" {
             self.paste_in_terminal_input(selected_block_index, ctx);
         } else if keystroke.cmd && keystroke.key == "s" {
-            self.open_workflow_modal(selected_block_index, ctx);
         } else if keystroke.key == "escape" {
             self.selected_code_block = None;
             ctx.emit(TranscriptEvent::FocusEditor);
@@ -490,8 +470,8 @@ impl Transcript {
                     },
                 )
                 .build()
-                .on_click(move |ctx, _, _| {
-                    ctx.dispatch_typed_action(TranscriptAction::OpenWorkflowModal(code_block_index))
+                .on_click(move |_ctx, _, _| {
+                    let _ = code_block_index;
                 })
                 .with_cursor(Cursor::PointingHand)
                 .finish();

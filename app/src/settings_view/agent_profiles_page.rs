@@ -1437,13 +1437,7 @@ impl AgentProfilesPageView {
                 });
                 let profile_id_for_event = profile_id.clone();
 
-                ctx.subscribe_to_view(&profile_view, move |_me, _, event, ctx| match event {
-                    ExecutionProfileViewEvent::EditProfile => {
-                        ctx.emit(AgentProfilesPageEvent::OpenExecutionProfileEditor(
-                            profile_id_for_event.clone(),
-                        ));
-                    }
-                });
+                ctx.subscribe_to_view(&profile_view, move |_me, _, _event, _ctx| {});
 
                 profile_view
             })
@@ -1480,7 +1474,6 @@ impl View for AgentProfilesPageView {
 pub enum AgentProfilesPageEvent {
     FocusModal,
     OpenMCPServerCollection,
-    OpenExecutionProfileEditor(ExecutionProfileId),
 }
 
 impl Entity for AgentProfilesPageView {
@@ -1495,7 +1488,6 @@ pub enum AgentProfilesPageAction {
     RemoveFromCommandExecutionAllowlist(AgentModeCommandExecutionPredicate),
     RemoveFromCommandExecutionDenylist(AgentModeCommandExecutionPredicate),
     OpenMCPServerCollection,
-    OpenExecutionProfileEditor(ExecutionProfileId),
     SetBaseModel(LLMId),
     SetCodingModel(LLMId),
     /// Called while the user is actively dragging the context window slider.
@@ -1582,9 +1574,6 @@ impl TypedActionView for AgentProfilesPageView {
             AgentProfilesPageAction::OpenMCPServerCollection => {
                 ctx.emit(AgentProfilesPageEvent::OpenMCPServerCollection)
             }
-            AgentProfilesPageAction::OpenExecutionProfileEditor(profile_id) => ctx.emit(
-                AgentProfilesPageEvent::OpenExecutionProfileEditor(profile_id.clone()),
-            ),
             AgentProfilesPageAction::SetBaseModel(id) => {
                 AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles_model, ctx| {
                     let profile_id = profiles_model.active_profile(None, ctx).id().clone();
@@ -1793,11 +1782,7 @@ impl TypedActionView for AgentProfilesPageView {
                 let new_profile_id = AIExecutionProfilesModel::handle(ctx)
                     .update(ctx, |model, ctx| model.create_profile(ctx));
 
-                if let Some(profile_id) = new_profile_id {
-                    ctx.emit(AgentProfilesPageEvent::OpenExecutionProfileEditor(
-                        profile_id,
-                    ));
-                }
+                let _ = new_profile_id;
                 ctx.notify();
             }
         }

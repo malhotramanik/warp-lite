@@ -130,8 +130,8 @@ impl SearchItem for NotebookSearchItem {
     }
 
     fn accept_result(&self) -> Self::Action {
-        CommandPaletteItemAction::OpenNotebook {
-            id: self.cloud_notebook.id,
+        CommandPaletteItemAction::ViewInWarpDrive {
+            id: CloudObjectTypeAndId::Notebook(self.cloud_notebook.id),
         }
     }
 
