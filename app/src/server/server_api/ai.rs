@@ -388,16 +388,7 @@ pub enum ArtifactDownloadResponse {
 }
 
 impl ArtifactDownloadResponse {
-    fn common(&self) -> &ArtifactDownloadCommonFields {
-        match self {
-            ArtifactDownloadResponse::Screenshot { common, .. }
-            | ArtifactDownloadResponse::File { common, .. } => common,
-        }
-    }
 
-    pub fn artifact_uid(&self) -> &str {
-        &self.common().artifact_uid
-    }
 
 
 
@@ -409,20 +400,8 @@ impl ArtifactDownloadResponse {
     }
 
 
-    pub fn content_type(&self) -> &str {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => &data.content_type,
-            ArtifactDownloadResponse::File { data, .. } => &data.content_type,
-        }
-    }
 
 
-    pub fn filename(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => Some(&data.filename),
-        }
-    }
 
 
 }

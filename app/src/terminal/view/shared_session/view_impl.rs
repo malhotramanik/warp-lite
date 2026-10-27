@@ -1836,11 +1836,7 @@ impl TerminalView {
         let tombstone_view_handle = ctx.add_typed_action_view(|ctx| {
             ConversationEndedTombstoneView::new(ctx, terminal_view_id, task_id, tombstone_cta)
         });
-        ctx.subscribe_to_view(&tombstone_view_handle, |me, _, event, ctx| match event {
-            ConversationEndedTombstoneEvent::ContinueInCloud { task_id } => {
-                me.start_cloud_followup_from_tombstone(*task_id, ctx);
-            }
-        });
+        ctx.subscribe_to_view(&tombstone_view_handle, |_me, _, event, _ctx| match *event {});
         let tombstone_view_id = tombstone_view_handle.id();
         // The cloud-mode queued-prompt block is pinned to the bottom so it stays below any
         // streaming agent output. When inserting the conversation-ended tombstone we want the

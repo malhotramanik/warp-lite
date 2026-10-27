@@ -11,10 +11,7 @@ use warpui::SingletonEntity;
 use warpui::platform::SaveFilePickerConfiguration;
 
 #[cfg(feature = "local_fs")]
-use crate::ai::artifact_download::default_download_filename;
 use crate::ai::artifact_download::sanitized_basename;
-#[cfg(feature = "local_fs")]
-use crate::ai::artifact_download::{default_download_directory, download_artifact_bytes};
 use crate::notebooks::NotebookId;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::ArtifactDownloadResponse;
@@ -439,174 +436,13 @@ fn screenshot_lightbox_image_from_download_result(
     }
 }
 
-pub fn download_file_artifact<V: warpui::View>(
-    artifact_uid: &str,
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    let ai_client = ServerApiProvider::handle(ctx).as_ref(ctx).get_ai_client();
-    let artifact_uid = artifact_uid.to_string();
-    let artifact_uid_for_request = artifact_uid.clone();
 
-    ctx.spawn(
-        async move {
-            ai_client
-                .get_artifact_download(&artifact_uid_for_request)
-                .await
-        },
-        move |_me, result, ctx| match result {
-            Ok(artifact) => open_file_download_result(&artifact_uid, artifact, ctx),
-            Err(error) => {
-                log::warn!("Failed to load file artifact {artifact_uid}: {error}");
-                show_file_download_toast(
-                    &artifact_uid,
-                    DismissibleToast::error("Failed to prepare file download.".to_string()),
-                    ctx,
-                );
-            }
-        },
-    );
-}
 
-fn open_file_download_result<V: warpui::View>(
-    artifact_uid: &str,
-    artifact: ArtifactDownloadResponse,
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    match artifact {
-        ArtifactDownloadResponse::File { .. } => {
-            #[cfg(feature = "local_fs")]
-            {
-                open_file_download_picker(artifact, ctx);
-            }
 
-            #[cfg(not(feature = "local_fs"))]
-            {
-                ctx.open_url(artifact.download_url());
-            }
-        }
-        ArtifactDownloadResponse::Screenshot { .. } => {
-            log::warn!("Artifact {artifact_uid} was not a file");
-        }
-    }
-}
 
-#[cfg(feature = "local_fs")]
-fn open_file_download_picker<V: warpui::View>(
-    artifact: ArtifactDownloadResponse,
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    let mut config = SaveFilePickerConfiguration::new()
-        .with_default_filename(default_download_filename(&artifact));
-    if let Some(default_directory) = default_download_directory() {
-        config = config.with_default_directory(default_directory);
-    }
 
-    ctx.open_save_file_picker(
-        move |path_opt: Option<String>, _me: &mut V, ctx: &mut warpui::ViewContext<V>| {
-            let Some(path) = path_opt else {
-                return;
-            };
-            let server_api = ServerApiProvider::handle(ctx).as_ref(ctx).get();
-            let artifact = artifact.clone();
-            let artifact_uid = artifact.artifact_uid().to_string();
-            let path = PathBuf::from(path);
-            let toast_filename = download_toast_filename(&path);
-            let toast_path = path.clone();
-            let artifact_for_download = artifact.clone();
-            ctx.spawn(
-                async move {
-                    download_artifact_bytes(server_api.http_client(), &artifact_for_download, &path)
-                        .await
-                },
-                move |_me, result, ctx| match result {
-                    Ok(()) => show_file_download_toast(
-                        &artifact_uid,
-                        file_download_success_toast(&toast_filename, &toast_path),
-                        ctx,
-                    ),
-                    Err(error) => {
-                        log::warn!("Failed to download file artifact {artifact_uid}: {error}");
-                        show_file_download_toast(
-                            &artifact_uid,
-                            DismissibleToast::error(format!(
-                                "Failed to download {toast_filename}."
-                            )),
-                            ctx,
-                        );
-                    }
-                },
-            );
-        },
-        config,
-    );
-}
 
-fn show_file_download_toast<V: warpui::View>(
-    artifact_uid: &str,
-    toast: DismissibleToast<WorkspaceAction>,
-    ctx: &mut warpui::ViewContext<V>,
-) {
-    let toast_id = format!("artifact_download:{artifact_uid}");
-    let window_id = ctx.window_id();
-    ToastStack::handle(ctx).update(ctx, move |toast_stack, ctx| {
-        toast_stack.add_ephemeral_toast(toast.with_object_id(toast_id), window_id, ctx);
-    });
-}
 
-#[cfg(feature = "local_fs")]
-fn download_toast_filename(path: &Path) -> String {
-    path.file_name()
-        .and_then(|file_name| file_name.to_str())
-        .filter(|file_name| !file_name.is_empty())
-        .unwrap_or("file")
-        .to_string()
-}
-
-/// The platform-appropriate label for the toast link that reveals a downloaded
-/// file in the system file manager.
-#[cfg(feature = "local_fs")]
-fn reveal_in_file_manager_label() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "View in Finder"
-    }
-    #[cfg(target_os = "windows")]
-    {
-        "Show in Explorer"
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        "Open folder"
-    }
-}
-
-/// Builds the success message shown after a file artifact is downloaded,
-/// including the directory the file landed in.
-#[cfg(feature = "local_fs")]
-fn download_success_message(filename: &str, directory: &Path) -> String {
-    format!("{filename} was downloaded to {}.", directory.display())
-}
-
-/// Builds the success toast for a completed file-artifact download. When the
-/// saved path has a parent directory, the toast reports where the file landed
-/// and offers a link to reveal it in the file manager; otherwise it falls back
-/// to a plain confirmation.
-#[cfg(feature = "local_fs")]
-fn file_download_success_toast(
-    filename: &str,
-    file_path: &Path,
-) -> DismissibleToast<WorkspaceAction> {
-    let Some(directory) = file_path.parent() else {
-        return DismissibleToast::success(format!("Downloaded {filename}."));
-    };
-    DismissibleToast::success(download_success_message(filename, directory)).with_link(
-        ToastLink::new(reveal_in_file_manager_label().to_string()).with_onclick_action(
-            WorkspaceAction::OpenInExplorer {
-                path: file_path.to_path_buf(),
-            },
-        ),
-    )
-}
 
 fn non_empty_trimmed(value: &str) -> Option<&str> {
     let trimmed = value.trim();

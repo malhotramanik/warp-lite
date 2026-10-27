@@ -28,8 +28,6 @@ use crate::TelemetryEvent;
 use crate::ai::agent::conversation::AIConversationId;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::agent_conversations_model::AgentConversationsModel;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_management::telemetry::AgentManagementTelemetryEvent;
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::ambient_agents::telemetry::HandoffEntryPoint;
 use crate::ai::blocklist::agent_view::{
@@ -1160,10 +1158,6 @@ impl Input {
                 let destination =
                     ForkedConversationDestination::for_fork_trigger(trigger.is_cmd_or_ctrl_enter());
 
-                send_telemetry_from_ctx!(
-                    AgentManagementTelemetryEvent::SlashCommandContinueLocally,
-                    ctx
-                );
 
                 // Move any pending attachments out of the source input so they travel with the
                 // initial prompt into the continued local pane and no longer linger on the

@@ -37,7 +37,6 @@ use warpui::{AppContext, EntityId, SingletonEntity, ViewHandle, WindowId};
 
 use super::{render_group_member_icon_collage, select_unique_pane_kinds};
 use crate::ai::agent::conversation::{ConversationStatus, StatusColorStyle};
-use crate::ai::agent_management::AgentNotificationsModel;
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::conversation_status_ui::render_status_element;
 use crate::appearance::Appearance;
@@ -3382,9 +3381,9 @@ fn has_unread_activity(typed: &TypedPane<'_>, app: &AppContext) -> bool {
 }
 
 fn has_unread_activity_for_terminal_view(terminal_view_id: EntityId, app: &AppContext) -> bool {
-    AgentNotificationsModel::as_ref(app)
-        .notifications()
-        .has_unread_for_terminal_view(terminal_view_id)
+    // warp-lite: agent notifications are removed.
+    let _ = (terminal_view_id, app);
+    false
 }
 
 const INDICATOR_DOT_SIZE: f32 = 8.;

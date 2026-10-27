@@ -334,35 +334,6 @@ where
         })
 }
 
-/// Check if two terminal views are in the same tab pane group.
-///
-/// Returns true if both terminal views are in the same tab, false otherwise.
-pub fn is_terminal_view_in_same_tab(
-    terminal_view_id_1: &EntityId,
-    terminal_view_id_2: &EntityId,
-    app: &AppContext,
-) -> bool {
-    if terminal_view_id_1 == terminal_view_id_2 {
-        return true;
-    }
-    let Some(active_window) = app.windows().active_window() else {
-        return false;
-    };
-    let Some(workspace) = app
-        .views_of_type::<Workspace>(active_window)
-        .and_then(|views| views.first().cloned())
-    else {
-        return false;
-    };
-    let workspace = workspace.as_ref(app);
-    workspace
-        .list_tab_pane_groups(app)
-        .into_iter()
-        .any(|tab_pane_group| {
-            tab_pane_group.terminal_ids.contains(terminal_view_id_1)
-                && tab_pane_group.terminal_ids.contains(terminal_view_id_2)
-        })
-}
 
 /// Returns the active terminal session view in the active tab. This is used as the target for any
 /// selections in the adjacent editor.

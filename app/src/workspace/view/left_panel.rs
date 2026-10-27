@@ -480,10 +480,6 @@ impl LeftPanelView {
         view
     }
 
-    pub fn set_agent_management_view_open(&mut self, is_open: bool, ctx: &mut ViewContext<Self>) {
-        self.is_agent_management_view_open = is_open;
-        ctx.notify();
-    }
 
     pub fn set_panel_position(
         &mut self,

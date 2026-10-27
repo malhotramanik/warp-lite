@@ -53,31 +53,7 @@ pub fn brand_color(harness: Harness) -> Option<ColorU> {
     }
 }
 
-/// Circle background fill for a [`Harness`] icon rendered in a branded circle.
-/// Matches the treatment used in the vertical-tabs sidebar.
-pub fn circle_background(harness: Harness, theme: &WarpTheme) -> WarpThemeFill {
-    match harness {
-        Harness::Oz => theme.background(),
-        Harness::Claude => WarpThemeFill::Solid(CLAUDE_ORANGE),
-        Harness::Codex => WarpThemeFill::Solid(OPENAI_COLOR),
-        Harness::Gemini => WarpThemeFill::Solid(GEMINI_BLUE),
-        Harness::OpenCode => WarpThemeFill::Solid(OPENCODE_COLOR),
-        Harness::Pi | Harness::Unknown => internal_colors::fg_overlay_2(theme),
-    }
-}
 
-/// Icon fill color when rendered on the branded circle background.
-pub fn icon_fill_on_circle(harness: Harness, theme: &WarpTheme) -> WarpThemeFill {
-    match harness {
-        Harness::Oz => theme.main_text_color(theme.background()),
-        Harness::Claude | Harness::Codex | Harness::Gemini | Harness::OpenCode => {
-            WarpThemeFill::Solid(ColorU::white())
-        }
-        Harness::Pi | Harness::Unknown => {
-            theme.main_text_color(internal_colors::fg_overlay_2(theme))
-        }
-    }
-}
 
 /// Map [`AIAgentHarness`] (from `ServerAIConversationMetadata`) to the
 /// canonical [`Harness`].

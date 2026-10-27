@@ -144,7 +144,6 @@ use ::ai::project_context::model::ProjectContextModel;
 pub(crate) use ai::agent::todos::AIAgentTodoList;
 pub(crate) use ai::agent::{AIAgentActionResultType, FileEdit};
 use ai::agent_conversations_model::AgentConversationsModel;
-use ai::agent_management::AgentNotificationsModel;
 use ai::ambient_agents::scheduled::ScheduledAgentManager;
 use ai::blocklist::{BlocklistAIHistoryModel, BlocklistAIPermissions};
 use ai::chatgpt_subscription::ChatGPTSubscriptionModel;
@@ -2295,7 +2294,6 @@ pub(crate) fn initialize_app(
     ctx.add_singleton_model(|_| CLIAgentSessionsModel::new());
     // ActiveAgentViewsModel is used to track active agent conversations and notify listeners when they change.
     ctx.add_singleton_model(|_| ActiveAgentViewsModel::new());
-    ctx.add_singleton_model(AgentNotificationsModel::new);
     ctx.add_singleton_model(BlocklistAIPermissions::new);
     ctx.add_singleton_model(ai::blocklist::orchestration_events::OrchestrationEventService::new);
     ctx.add_singleton_model(

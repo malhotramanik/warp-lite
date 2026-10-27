@@ -377,12 +377,6 @@ where
         ctx.notify();
     }
 
-    pub fn set_menu_header_text_override<F>(&mut self, formatter: F)
-    where
-        F: Fn(&str) -> String + 'static,
-    {
-        self.menu_header_text_override = Some(Box::new(formatter));
-    }
 
     pub fn set_menu_position(
         &mut self,
@@ -508,12 +502,6 @@ where
         })
     }
 
-    pub fn set_menu_max_height(&mut self, height: f32, ctx: &mut ViewContext<Self>) {
-        self.dropdown.update(ctx, |menu, ctx| {
-            menu.set_height(height);
-            ctx.notify();
-        })
-    }
 
     fn selected_item(&self, ctx: &mut ViewContext<Self>) -> Option<MenuItem<DropdownAction>> {
         self.dropdown
