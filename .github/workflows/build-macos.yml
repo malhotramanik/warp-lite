@@ -1,0 +1,56 @@
+# warp-lite: builds an unsigned macOS app bundle on GitHub's macOS runners,
+# which ship with Xcode (needed for the Metal shader compiler).
+name: Build macOS app
+
+on:
+  push:
+    branches: ["lite/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: build-macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: brew install protobuf jq
+
+      - name: Install Rust toolchain
+        run: rustup show active-toolchain
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: warp-lite-release
+
+      - name: Install cargo-bundle
+        run: script/install_cargo_bundle
+
+      - name: Build and bundle
+        working-directory: app
+        run: cargo bundle --release --bin warp-oss --features gui,release_bundle
+
+      - name: Fix rpath and ad-hoc sign
+        run: |
+          APP=target/release/bundle/osx/WarpOss.app
+          script/macos/add_framework_rpath "$APP/Contents/MacOS/warp-oss"
+          codesign --force --deep --sign - "$APP"
+
+      - name: Report size
+        run: |
+          du -sh target/release/bundle/osx/WarpOss.app
+          ls -lh target/release/bundle/osx/WarpOss.app/Contents/MacOS/warp-oss
+
+      - name: Zip app
+        run: ditto -c -k --keepParent target/release/bundle/osx/WarpOss.app WarpLite-macos-arm64.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WarpLite-macos-arm64
+          path: WarpLite-macos-arm64.zip
+          retention-days: 14
