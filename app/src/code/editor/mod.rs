@@ -14,8 +14,6 @@ mod nav_bar;
 pub mod scroll;
 pub mod view;
 
-pub use comment_editor::{CommentEditor, CommentEditorEvent};
-pub use comments::{EditorCommentsModel, EditorReviewComment};
+pub use comments::EditorReviewComment;
 pub(crate) use diff::{add_color, compute_unified_diff, remove_color};
-pub use element::GutterHoverTarget;
 pub use nav_bar::NavBarBehavior;

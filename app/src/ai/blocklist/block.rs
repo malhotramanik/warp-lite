@@ -23,7 +23,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use ai::agent::action::{AskUserQuestionItem, InsertReviewComment, RunAgentsRequest};
+use ai::agent::action::{AskUserQuestionItem, RunAgentsRequest};
 use ai::document::DEFAULT_PLANNING_DOCUMENT_TITLE;
 use base64::Engine as _;
 use chrono::{DateTime, Duration, Local};
@@ -163,11 +163,8 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::code::editor::comment_editor::create_readonly_comment_markdown_editor;
 use crate::code::editor::view::{CodeEditorEvent, CodeEditorRenderOptions, CodeEditorView};
 use crate::code::editor_management::CodeSource;
-use crate::code_review::CodeReviewTelemetryEvent;
-use crate::code_review::comment_rendering::{CommentViewCard, HeaderClickHandler};
 use crate::code_review::comments::{
-    AttachedReviewComment, CommentId, CommentOrigin, attach_pending_imported_comments,
-    convert_insert_review_comments,
+    AttachedReviewComment, CommentId,
 };
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::editor::InteractionState;
@@ -610,95 +607,19 @@ pub(super) struct ImportedCommentElementState {
     pub(super) open_in_github_button: Option<ViewHandle<ActionButton>>,
     pub(super) open_in_code_review_button: ViewHandle<ActionButton>,
     pub(super) chevron_button: ViewHandle<ActionButton>,
-    pub(super) header_click_handler: HeaderClickHandler,
 }
 
 impl ImportedCommentElementState {
-    fn new(
-        action_id: AIAgentActionId,
-        comment_index: usize,
-        html_url: Option<String>,
-        ctx: &mut ViewContext<AIBlock>,
-    ) -> Self {
-        let open_in_github_button = html_url.map(|url| {
-            ctx.add_typed_action_view(move |_| {
-                ActionButton::new("", NakedTheme)
-                    .with_icon(Icon::Github)
-                    .with_size(ButtonSize::Small)
-                    .with_tooltip("Open in GitHub")
-                    .on_click({
-                        let url = url.clone();
-                        move |ctx| {
-                            ctx.dispatch_typed_action(AIBlockAction::OpenCommentInGitHub {
-                                url: url.clone(),
-                            });
-                        }
-                    })
-            })
-        });
-
-        let action_id_for_open_button = action_id.clone();
-        let open_in_code_review_button = ctx.add_typed_action_view(move |_| {
-            ActionButton::new("Open in code review", SecondaryTheme)
-                .with_size(ButtonSize::Small)
-                .on_click(move |ctx| {
-                    ctx.dispatch_typed_action(AIBlockAction::OpenImportedCommentInCodeReview {
-                        action_id: action_id_for_open_button.clone(),
-                        comment_index,
-                    });
-                })
-        });
-
-        let chevron_button = ctx.add_view(|_| {
-            ActionButton::new("", NakedTheme)
-                .with_icon(Icon::ChevronDown)
-                .with_size(ButtonSize::Small)
-        });
-
-        let header_click_handler = HeaderClickHandler {
-            mouse_state: MouseStateHandle::default(),
-            on_click: Rc::new(move |ctx| {
-                ctx.dispatch_typed_action(AIBlockAction::ToggleImportedCommentCollapsed {
-                    action_id: action_id.clone(),
-                    comment_index,
-                });
-            }),
-        };
-
-        Self {
-            open_in_github_button,
-            open_in_code_review_button,
-            chevron_button,
-            header_click_handler,
-        }
-    }
 }
 
 pub(super) struct ImportedCommentGroup {
     repo_path: LocalOrRemotePath,
     base_branch: Option<String>,
-    cards: Vec<CommentViewCard>,
     element_states: Vec<ImportedCommentElementState>,
 }
 
 impl ImportedCommentGroup {
-    fn new(
-        repo_path: LocalOrRemotePath,
-        base_branch: Option<String>,
-        cards: Vec<CommentViewCard>,
-        element_states: Vec<ImportedCommentElementState>,
-    ) -> Self {
-        Self {
-            repo_path,
-            base_branch,
-            cards,
-            element_states,
-        }
-    }
 
-    fn card_mut(&mut self, comment_index: usize) -> Option<&mut CommentViewCard> {
-        self.cards.get_mut(comment_index)
-    }
 
     fn set_buttons_disabled(&self, should_disable: bool, ctx: &mut ViewContext<AIBlock>) {
         for state in &self.element_states {
@@ -2703,23 +2624,16 @@ impl AIBlock {
                     }
                 }
                 AIAgentAction {
-                    id,
+                    id: _,
                     action:
                         AIAgentActionType::InsertCodeReviewComments {
-                            repo_path,
-                            comments,
-                            base_branch,
+                            repo_path: _,
+                            comments: _,
+                            base_branch: _,
                         },
                     ..
                 } => {
                     if self.model.is_restored() && FeatureFlag::PRCommentsV2.is_enabled() {
-                        self.handle_insert_code_review_comments(
-                            id.clone(),
-                            repo_path,
-                            comments,
-                            base_branch.as_deref(),
-                            ctx,
-                        );
                     }
                 }
                 _ => (),
@@ -4886,19 +4800,12 @@ impl AIBlock {
                     ctx.notify();
                 }
                 BlocklistAIActionEvent::InsertCodeReviewComments {
-                    action_id,
-                    repo_path,
-                    comments,
-                    base_branch,
+                    action_id: _,
+                    repo_path: _,
+                    comments: _,
+                    base_branch: _,
                 } => {
                     if FeatureFlag::PRCommentsV2.is_enabled() {
-                        me.handle_insert_code_review_comments(
-                            action_id.clone(),
-                            repo_path,
-                            comments,
-                            base_branch.as_deref(),
-                            ctx,
-                        );
                         ctx.notify();
                     }
                 }
@@ -4924,80 +4831,6 @@ impl AIBlock {
         self.finish(FinishReason::Cancelled, ctx);
     }
 
-    fn handle_insert_code_review_comments(
-        &mut self,
-        action_id: AIAgentActionId,
-        repo_path: &Path, // TODO: this should be migrated to str
-        comments: &[InsertReviewComment],
-        base_branch: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(repo_location) = self
-            .active_session
-            .as_ref(ctx)
-            .location_for_path(repo_path.to_string_lossy().as_ref(), ctx)
-        else {
-            log::warn!(
-                "Cannot import review comments for repo path without an active session location: {}",
-                repo_path.display()
-            );
-            return;
-        };
-
-        let raw_count = comments.len();
-        let pending = convert_insert_review_comments(comments);
-        let converted_count = pending.len();
-        let flattened = attach_pending_imported_comments(pending, &repo_location);
-        let thread_count = flattened.len();
-
-        if !self.model.is_restored() {
-            send_telemetry_from_ctx!(
-                CodeReviewTelemetryEvent::CommentsReceived {
-                    is_local: Some(repo_location.is_local()),
-                    raw_count,
-                    converted_count,
-                    thread_count,
-                },
-                ctx
-            );
-        }
-
-        let cards: Vec<CommentViewCard> = flattened
-            .into_iter()
-            .map(|comment| {
-                CommentViewCard::new(comment, true, true, None, Some(&repo_location), ctx)
-            })
-            .collect();
-
-        let element_states = cards
-            .iter()
-            .enumerate()
-            .map(|(comment_index, card)| {
-                let html_url = match &card.source().origin {
-                    CommentOrigin::ImportedFromGitHub(details) => details.html_url.clone(),
-                    CommentOrigin::Native => None,
-                };
-                ImportedCommentElementState::new(action_id.clone(), comment_index, html_url, ctx)
-            })
-            .collect();
-
-        let base_branch = base_branch.map(String::from);
-
-        if !cards.is_empty() {
-            self.has_imported_comments = true;
-            let conversation_id = self.client_ids.conversation_id;
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |model, _| {
-                model.mark_conversation_has_imported_comments(conversation_id);
-            });
-        }
-
-        self.imported_comments.insert(
-            action_id,
-            ImportedCommentGroup::new(repo_location, base_branch, cards, element_states),
-        );
-
-        self.update_imported_comments_disabled_state(ctx);
-    }
 
     fn cancel_action(&mut self, action_id: &AIAgentActionId, ctx: &mut ViewContext<Self>) {
         self.action_model.update(ctx, |action_model, ctx| {
@@ -5935,7 +5768,7 @@ impl AIBlock {
         if !self.has_imported_comments {
             return None;
         }
-        let mut comments = Vec::new();
+        let comments = Vec::new();
         let mut base_branch = None;
 
         for group in self.imported_comments.values() {
@@ -5949,7 +5782,6 @@ impl AIBlock {
                 }
             }
 
-            comments.extend(group.cards.iter().map(|card| card.source().clone()));
         }
 
         if comments.is_empty() {
@@ -7101,43 +6933,9 @@ impl TypedActionView for AIBlock {
                     section: Some(SettingsSection::WarpAgent),
                 });
             }
-            AIBlockAction::ToggleImportedCommentCollapsed {
-                action_id,
-                comment_index,
-            } => {
-                if let Some(group) = self.imported_comments.get_mut(action_id)
-                    && let Some(card) = group.card_mut(*comment_index)
-                {
-                    card.toggle_collapsed();
-                    let is_collapsed = card.is_collapsed();
-                    if let Some(state) = group.element_states.get(*comment_index) {
-                        let icon = if is_collapsed {
-                            Icon::ChevronRight
-                        } else {
-                            Icon::ChevronDown
-                        };
-                        state.chevron_button.update(ctx, |button, ctx| {
-                            button.set_icon(Some(icon), ctx);
-                        });
-                    }
-                }
-            }
-            AIBlockAction::OpenImportedCommentInCodeReview {
-                action_id,
-                comment_index,
-            } => {
-                if let Some(group) = self.imported_comments.get_mut(action_id) {
-                    let repo_path = group.repo_path.clone();
-                    let base_branch = group.base_branch.clone();
-                    if let Some(card) = group.card_mut(*comment_index) {
-                        ctx.emit(AIBlockEvent::OpenImportedCommentInCodeReview {
-                            repo_path,
-                            comment: Box::new(card.source().clone()),
-                            base_branch,
-                        });
-                    }
-                }
-            }
+            // warp-lite: code review comment cards are removed.
+            AIBlockAction::ToggleImportedCommentCollapsed { .. }
+            | AIBlockAction::OpenImportedCommentInCodeReview { .. } => {}
             AIBlockAction::OpenAllImportedCommentsInCodeReview => {
                 ctx.emit(AIBlockEvent::OpenAllImportedCommentsForConversation {
                     conversation_id: self.client_ids.conversation_id,

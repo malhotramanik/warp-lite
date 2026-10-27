@@ -27,11 +27,6 @@ pub struct EditorCommentsModel {
 }
 
 impl EditorCommentsModel {
-    pub fn new(_ctx: &mut ModelContext<Self>) -> Self {
-        Self {
-            pending_comment: PendingComment::Closed,
-        }
-    }
 }
 
 impl Entity for EditorCommentsModel {

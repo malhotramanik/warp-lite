@@ -24,7 +24,6 @@ use crate::search::slash_command_menu::static_commands::commands::COMMAND_REGIST
 use crate::terminal::input::buffer_model::{InputBufferModel, InputBufferUpdateEvent};
 use crate::terminal::input::inline_menu::{QueryResultRendererExt as _, styles as inline_styles};
 use crate::terminal::input::slash_command_model::{SlashCommandEntryState, SlashCommandModel};
-use crate::terminal::input::slash_commands::view::CloseReason;
 use crate::terminal::input::slash_commands::{
     AcceptSlashCommandOrSavedPrompt, GuiSlashCommandDataSource, GuiZeroStateDataSource,
     SlashCommandsEvent, UpdatedActiveCommands, saved_prompts_data_source, slash_command_query,

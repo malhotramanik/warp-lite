@@ -489,20 +489,6 @@ impl CodeEditorModel {
         }
     }
 
-    /// Hides lines outside the active diff after the current content's diff computes.
-    pub fn hide_lines_outside_of_active_diff(
-        &mut self,
-        context_lines: usize,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let buffer_version = self.buffer_version(ctx);
-
-        self.hide_lines_outside_of_active_diff = Some(context_lines);
-        self.request_hidden_lines_recalculation_after_diff(buffer_version);
-        self.delay_rendering = Some(DelayRendering::new(DelayRenderingTrigger::DiffUpdate(
-            buffer_version,
-        )));
-    }
     /// Requests hidden-line recalculation after a diff reaches `buffer_version`.
     fn request_hidden_lines_recalculation_after_diff(&mut self, buffer_version: BufferVersion) {
         self.recalculate_hidden_lines_after_diff = Some(
@@ -611,9 +597,6 @@ impl CodeEditorModel {
         });
     }
 
-    pub fn hidden_ranges(&self, ctx: &AppContext) -> RangeSet<CharOffset> {
-        self.hidden_lines.as_ref(ctx).hidden_ranges_at_latest(ctx)
-    }
 
     // Set the following hidden line ranges to be visible. This is no-op if the lines are already visible.
     pub fn set_visible_line_range(
@@ -916,35 +899,6 @@ impl CodeEditorModel {
         Some((StableEditorLine(inner), intra_line_offset))
     }
 
-    /// Returns the content-space vertical offset of the top of the given line.
-    /// The internal anchor is resolved to obtain the current line position,
-    /// so this remains accurate after buffer edits.
-    ///
-    /// Returns `None` if the line no longer exists in the render model.
-    pub fn line_top(&self, line: &StableEditorLine, ctx: &AppContext) -> Option<Pixels> {
-        let selection_model = self.selection_model.as_ref(ctx);
-        let render_location = match &line.0 {
-            StableEditorLineInner::CurrentLine { anchor } => {
-                let line_number =
-                    LineCount::from(selection_model.line_number_from_anchor(anchor, ctx)?);
-                RenderLineLocation::Current(line_number)
-            }
-            StableEditorLineInner::RemovedLine { anchor, temp_index } => {
-                let line_number =
-                    LineCount::from(selection_model.line_number_from_anchor(anchor, ctx)?);
-                RenderLineLocation::Temporary {
-                    at_line: line_number,
-                    index_from_at_line: *temp_index,
-                }
-            }
-        };
-
-        let render_state = self.render_state.as_ref(ctx);
-        // vertical_offset_at_render_location returns viewport-relative offset
-        // (subtracts scroll_top). Add scroll_top back to get content-space.
-        let viewport_offset = render_state.vertical_offset_at_render_location(render_location)?;
-        Some(viewport_offset + render_state.viewport().scroll_top())
-    }
     pub fn buffer(&self) -> &ModelHandle<Buffer> {
         &self.content
     }
@@ -1183,13 +1137,6 @@ impl CodeEditorModel {
         true
     }
 
-    /// Expands all diff hunks without focusing any specific diff hunk.
-    /// All diff hunks will be shown expanded with normal highlighting.
-    pub fn expand_diffs(&mut self, ctx: &mut ModelContext<Self>) {
-        self.diff_navigation_state = DiffNavigationState::Expanded;
-        self.refresh_diff_state(ctx);
-        ctx.emit(CodeEditorModelEvent::DiffUpdated);
-    }
 
     pub fn diff_status(&self, app: &AppContext) -> DiffStatus {
         self.diff.as_ref(app).diff_status().clone()
@@ -1759,33 +1706,6 @@ impl CodeEditorModel {
         get_word_range_at_offset(self.content().as_ref(app), offset, None)
     }
 
-    pub fn run_search(
-        &self,
-        config: &SearchConfig,
-        ctx: &AppContext,
-    ) -> anyhow::Result<impl Future<Output = SearchResults> + use<>> {
-        let buffer = self.content().as_ref(ctx);
-        let search_future = buffer.search(buffer.prepare_search(config)?);
-
-        Ok(async move {
-            match search_future.await.1 {
-                Ok(mut search_results) => {
-                    for match_result in &mut search_results.matches {
-                        match_result.start =
-                            match_result.start.saturating_sub(&CharOffset::from(1));
-                        match_result.end = match_result.end.saturating_sub(&CharOffset::from(1));
-                    }
-                    search_results
-                }
-                Err(err) => {
-                    log::warn!("Search failed: {err:?}");
-                    SearchResults {
-                        matches: Vec::new(),
-                    }
-                }
-            }
-        })
-    }
 
     /// Copy the current selection.
     /// Note that this is _not_ the only possible code path that could copy selected text to the
@@ -3738,153 +3658,8 @@ impl CodeEditorModel {
         }
     }
 
-    /// Given a line number, return the text for that line.
-    fn text_for_line(&self, line_number: LineCount, ctx: &AppContext) -> String {
-        let buffer = self.content().as_ref(ctx);
-        let offset_start =
-            Point::new(line_number.as_usize() as u32, 0).to_buffer_char_offset(buffer);
-        let offset_end =
-            Point::new(line_number.as_usize() as u32 + 1, 0).to_buffer_char_offset(buffer);
 
-        buffer.text_in_range(offset_start..offset_end).into_string()
-    }
 
-    /// Given an original text and its original index, find the closest line in the new version that matches the text.
-    fn match_line_to_text(
-        &self,
-        original_text: &str,
-        current_idx: usize,
-        max_line: usize,
-        predicate: impl Fn(&Self, &str, usize, &AppContext) -> bool,
-        ctx: &AppContext,
-    ) -> Option<usize> {
-        let max_distance = current_idx.max(max_line.saturating_sub(current_idx));
-
-        // For better performance, we search by gradually increasing the search window and early return once we found a match.
-        for distance in 0..=max_distance {
-            let mut possible_matches = vec![];
-
-            if current_idx >= distance {
-                possible_matches.push(current_idx - distance);
-            }
-
-            let next_line = current_idx + distance;
-            if next_line <= max_line && Some(&next_line) != possible_matches.last() {
-                possible_matches.push(next_line);
-            }
-
-            for line in possible_matches {
-                if predicate(self, original_text, line, ctx) {
-                    return Some(line);
-                }
-            }
-        }
-
-        None
-    }
-
-    /// After a modification to the code, update the locations of review comments to match their new positions.
-    pub fn get_new_line_location(
-        &self,
-        location: &EditorLineLocation,
-        line_text: String,
-        ctx: &ModelContext<Self>,
-    ) -> (EditorLineLocation, LineDiffContent, bool) {
-        let mut used_fallback = false;
-        let buffer = self.content.as_ref(ctx);
-        let diff_model = self.diff.as_ref(ctx);
-
-        let max_line = buffer.max_point().row as usize;
-
-        let updated_loc = match location {
-            EditorLineLocation::Current { line_number, .. } => {
-                // For lines in the current version, find the matching comment line
-                // closest to the original line number.
-                let current_idx = line_number.as_usize();
-                let matched_line = self.match_line_to_text(
-                    line_text.as_str(),
-                    current_idx,
-                    max_line,
-                    |me, original_text, line, ctx| {
-                        let line_text = me.text_for_line(LineCount::from(line + 1), ctx);
-                        line_text.trim_end_matches('\n') == original_text
-                    },
-                    ctx,
-                );
-
-                let new_line_number = if let Some(idx) = matched_line {
-                    LineCount::from(idx)
-                } else {
-                    used_fallback = true;
-                    *line_number
-                };
-
-                let line_range = diff_model
-                    .diff_status()
-                    .added_diff_range(new_line_number)
-                    .unwrap_or_else(|| {
-                        new_line_number..LineCount::from(new_line_number.as_usize() + 1)
-                    });
-
-                EditorLineLocation::Current {
-                    line_number: new_line_number,
-                    line_range,
-                }
-            }
-            EditorLineLocation::Removed {
-                line_number, index, ..
-            } => {
-                // For removed lines, we perform the following to find the best match
-                // 1. Approximate the line number of the removed line in the base version (This is best effort since we
-                // don't track the exact line number in editor locations)
-                // 2. Find the matching line closest to (1) in the base version
-                // 3. Convert that matching line into a diff editor location
-                let current_idx = line_number.as_usize() + *index;
-
-                let max_line = diff_model.base_line_count();
-                let matched_line = self.match_line_to_text(
-                    line_text.as_str(),
-                    current_idx,
-                    max_line,
-                    |me, original_text, line, ctx| {
-                        let line_text = me.diff().as_ref(ctx).base_line(line);
-                        line_text.as_ref().map(|s| s.trim_end_matches('\n')) == Some(original_text)
-                    },
-                    ctx,
-                );
-
-                let location =
-                    matched_line.and_then(|line| diff_model.base_line_index_to_line_location(line));
-
-                // If we can't convert the location, attach to the closest existing line.
-                // TODO: We should have a better flow to handle lines we can't match.
-                location.unwrap_or_else(|| {
-                    used_fallback = true;
-                    let new_line_number = *line_number;
-                    let line_range = diff_model
-                        .diff_status()
-                        .removed_diff_range(new_line_number)
-                        .unwrap_or_else(|| {
-                            new_line_number..LineCount::from(new_line_number.as_usize() + 1)
-                        });
-
-                    EditorLineLocation::Current {
-                        line_number: new_line_number,
-                        line_range,
-                    }
-                })
-            }
-            EditorLineLocation::Collapsed { .. } => location.clone(),
-        };
-
-        // Get the new content for the updated location
-        let content = if used_fallback {
-            LineDiffContent::from_content(line_text.as_str())
-        } else {
-            self.get_diff_content_for_line(&updated_loc, ctx)
-        };
-        (updated_loc, content, used_fallback)
-    }
 }
 
 impl CoreEditorModel for CodeEditorModel {
@@ -4084,24 +3859,6 @@ impl CodeEditorModel {
         });
     }
 
-    pub fn reopen_comment_line(
-        &mut self,
-        id: &CommentId,
-        line: &EditorLineLocation,
-        comment_text: &str,
-        origin: &CommentOrigin,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.comments.update(ctx, |comments, ctx| {
-            comments.pending_comment = PendingComment::Open { line: line.clone() };
-            ctx.emit(PendingCommentEvent::ReopenPendingComment {
-                id: *id,
-                line: line.to_owned(),
-                comment_text: comment_text.to_owned(),
-                origin: origin.to_owned(),
-            });
-        });
-    }
 }
 
 impl PlainTextEditorModel for CodeEditorModel {

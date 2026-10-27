@@ -491,33 +491,6 @@ impl DiffModel {
         None
     }
 
-    /// Convert a line index in the base version of the text to an editor line location.
-    pub fn base_line_index_to_line_location(&self, index: usize) -> Option<EditorLineLocation> {
-        for (line_range, change) in self.status.change_mapping.iter() {
-            if let ChangeType::Replacement { replaced_range, .. } = change
-                && replaced_range.contains(&index)
-            {
-                return Some(EditorLineLocation::Removed {
-                    // Subtracting 1 as the diff is currently represented as attaching to the _previous line_.
-                    line_number: LineCount::from(line_range.start),
-                    line_range: LineCount::from(line_range.start)..LineCount::from(line_range.end),
-                    index: index - replaced_range.start,
-                });
-            }
-        }
-
-        for (line_range, replaced_range) in self.status.deletion_mapping.iter() {
-            if replaced_range.contains(&index) {
-                return Some(EditorLineLocation::Removed {
-                    line_number: LineCount::from(*line_range),
-                    line_range: LineCount::from(*line_range)..LineCount::from(*line_range),
-                    index: index - replaced_range.start,
-                });
-            }
-        }
-
-        None
-    }
 
     pub fn is_line_added_or_changed(&self, line_num: &LineCount) -> bool {
         let line_num = line_num.as_usize();
@@ -530,12 +503,6 @@ impl DiffModel {
         Some(line.to_string())
     }
 
-    pub fn base_line_count(&self) -> usize {
-        self.base
-            .as_ref()
-            .map(|base| base.lines().count())
-            .unwrap_or_default()
-    }
 
     /// Returns an iterator over all the line numbers in the current buffer that are
     /// added or changed from the base buffer.

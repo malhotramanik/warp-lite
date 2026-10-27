@@ -44,14 +44,6 @@ impl PendingImportedReviewComment {
         self.github_details.github_parent_id.as_deref()
     }
 
-    /// Returns a copy of the GitHub metadata with any parent reference cleared.
-    ///
-    /// Used when collapsing a threaded comment into a single flattened comment.
-    pub(crate) fn github_details_without_parent(&self) -> ImportedCommentDetails {
-        let mut details = self.github_details.clone();
-        details.github_parent_id = None;
-        details
-    }
 }
 
 impl ReviewCommentThreadItem for PendingImportedReviewComment {

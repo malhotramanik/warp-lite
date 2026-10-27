@@ -336,40 +336,6 @@ impl RemoteDiffStateModel {
 
     // ── Apply methods ──────────────────────────────────────────────────────
 
-    /// Requests a fresh diff snapshot from the remote server, including file
-    /// content. Unlike the former `replay_latest_diffs` (which reconstructed
-    /// data from cached `GitDiffData` and lost `content_at_head`), this sends
-    /// an actual `GetDiffState` RPC so the server can reload content from disk.
-    ///
-    /// Does NOT transition to `Loading` or emit `NewDiffsComputed(None)` first,
-    /// so existing views subscribed to this model won't flash a loading state.
-    /// The server response arrives as a `DiffStateSnapshotReceived` event and
-    /// flows through `apply_snapshot` normally.
-    pub(crate) fn fetch_fresh_snapshot(
-        &mut self,
-        track_load_duration: bool,
-        preferred_session: Option<SessionId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if track_load_duration {
-            self.tracked_diff_load_start_time = Some(Instant::now());
-        }
-        let host_id = self.remote_path.host_id.clone();
-        let repo_path = self.remote_path.path.clone();
-        let mode = self.mode.clone();
-        // `preferred_session` is supplied per-call by the triggering view (the
-        // session showing the review); `None` falls back to any connected
-        // session for the host. Never cached on this shared model.
-        RemoteServerManager::handle(ctx).update(ctx, |mgr, ctx| {
-            mgr.get_diff_state(
-                host_id,
-                repo_path,
-                proto::DiffMode::from(&mode),
-                preferred_session,
-                ctx,
-            );
-        });
-    }
 
     fn apply_snapshot(
         &mut self,

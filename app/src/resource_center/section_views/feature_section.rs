@@ -17,11 +17,8 @@ use super::{
 use crate::appearance::Appearance;
 use crate::resource_center::main_page::ActionTarget;
 use crate::resource_center::{
-    FeatureItem, FeatureSectionData, Tip, TipsCompleted, 
-    skip_tips_and_write_to_user_defaults,
+    FeatureItem, FeatureSectionData, Tip, TipsCompleted,
 };
-use crate::send_telemetry_from_ctx;
-use crate::server::telemetry::TelemetryEvent;
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
 use crate::themes::theme::Fill;
 

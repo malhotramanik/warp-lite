@@ -44,40 +44,8 @@ pub struct LineDiffContent {
 }
 
 impl LineDiffContent {
-    /// The text in the diff line, without the `+` or `-` diff prefix or trailing newlines.
-    ///
-    /// Uses `strip_prefix` (removes exactly one occurrence) rather than `trim_start_matches`
-    /// (which removes all leading occurrences) so that content characters are preserved.
-    pub(crate) fn original_text(&self) -> String {
-        let s = self.content.trim_end_matches('\n');
-        s.strip_prefix('+')
-            .or_else(|| s.strip_prefix('-'))
-            .unwrap_or(s)
-            .to_string()
-    }
 
-    /// The source-line text for a comment imported from a provider diff hunk.
-    ///
-    /// Unlike [`Self::original_text`], this strips exactly one leading
-    /// unified-diff marker — `+`, `-`, or the space that context (unchanged)
-    /// lines carry — recovering the raw file line. It must only be used for
-    /// imported comments, whose `content` is always a diff line with exactly one
-    /// such prefix char; native comments store raw text (real leading
-    /// indentation is significant) and must use [`Self::original_text`] instead.
-    pub(crate) fn imported_original_text(&self) -> String {
-        let s = self.content.trim_end_matches('\n');
-        s.strip_prefix(['+', '-', ' ']).unwrap_or(s).to_string()
-    }
 
-    pub(crate) fn from_content(diff_line: &str) -> Self {
-        let lines_added = LineCount::from(if diff_line.starts_with('+') { 1 } else { 0 });
-        let lines_removed = LineCount::from(if diff_line.starts_with('-') { 1 } else { 0 });
-        Self {
-            content: diff_line.to_owned(),
-            lines_added,
-            lines_removed,
-        }
-    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -200,36 +168,9 @@ impl AttachedReviewCommentTarget {
         }
     }
 
-    pub(crate) fn line_number(&self) -> Option<LineCount> {
-        match self {
-            AttachedReviewCommentTarget::Line { line, .. } => line.line_number(),
-            _ => None,
-        }
-    }
 }
 
 impl AttachedReviewComment {
-    pub(crate) fn from_editor_review_comment(
-        comment: EditorReviewComment,
-        absolute_file_path: LocalOrRemotePath,
-        base: Option<DiffBase>,
-        head: Option<CurrentHead>,
-    ) -> AttachedReviewComment {
-        AttachedReviewComment {
-            id: comment.id,
-            content: comment.comment_content,
-            base,
-            head,
-            target: AttachedReviewCommentTarget::Line {
-                absolute_file_path,
-                line: comment.line,
-                content: comment.diff_content,
-            },
-            last_update_time: comment.last_update_time,
-            outdated: false,
-            origin: CommentOrigin::Native,
-        }
-    }
 
     pub fn head(&self) -> Option<&CurrentHead> {
         self.head.as_ref()

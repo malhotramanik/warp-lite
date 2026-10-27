@@ -47,15 +47,7 @@ impl ReviewCommentBatch {
         self.comments.iter_mut().find(|comment| comment.id == id)
     }
 
-    pub(crate) fn diffset_comment(&self) -> Option<&AttachedReviewComment> {
-        self.comments
-            .iter()
-            .find(|comment| matches!(comment.target, AttachedReviewCommentTarget::General))
-    }
 
-    pub(crate) fn has_only_outdated_comments(&self) -> bool {
-        self.comments.iter().all(|comment| comment.outdated)
-    }
 
     /// `file` should be the host-aware absolute path for the editor file.
     pub fn file_comments<'a>(
@@ -93,41 +85,8 @@ impl ReviewCommentBatch {
         })
     }
 
-    pub(crate) fn editor_comments_for_file(
-        &self,
-        file: &LocalOrRemotePath,
-    ) -> Vec<EditorReviewComment> {
-        self.file_comments(file)
-            .filter(|comment| !comment.outdated)
-            .filter_map(|comment| EditorReviewComment::try_from(comment.clone()).ok())
-            .collect()
-    }
 
-    pub(crate) fn upsert_comment(
-        &mut self,
-        comment: AttachedReviewComment,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.upsert_comments_inner(vec![comment]);
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: false,
-        });
-    }
 
-    #[cfg(feature = "local_fs")]
-    pub(crate) fn upsert_imported_comments(
-        &mut self,
-        comments: Vec<AttachedReviewComment>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if comments.is_empty() {
-            return;
-        }
-        self.upsert_comments_inner(comments);
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: true,
-        });
-    }
 
     /// Comments with existing IDs are updated.
     /// New comments are inserted into the batch.
@@ -158,57 +117,10 @@ impl ReviewCommentBatch {
         }
     }
 
-    pub(crate) fn take_comments(&mut self) -> Vec<AttachedReviewComment> {
-        std::mem::take(&mut self.comments)
-    }
 
-    /// Deleting a comment does NOT remove the associated diff hunk from the batch's
-    /// diff set because that hunk may be referenced by another comment.
-    /// In the future, we may investigate a cleaner way to do this.
-    pub(crate) fn delete_comment(&mut self, id: CommentId, ctx: &mut ModelContext<Self>) {
-        self.comments.retain(|comment| comment.id != id);
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: false,
-        });
-    }
 
-    pub(crate) fn clear_all(&mut self, ctx: &mut ModelContext<Self>) {
-        self.comments.clear();
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: false,
-        });
-    }
 
-    /// Stores imported comments that are waiting for diffs and editors to load before they can be flattened,
-    /// relocated, and inserted into `comments`.
-    #[cfg(feature = "local_fs")]
-    pub(crate) fn add_pending_imported_comments(
-        &mut self,
-        comments: Vec<PendingImportedReviewComment>,
-        base_branch: DiffMode,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.pending_imported_comments
-            .entry(base_branch)
-            .or_default()
-            .extend(comments);
-        ctx.emit(ReviewCommentBatchEvent::Changed {
-            should_reposition_comments: true,
-        });
-    }
 
-    /// Takes all pending imported comments for the given diff mode, leaving the pending list empty.
-    /// Used when diffs have loaded and comments can be relocated.
-    pub(crate) fn take_pending_imported_comments_for_branch(
-        &mut self,
-        branch: &DiffMode,
-    ) -> Vec<PendingImportedReviewComment> {
-        if let Some(pending_comments) = self.pending_imported_comments.get_mut(branch) {
-            std::mem::take(pending_comments)
-        } else {
-            Vec::new()
-        }
-    }
 }
 
 #[cfg(test)]

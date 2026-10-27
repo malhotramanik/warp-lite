@@ -1,4 +1,3 @@
-use std::collections::HashSet;
 use std::ops::Range;
 
 use itertools::Itertools;
@@ -16,12 +15,11 @@ use warpui::{
 };
 
 use crate::appearance::Appearance;
-use crate::external_secrets::ExternalSecret;
 use crate::search::external_secrets::searcher::{
     ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
 };
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
-use crate::search::search_bar::{SearchBar, SearchBarState, SearchResultOrdering};
+use crate::search::search_bar::{SearchBar, SearchBarState};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =

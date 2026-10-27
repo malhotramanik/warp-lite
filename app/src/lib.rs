@@ -2163,7 +2163,6 @@ pub(crate) fn initialize_app(
     terminal::view::init_environment::mode_selector::init(ctx);
     coding_entrypoints::project_buttons::init(ctx);
     if FeatureFlag::CodeReviewSaveChanges.is_enabled() {
-        code_review::init(ctx);
     }
 
     let display_count = ctx.windows().display_count();

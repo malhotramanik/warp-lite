@@ -29,6 +29,7 @@ pub enum HeaderToolbarItemKind {
     TabsPanel,
     ToolsPanel,
     AgentManagement,
+    /// warp-lite: kept so existing settings files still parse; never shown.
     CodeReview,
     NotificationsMailbox,
 }
@@ -73,7 +74,8 @@ impl HeaderToolbarItemKind {
                     && FeatureFlag::AgentManagementView.is_enabled()
                     && !is_web_anonymous_user
             }
-            Self::CodeReview => cfg!(feature = "local_fs"),
+            // warp-lite: code review is removed.
+            Self::CodeReview => false,
             Self::NotificationsMailbox => FeatureFlag::HOANotifications.is_enabled(),
         }
     }
@@ -85,7 +87,6 @@ impl HeaderToolbarItemKind {
             return false;
         }
         match self {
-            Self::CodeReview => *TabSettings::as_ref(app).show_code_review_button.value(),
             Self::NotificationsMailbox => *AISettings::as_ref(app).show_agent_notifications,
             _ => true,
         }
@@ -102,7 +103,7 @@ impl HeaderToolbarItemKind {
     }
 
     pub fn default_right() -> Vec<Self> {
-        vec![Self::CodeReview, Self::NotificationsMailbox]
+        vec![Self::NotificationsMailbox]
     }
 
     /// All toolbar item variants (availability filtering is done at the call site).
@@ -111,7 +112,6 @@ impl HeaderToolbarItemKind {
             Self::TabsPanel,
             Self::ToolsPanel,
             Self::AgentManagement,
-            Self::CodeReview,
             Self::NotificationsMailbox,
         ]
     }

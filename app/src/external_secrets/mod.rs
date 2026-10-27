@@ -2,19 +2,11 @@
 // external secrets from the browser.
 #![cfg_attr(target_family = "wasm", allow(dead_code, unused_variables))]
 
-use core::fmt;
-use std::path::PathBuf;
 
-use anyhow::anyhow;
-pub use cloud_object_models::{ExternalSecret, LastPassSecret, OnePasswordSecret};
+pub use cloud_object_models::ExternalSecret;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-#[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
-use crate::terminal::local_shell::execute_command;
-use crate::terminal::shell::ShellType;
 use crate::ui_components::icons::Icon;
 
 lazy_static! {

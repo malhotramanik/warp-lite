@@ -89,9 +89,6 @@ pub struct RevertHunkButton {
 }
 
 impl RevertHunkButton {
-    pub fn new(is_enabled: bool) -> Self {
-        Self { is_enabled }
-    }
 }
 
 impl GutterButton for RevertHunkButton {

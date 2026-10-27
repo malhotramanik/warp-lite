@@ -265,54 +265,6 @@ pub struct FileChangeEntry {
     pub deletions: usize,
 }
 
-/// Returns per-file change entries. When `include_unstaged` is true, returns all
-/// uncommitted changes (staged + unstaged + untracked) vs HEAD; otherwise only staged changes.
-#[cfg(feature = "local_fs")]
-pub async fn get_file_change_entries(
-    repo_path: &Path,
-    include_unstaged: bool,
-) -> Result<Vec<FileChangeEntry>> {
-    let args: &[&str] = if include_unstaged {
-        &["diff", "--numstat", "HEAD"]
-    } else {
-        &["diff", "--cached", "--numstat"]
-    };
-    let output = run_git_command(repo_path, args).await.unwrap_or_default();
-    let mut entries = Vec::new();
-    for line in output.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let parts: Vec<&str> = line.split('\t').collect();
-        if parts.len() >= 3 {
-            entries.push(FileChangeEntry {
-                path: parts[2].to_string(),
-                additions: parts[0].parse().unwrap_or(0),
-                deletions: parts[1].parse().unwrap_or(0),
-            });
-        }
-    }
-
-    // Also include untracked files when showing all changes.
-    if include_unstaged
-        && let Ok(untracked) =
-            run_git_command(repo_path, &["ls-files", "--others", "--exclude-standard"]).await
-    {
-        for file_name in untracked.lines() {
-            if file_name.is_empty() {
-                continue;
-            }
-            let additions = count_lines_if_text_file(&repo_path.join(file_name)) as usize;
-            entries.push(FileChangeEntry {
-                path: file_name.to_string(),
-                additions,
-                deletions: 0,
-            });
-        }
-    }
-
-    Ok(entries)
-}
 
 #[cfg(not(feature = "local_fs"))]
 pub async fn get_file_change_entries(

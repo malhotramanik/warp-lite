@@ -1,8 +1,6 @@
 use pathfinder_geometry::vector::vec2f;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
-#[cfg(not(target_family = "wasm"))]
-use warpui::SingletonEntity;
 use warpui::elements::{
     ChildAnchor, ChildView, Clipped, ConstrainedBox, Container, Empty, Fill, MainAxisAlignment,
     MainAxisSize, MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement,
@@ -11,7 +9,7 @@ use warpui::elements::{
 use warpui::fonts::Weight;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{Element, ViewContext};
+use warpui::Element;
 
 use super::env_var_collection::{
     CORE_MAX_WIDTH, EnvVarCollectionAction, EnvVarCollectionView, ROW_SPACING, VariableRowIndex,
@@ -20,12 +18,6 @@ use crate::drive::sharing::ContentEditability;
 use crate::env_vars::EnvVarValue;
 use crate::external_secrets::{ExternalSecretManager};
 use crate::ui_components::icons::Icon;
-#[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
-use crate::{
-    terminal::local_shell::LocalShellState,
-    view_components::{DismissibleToast, ToastLink},
-    workspace::{ToastStack, WorkspaceAction},
-};
 
 impl EnvVarCollectionView {
 

@@ -1,13 +1,8 @@
-pub mod code_review_view;
-pub mod comment_list_view;
-pub mod context;
 pub mod diff_size_limits;
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub mod diff_state;
 pub mod editor_state;
-pub(crate) mod find_model;
 pub(crate) mod git_actions;
-pub(crate) mod git_dialog;
 pub mod git_repo_model;
 mod git_repo_models;
 pub mod github_repo_model;
@@ -16,25 +11,18 @@ pub mod telemetry_event;
 #[cfg_attr(not(feature = "local_fs"), allow(unused_imports))]
 pub use telemetry_event::CodeReviewTelemetryEvent;
 
-pub(crate) mod code_review_header;
-pub(crate) mod comment_rendering;
 pub mod comments;
-pub(crate) mod diff_menu;
-pub(crate) mod diff_selector;
 #[cfg_attr(not(feature = "local_fs"), allow(dead_code))]
 pub(crate) mod file_invalidation_queue;
 
-use code_review_view::CodeReviewAction;
-use warpui::keymap::{EditableBinding, FixedBinding};
 use warpui::{
-    AppContext, Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle, WindowId, id,
+    Entity, EntityId, ModelContext, SingletonEntity, WeakViewHandle, WindowId,
 };
 
 use crate::code::buffer_location::LocalOrRemotePath;
 use crate::code_review::telemetry_event::CodeReviewPaneEntrypoint;
 use crate::terminal::CLIAgent;
 use crate::terminal::view::TerminalView;
-use crate::util::bindings::CustomAction;
 
 /// Arguments needed to open or toggle the code review panel.
 /// Bundled into a struct so that events can atomically open the
@@ -48,65 +36,11 @@ pub struct CodeReviewPanelArg {
     pub cli_agent: Option<CLIAgent>,
 }
 
-/// Scope for diff set context attachment
-#[derive(Clone, Debug, PartialEq)]
-pub enum DiffSetScope {
-    All,
-    /// A single repo-relative file path in the diff set.
-    File(String),
-}
 
 /// The keystroke that submits in the code review panel. Meant to mirror the keystroke for
 /// [`EditorViewEvent::CmdEnter`].
 pub const CODE_REVIEW_SUBMIT_KEYSTROKE: &str = "cmdorctrl-enter";
 
-/// Register keybindings for code review functionality.
-pub fn init(app: &mut AppContext) {
-    app.register_editable_bindings([
-        EditableBinding::new(
-            "code_review:save_all_unsaved_files",
-            "Save all unsaved files in code review",
-            CodeReviewAction::SaveAllUnsavedFiles,
-        )
-        .with_context_predicate(id!("CodeReviewView"))
-        .with_key_binding("cmdorctrl-s"),
-        EditableBinding::new(
-            "code_review:show_find_bar",
-            "Show find bar in code review",
-            CodeReviewAction::ShowFindBar,
-        )
-        .with_context_predicate(id!("CodeReviewView"))
-        .with_key_binding("cmdorctrl-f")
-        .with_enabled(|| crate::features::FeatureFlag::CodeReviewFind.is_enabled()),
-        EditableBinding::new(
-            "code_review:toggle_file_navigation",
-            "Toggle file navigation in code review",
-            CodeReviewAction::ToggleFileSidebar,
-        )
-        .with_context_predicate(id!("CodeReviewView_NotEditing"))
-        .with_key_binding("f")
-        .with_enabled(|| crate::features::FeatureFlag::GitOperationsInCodeReview.is_enabled()),
-    ]);
-
-    app.register_fixed_bindings([
-        FixedBinding::custom(
-            CustomAction::Undo,
-            CodeReviewAction::UndoRevert,
-            "Undo",
-            id!("CodeReviewView") & !id!("IMEOpen"),
-        ),
-        FixedBinding::new(
-            CODE_REVIEW_SUBMIT_KEYSTROKE,
-            CodeReviewAction::SubmitReviewComments,
-            id!("CodeReviewView_NotEditing"),
-        )
-        .with_command_description("Send code review comments to agent"),
-    ]);
-
-    diff_menu::init(app);
-    diff_selector::init(app);
-    git_dialog::init(app);
-}
 
 /// Uses heuristics to determine if a file is auto-generated.
 ///

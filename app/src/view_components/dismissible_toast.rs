@@ -458,11 +458,6 @@ impl<A: Action + Clone> DismissibleToast<A> {
         self
     }
 
-    /// Inserts an action button to the right of the toast.
-    pub fn with_action_button(mut self, button: ViewHandle<ActionButton>) -> Self {
-        self.action_button = Some(button);
-        self
-    }
 
     /// Sets a callback to be invoked when the toast body is clicked.
     /// When set, the entire toast body becomes clickable.

@@ -372,10 +372,6 @@ where
         self
     }
 
-    pub fn set_font_color(&mut self, color: ColorU, ctx: &mut ViewContext<Self>) {
-        self.font_color = Some(color);
-        ctx.notify();
-    }
 
     pub fn set_font_size(&mut self, size: f32, ctx: &mut ViewContext<Self>) {
         self.font_size = Some(size);

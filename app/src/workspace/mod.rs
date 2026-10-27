@@ -99,7 +99,6 @@ pub fn init(app: &mut AppContext) {
     view::codex_modal::init(app);
     view::free_ai_removal_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
-    view::right_panel::RightPanelView::init(app);
     header_toolbar_editor::init(app);
     view::conversation_list::view::register_conversation_list_view_bindings(app);
 

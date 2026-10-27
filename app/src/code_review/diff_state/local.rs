@@ -443,19 +443,6 @@ impl LocalDiffStateModel {
     pub fn is_git_operation_blocked(&self, _app: &warpui::AppContext) -> bool {
         false
     }
-    /// Returns `true` once the repository has at least one commit.
-    pub(super) fn has_head(&self) -> bool {
-        cfg_if::cfg_if! {
-            if #[cfg(feature = "local_fs")] {
-                self
-                    .metadata
-                    .as_ref()
-                    .is_some_and(|metadata| metadata.has_head_commit)
-            } else {
-                false
-            }
-        }
-    }
 
     #[cfg(feature = "local_fs")]
     fn active_repository_path(&self, app: &AppContext) -> Option<PathBuf> {
