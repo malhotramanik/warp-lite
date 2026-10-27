@@ -70,9 +70,6 @@ impl SyncedInputState {
         }
     }
 
-    pub fn mock() -> Self {
-        Self::new()
-    }
 
     pub fn toggle_sync_all_terminal_inputs_in_all_tabs(&mut self, window_id: WindowId) {
         let new_sync_state = match self.sync_state_by_window.get(&window_id).unwrap_or(&None) {

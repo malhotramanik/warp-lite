@@ -284,34 +284,6 @@ pub struct CreateEnvironmentArg {
 }
 
 impl CreateEnvironmentArg {
-    /// Formats the `/create-environment` slash command invocation.
-    pub fn to_query(&self) -> String {
-        // Filter repos to accept either valid URLs or POSIX portable pathnames for security.
-        //
-        // Note: we also allow *absolute* POSIX paths (e.g., /Users/me/repo) as long as every
-        // component is portable. This is important for local indexed repos.
-        let safe_repos = self
-            .repos
-            .iter()
-            .filter(|repo| {
-                // Accept valid URLs (e.g., https://github.com/user/repo)
-                Url::parse(repo).is_ok()
-                    // Or valid POSIX portable pathnames (e.g., user/repo)
-                    || warp_util::path::is_posix_portable_pathname(repo)
-                    // Or absolute POSIX paths with portable components (e.g., /Users/me/repo)
-                    || repo
-                        .strip_prefix('/')
-                        .is_some_and(warp_util::path::is_posix_portable_pathname)
-            })
-            .join(" ");
-
-        if safe_repos.is_empty() {
-            // Include a trailing space to trigger slash command syntax highlighting and ghost text.
-            "/create-environment ".to_string()
-        } else {
-            format!("/create-environment {}", safe_repos)
-        }
-    }
 }
 
 pub fn init(app: &mut AppContext) {
@@ -1313,10 +1285,6 @@ pub fn quake_mode_window_id() -> Option<WindowId> {
     quake_mode_state.as_ref().map(|state| state.window_id)
 }
 
-pub fn set_quake_mode(new_state: Option<QuakeModeState>) {
-    let mut quake_mode_state = QUAKE_STATE.lock();
-    *quake_mode_state = new_state;
-}
 
 fn move_quake_mode_window_from_screen_change(settings: &QuakeModeSettings, ctx: &mut AppContext) {
     fit_quake_mode_window_within_active_screen(

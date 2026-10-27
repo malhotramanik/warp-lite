@@ -250,12 +250,6 @@ impl BranchPicker {
         self.fetch_branches(new_cwd, ctx);
     }
 
-    pub fn toggle_dropdown(&mut self, ctx: &mut ViewContext<Self>) -> bool {
-        self.dropdown.update(ctx, |dropdown, ctx| {
-            dropdown.toggle_expanded(ctx);
-        });
-        self.dropdown.as_ref(ctx).is_expanded()
-    }
 
     pub fn selected_value(&self, app: &AppContext) -> Option<String> {
         // While loading, the dropdown shows a placeholder label
@@ -267,10 +261,6 @@ impl BranchPicker {
         self.dropdown.as_ref(app).selected_item_label()
     }
 
-    /// Returns `true` while an async branch fetch is in-flight.
-    pub fn is_loading(&self) -> bool {
-        self.is_loading
-    }
 }
 
 impl Entity for BranchPicker {

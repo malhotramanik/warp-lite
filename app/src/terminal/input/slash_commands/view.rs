@@ -27,9 +27,6 @@ impl CloseReason {
         matches!(self, Self::ManualDismissal)
     }
 
-    pub fn is_no_results(&self) -> bool {
-        matches!(self, Self::NoResults)
-    }
 }
 
 /// Events emitted by the slash commands menu

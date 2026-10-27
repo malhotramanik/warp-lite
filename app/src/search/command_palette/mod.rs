@@ -17,9 +17,8 @@ pub mod warp_drive;
 mod zero_state;
 
 use filter_chip_renderer::FilterChipRenderer;
-pub use mixer::{CommandPaletteMixer, ItemSummary};
+pub use mixer::CommandPaletteMixer;
 pub use selected_items::SelectedItems;
-pub use view::View;
 
 pub mod styles {
     pub const SEARCH_ITEM_TEXT_PADDING: f32 = 4.;

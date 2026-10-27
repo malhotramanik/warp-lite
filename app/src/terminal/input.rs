@@ -76,7 +76,6 @@ use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::NavigationKey;
 use warp_errors::{report_error, report_if_error};
 use warp_util::path::ShellFamily;
-pub use warpui::WindowId;
 use warpui::accessibility::{AccessibilityContent, ActionAccessibilityContent, WarpA11yRole};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use warpui::r#async::FutureExt as _;
@@ -441,7 +440,6 @@ fn effective_default_host(
         .map(String::from)
 }
 
-pub const COMPLETIONS_MENU_WIDTH: f32 = 330.;
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
 pub(crate) const EXTERNAL_ALT_C_BINDING_CONTEXT: &str = "ExternalAltCDirectorySearch";
 pub const INPUT_A11Y_LABEL: &str = "Command Input.";
@@ -998,28 +996,7 @@ fn render_prompt_chip_shell_command(
     }
 }
 
-#[derive(PartialEq, Eq, Copy, Clone)]
-pub enum HistoryUpMode {
-    // Show prefixed results.
-    Prefixed,
-    // Show all results with no query.
-    RegularNoQuery,
-    // Show all results with query.
-    RegularWithQuery,
-    // Used for ConfirmSuggestion event.
-    NotApplicable,
-}
 
-impl HistoryUpMode {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            HistoryUpMode::Prefixed => "prefixed history up",
-            HistoryUpMode::RegularNoQuery => "regular history up (no query)",
-            HistoryUpMode::RegularWithQuery => "regular history up (with query)",
-            HistoryUpMode::NotApplicable => "history up",
-        }
-    }
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum InputEmptyStateChangeReason {

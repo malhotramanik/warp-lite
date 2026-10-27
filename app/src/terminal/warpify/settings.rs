@@ -545,14 +545,6 @@ impl WarpifySettings {
         false
     }
 
-    /// This function determines if we should ask the user whether they want to bootstrap an ssh session.
-    /// It determines this by matching the host against a denylist of hosts, which can include regex.
-    pub fn is_ssh_host_denylisted(&self, ssh_host: &str) -> bool {
-        self.parsed_ssh_hosts_denylist
-            .iter()
-            .flatten()
-            .any(|regex| regex.is_match(ssh_host.trim()))
-    }
 
     /// Returns whether the one-time tmux SSH deprecation notice should be shown to the user.
     pub fn should_show_tmux_deprecation_notice(&self) -> bool {
@@ -671,14 +663,6 @@ impl WarpifySettings {
         ctx.notify();
     }
 
-    pub fn remove_denylisted_ssh_host(&mut self, index: usize, ctx: &mut ModelContext<Self>) {
-        let mut new_denylist = self.ssh_hosts_denylist.to_vec();
-        new_denylist.remove(index);
-        self.ssh_hosts_denylist
-            .set_value(new_denylist, ctx)
-            .expect("ssh_hosts_denylist failed to serialize");
-        ctx.notify();
-    }
 }
 
 #[cfg(test)]

@@ -222,9 +222,6 @@ impl PaneData {
         self.root.has_horizontal_split(&self.hidden_panes)
     }
 
-    pub fn num_hidden_panes(&self) -> usize {
-        self.hidden_panes.len()
-    }
 
     pub fn remove_hidden_pane(&mut self, pane_id: PaneId) {
         self.hidden_panes.retain(|pane| pane.pane_id != pane_id);
@@ -302,23 +299,7 @@ impl PaneData {
         }
     }
 
-    pub fn hide_pane_for_child_agent(&mut self, id: PaneId) {
-        if !self.is_pane_hidden(&id) {
-            self.hidden_panes.push(HiddenPane::from_child_agent(id));
-        }
-    }
 
-    pub fn show_pane_for_child_agent(&mut self, id: PaneId) {
-        if let Some(pos) = self
-            .hidden_panes
-            .iter()
-            .position(|pane| pane.pane_id == id && pane.reason == HiddenPaneReason::ChildAgent)
-        {
-            self.hidden_panes.remove(pos);
-        } else {
-            report_error!("Attempted to show child agent pane but couldn't find it.")
-        }
-    }
 
     /// Returns true if `id` is hidden as a child agent pane.
     pub fn is_pane_hidden_for_child_agent(&self, id: PaneId) -> bool {
@@ -359,10 +340,6 @@ impl PaneData {
             .collect()
     }
 
-    pub fn clear_hidden_closed_panes(&mut self) {
-        self.hidden_panes
-            .retain(|pane| pane.reason != HiddenPaneReason::Closed);
-    }
 
     pub fn is_temporary_replacement(&self, replacement_pane_id: PaneId) -> bool {
         self.original_pane_for_replacement(replacement_pane_id)
@@ -509,9 +486,6 @@ impl PaneData {
         self.len
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
 
     pub fn render(&self, theme: &WarpTheme, app: &AppContext) -> Box<dyn Element> {
         match &self.root {

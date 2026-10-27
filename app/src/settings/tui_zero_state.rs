@@ -30,9 +30,6 @@ impl settings_value::SettingsValue for TuiZeroStateObject {}
 pub struct TuiZeroStateRotationPeriodSeconds(f64);
 
 impl TuiZeroStateRotationPeriodSeconds {
-    pub fn get(self) -> f64 {
-        self.0
-    }
 }
 
 impl Default for TuiZeroStateRotationPeriodSeconds {
@@ -64,9 +61,6 @@ impl settings_value::SettingsValue for TuiZeroStateRotationPeriodSeconds {}
 pub struct TuiZeroStateExtrusionDepth(f64);
 
 impl TuiZeroStateExtrusionDepth {
-    pub fn get(self) -> f64 {
-        self.0
-    }
 }
 
 impl Default for TuiZeroStateExtrusionDepth {

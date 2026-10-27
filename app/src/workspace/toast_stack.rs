@@ -40,15 +40,6 @@ impl ToastStack {
         ctx.emit(ToastStackEvent::AddPersistentToast { window_id, toast });
     }
 
-    pub fn add_ephemeral_toast_by_type(
-        &mut self,
-        toast_type: ToastType,
-        window_id: WindowId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let toast: DismissibleToast<WorkspaceAction> = toast_type.into();
-        ctx.emit(ToastStackEvent::AddEphemeralToast { window_id, toast });
-    }
 
     pub fn remove_toast_by_identifier(
         &mut self,

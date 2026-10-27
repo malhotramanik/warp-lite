@@ -167,11 +167,6 @@ pub trait ToolbarChipSelection {
         chips
     }
 
-    fn all_items(&self) -> Vec<AgentToolbarItemKind> {
-        let mut items = self.left_items();
-        items.extend(self.right_items());
-        items
-    }
 }
 
 #[derive(

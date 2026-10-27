@@ -45,8 +45,6 @@ pub const MAX_IMAGE_DIMENSION: f64 = 2000.;
 /// Maximum number of images that can be attached per query/task.
 pub const MAX_IMAGE_COUNT_FOR_QUERY: usize = 20;
 
-/// Minimum bytes needed for image format detection using magic number signatures.
-pub const MIN_IMAGE_HEADER_SIZE: usize = 8;
 
 /// Supported image MIME types for agent mode.
 pub const SUPPORTED_IMAGE_MIME_TYPES: &[&str] = &[

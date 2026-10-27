@@ -88,11 +88,6 @@ pub struct HarnessSelection {
     pub reasoning_level: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ModelSelection {
-    Oz(LLMId),
-    Harness(HarnessSelection),
-}
 
 pub struct ModelSelector {
     button: ViewHandle<ActionButton>,

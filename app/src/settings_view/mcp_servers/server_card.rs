@@ -378,9 +378,6 @@ impl ServerCardView {
         &self.title
     }
 
-    pub fn render_options(&self) -> &ServerCardOptions {
-        &self.render_options
-    }
 
     fn render_server_icon_and_status(&self, appearance: &Appearance) -> Box<dyn Element> {
         // TODO(aeybel) will want to use gallery ids instead of title in the future

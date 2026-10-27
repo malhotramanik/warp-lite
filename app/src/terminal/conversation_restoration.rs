@@ -40,10 +40,6 @@ pub struct ConversationBlockRestorationPlan {
 }
 
 impl ConversationBlockRestorationPlan {
-    /// Returns the visible exchanges represented by this plan.
-    pub fn exchanges(&self) -> impl Iterator<Item = &AIAgentExchange> {
-        self.exchanges.iter().map(|entry| &entry.exchange)
-    }
 
     /// Consumes the plan into ordered restored exchanges.
     pub fn into_exchanges(self) -> Vec<RestoredConversationExchange> {

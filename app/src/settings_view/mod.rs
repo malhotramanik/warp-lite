@@ -134,8 +134,7 @@ pub use features_page::FeaturesPageAction;
 pub use main_page::handle_experiment_change;
 pub use privacy_page::PrivacyPageAction;
 pub use settings_page::{
-    AdditionalInfo, InputListItem, LocalOnlyIconState, ToggleState, render_body_item_label,
-    render_info_icon, render_input_list, render_separator,
+    LocalOnlyIconState, ToggleState, render_body_item_label,
 };
 pub use teams_page::{OpenTeamsSettingsModalArgs, TeamsInviteOption};
 pub(crate) use warp_agent_page::custom_model_routers_widget_id;
@@ -492,7 +491,6 @@ pub mod flags {
     pub const LINUX_SELECTION_CLIPBOARD_FLAG: &str = "Linux_Selection_Clipboard";
     pub const RESTORE_SESSION_CONTEXT_FLAG: &str = "Restore_Sessions";
     pub const HONOR_PS1_CONTEXT_FLAG: &str = "Honor_PS1";
-    pub const GIT_PROMPT_CONTEXT_FLAG: &str = "Git_Prompt";
     pub const AUTOCOMPLETE_SYMBOLS_CONTEXT_FLAG: &str = "Autocomplete_Symbols";
     pub const QUAKE_MODE_ENABLED_CONTEXT_FLAG: &str = "Quake_Mode_Editor";
     pub const QUAKE_WINDOW_OPEN_FLAG: &str = "Quake_Window_Open";
@@ -524,7 +522,6 @@ pub mod flags {
     pub const COMMAND_CORRECTIONS_CONTEXT_FLAG: &str = "Command_Corrections";
     pub const ERROR_UNDERLINING_FLAG: &str = "error_underlining";
     pub const SYNTAX_HIGHLIGHTING_FLAG: &str = "syntax_highlighting";
-    pub const SAME_LINE_PROMPT: &str = "Same_Line_Prompt_Enabled";
     pub const TELEMETRY_FLAG: &str = "telemetry";
     pub const SETTINGS_SYNC_FLAG: &str = "settings_sync";
     pub const SAFE_MODE_FLAG: &str = "safe_mode";
@@ -541,7 +538,6 @@ pub mod flags {
     pub const QUIT_WARNING_MODAL: &str = "Quit_Warning_Modal";
     pub const BLOCK_DIVIDERS_CONTEXT_FLAG: &str = "Block_Dividers_Enabled";
 
-    pub const LOG_OUT_WARNING_MODAL: &str = "Log_Out_Warning_Modal";
     pub const SMART_SELECT_FLAG: &str = "Smart_Select_Enabled";
     pub const ACTIVATION_HOTKEY_FLAG: &str = "Activation_Hotkey_Enabled";
     pub const TAB_INDICATORS_FLAG: &str = "Tab_Indicators_Enabled";
@@ -622,11 +618,9 @@ pub mod flags {
     pub const WARP_CREDIT_FALLBACK_FLAG: &str = "Warp_Credit_Fallback";
     pub const SHOW_BASE_MODEL_PICKER_IN_PROMPT_FLAG: &str = "Show_Base_Model_Picker_In_Prompt";
     pub const DEBUG_SHOW_MEMORY_STATS_FLAG: &str = "Debug_Memory_Statistics";
-    pub const ALLOW_NATIVE_WAYLAND: &str = "Allow_Native_Wayland";
     pub const IS_ANY_AI_ENABLED: &str = "IsAnyAIEnabled";
     pub const IS_ACTIVE_AI_ENABLED: &str = "IsActiveAIEnabled";
     pub const IS_VOICE_INPUT_ENABLED: &str = "IsVoiceInputEnabled";
-    pub const IS_BLOCK_AI_SUMMARIES_ENABLED: &str = "IsBlockAISummariesEnabled";
     pub const IS_CODEBASE_INDEXING_ENABLED: &str = "IsCodebaseIndexingEnabled";
     pub const IS_AUTOINDEXING_ENABLED: &str = "IsAutoIndexingEnabled";
     pub const LIGATURE_RENDERING_CONTEXT_FLAG: &str = "Ligature_Rendering_Enabled";

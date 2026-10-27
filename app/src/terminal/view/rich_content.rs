@@ -145,9 +145,6 @@ impl RichContent {
         self.metadata.as_mut()
     }
 
-    pub fn is_ai_block(&self) -> bool {
-        matches!(self.metadata, Some(RichContentMetadata::AIBlock(_)))
-    }
 
     pub fn is_usage_footer(&self) -> bool {
         matches!(self.metadata, Some(RichContentMetadata::UsageFooter))
@@ -160,9 +157,6 @@ impl RichContent {
         )
     }
 
-    pub fn is_agent_view_entry(&self) -> bool {
-        matches!(self.metadata, Some(RichContentMetadata::AgentViewEntry(_)))
-    }
 
     pub fn is_inline_agent_view_header(&self) -> bool {
         matches!(
@@ -186,12 +180,6 @@ impl RichContent {
         matches!(self.metadata, Some(RichContentMetadata::InitStep { .. }))
     }
 
-    pub fn init_step_kind(&self) -> Option<InitStepKind> {
-        match &self.metadata {
-            Some(RichContentMetadata::InitStep { step_kind, .. }) => Some(*step_kind),
-            _ => None,
-        }
-    }
 
     pub fn init_step_block_handle(&self) -> Option<&ViewHandle<InitStepBlock>> {
         match &self.metadata {

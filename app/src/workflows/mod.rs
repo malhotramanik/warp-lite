@@ -21,7 +21,7 @@ pub mod workflow_enum;
 pub mod workflow_view;
 
 use async_trait::async_trait;
-pub use categories::{CategoriesView, CategoriesViewEvent, WorkflowsViewAction};
+pub use categories::{CategoriesView, CategoriesViewEvent};
 
 use crate::appearance::Appearance;
 use crate::cloud_object::model::view::CloudViewModel;

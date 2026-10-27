@@ -11,7 +11,7 @@ use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use alt_screen::{AltScreenFindRun, run_find_on_alt_screen};
-pub use async_find::{AsyncFindController, AsyncFindStatus};
+pub use async_find::AsyncFindController;
 use block_list::run_find_on_block_list;
 pub use block_list::{BlockGridMatch, BlockListFindRun, BlockListMatch};
 use parking_lot::FairMutex;

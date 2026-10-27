@@ -91,25 +91,3 @@ pub fn render_loading_footer(appearance: &Appearance) -> Box<dyn Element> {
     )
 }
 
-/// Render an error footer that shows when the ambient agent failed to spawn.
-pub fn render_error_footer(error_message: &str, appearance: &Appearance) -> Box<dyn Element> {
-    let theme = appearance.theme();
-
-    let header_color = theme.ui_error_color();
-    let body_color = blended_colors::text_main(theme, theme.background());
-    let background: ColorU = {
-        let red: warp_core::ui::theme::Fill = theme.ui_error_color().into();
-        red.with_opacity(50).into()
-    };
-    let border_color = theme.ui_error_color();
-
-    build_centered_footer(
-        "Agent failed".to_string(),
-        error_message.to_string(),
-        header_color,
-        body_color,
-        background,
-        border_color,
-        appearance,
-    )
-}

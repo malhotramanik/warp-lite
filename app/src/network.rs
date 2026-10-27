@@ -36,10 +36,6 @@ impl NetworkStatus {
         }
     }
 
-    /// Returns the current network status.
-    pub fn status(&self) -> NetworkStatusKind {
-        self.status
-    }
 
     /// Returns true if the client is currently online.
     pub fn is_online(&self) -> bool {

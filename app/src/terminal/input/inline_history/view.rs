@@ -191,29 +191,6 @@ impl InlineHistoryMenuView {
         )
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_tab_configs(
-        terminal_view_id: EntityId,
-        active_session: ModelHandle<ActiveSession>,
-        input_suggestions_model: &ModelHandle<InputSuggestionsModeModel>,
-        agent_view_controller: ModelHandle<AgentViewController>,
-        positioner: &ModelHandle<InlineMenuPositioner>,
-        buffer_model: ModelHandle<InputBufferModel>,
-        tab_configs: Vec<InlineMenuTabConfig<HistoryTab>>,
-        ctx: &mut ViewContext<Self>,
-    ) -> Self {
-        Self::new_inner(
-            terminal_view_id,
-            active_session,
-            input_suggestions_model,
-            agent_view_controller,
-            positioner,
-            buffer_model,
-            tab_configs,
-            /* caller_supplied_tabs */ true,
-            ctx,
-        )
-    }
 
     #[allow(clippy::too_many_arguments)]
     fn new_inner(
@@ -453,16 +430,7 @@ impl InlineHistoryMenuView {
         &self.model
     }
 
-    pub fn render_results_only(&self, app: &AppContext) -> Box<dyn Element> {
-        self.menu_view.as_ref(app).render_results_only(
-            /* should_render_results_in_reverse */ false, /* horizontal_padding */ 0.,
-            app,
-        )
-    }
 
-    pub fn result_count(&self, app: &AppContext) -> usize {
-        self.menu_view.as_ref(app).result_count()
-    }
 
     pub fn select_up(&self, ctx: &mut ViewContext<Self>) {
         self.menu_view.update(ctx, |v, ctx| v.select_up(ctx));
@@ -492,9 +460,6 @@ impl InlineHistoryMenuView {
             .update(ctx, |v, ctx| v.accept_selected_item(false, ctx));
     }
 
-    pub fn arm_initial_buffer_sync(&mut self) {
-        self.pending_initial_buffer_sync = true;
-    }
 
     fn open_with_current_buffer(&mut self, ctx: &mut ViewContext<Self>) {
         let query_text = self.buffer_model.as_ref(ctx).current_value().to_owned();

@@ -50,15 +50,6 @@ impl WorkflowManager {
         }
     }
 
-    pub fn find_pane(&self, source: &WorkflowOpenSource) -> Option<(WindowId, PaneViewLocator)> {
-        match source {
-            WorkflowOpenSource::Existing(workflow_id) => {
-                let pane_data = self.panes_by_hashed_id.get(&workflow_id.uid())?;
-                Some((pane_data.window_id, pane_data.locator))
-            }
-            WorkflowOpenSource::New { .. } | WorkflowOpenSource::NewFromWorkflow { .. } => None,
-        }
-    }
 
 
 

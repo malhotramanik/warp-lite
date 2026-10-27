@@ -4744,17 +4744,6 @@ impl Workspace {
             })
     }
 
-    pub fn is_conversation_transcript_viewer_focused(&self, app: &AppContext) -> bool {
-        self.active_tab_pane_group()
-            .as_ref(app)
-            .active_session_view(app)
-            .is_some_and(|view| {
-                view.as_ref(app)
-                    .model
-                    .lock()
-                    .is_conversation_transcript_viewer()
-            })
-    }
 
     /// Returns the type of simplified WASM tab bar content to display, if any.
     #[cfg(target_family = "wasm")]
@@ -5255,13 +5244,7 @@ impl Workspace {
         self.active_tab_index
     }
 
-    pub fn is_overflow_menu_showing(&self) -> bool {
-        self.show_tab_bar_overflow_menu
-    }
 
-    pub fn is_resource_center_showing(&self) -> bool {
-        self.current_workspace_state.is_resource_center_open
-    }
 
     #[cfg(feature = "integration_tests")]
     pub fn is_command_search_open(&self) -> bool {
@@ -5273,11 +5256,6 @@ impl Workspace {
         self.tabs.get(index).map(|s| &s.pane_group)
     }
 
-    /// Retrieves the Pane Group view for the passed tab index. Unlike the other
-    /// method, this does not check for out of bounds.
-    pub fn get_pane_group_view_unchecked(&self, index: usize) -> &ViewHandle<PaneGroup> {
-        &self.tabs[index].pane_group
-    }
 
     pub fn tab_count(&self) -> usize {
         self.tabs.len()
@@ -5340,10 +5318,6 @@ impl Workspace {
         self.tabs.iter().map(|s| &s.pane_group)
     }
 
-    /// Get the tab color for a given tab index.
-    pub fn get_tab_color(&self, index: usize) -> Option<AnsiColorIdentifier> {
-        self.tabs.get(index).and_then(|tab| tab.color())
-    }
 
     /// Finds the pane containing a terminal viewing the given ambient agent conversation,
     /// returning None if the ambient conversation is not open in any tab.
@@ -12681,50 +12655,6 @@ impl Workspace {
 
 
 
-    pub fn add_tab_for_assisted_autoupdate<V: View>(
-        &mut self,
-        update_command_fn: impl 'static + Fn(ShellType) -> String,
-        context_block: ViewHandle<V>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.add_tab_with_pane_layout(
-            Default::default(),
-            Arc::new(HashMap::new()),
-            Some("Install Update".to_owned()),
-            ctx,
-        );
-
-        let Some(terminal_view) = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx)
-        else {
-            report_error!("Could not access terminal view after creating a new tab!");
-            return;
-        };
-        terminal_view.update(ctx, |terminal_view, ctx| {
-            terminal_view.insert_rich_content(
-                None,
-                context_block,
-                None,
-                terminal::view::rich_content::RichContentInsertionPosition::Append {
-                    insert_below_long_running_block: false,
-                },
-                ctx,
-            );
-        });
-
-        // Once we know what shell is being used, update the input with the
-        // appropriate assisted auto-update command.
-        ctx.subscribe_to_view(&terminal_view, move |me, _, event, ctx| {
-            if let terminal::Event::ShellSpawned(shell_type) = event {
-                me.set_active_terminal_input_contents_and_focus_app(
-                    &(update_command_fn)(*shell_type),
-                    ctx,
-                );
-            }
-        });
-    }
 
     /// Add a tab with a code pane open for the specified file.
     pub fn add_tab_for_code_file(
@@ -14359,9 +14289,6 @@ impl Workspace {
         }
     }
 
-    pub fn is_palette_mode_enabled(&self, palette_mode: PaletteMode, app: &AppContext) -> bool {
-        self.palette.as_ref(app).is_mode_enabled(palette_mode, app)
-    }
 
     /// Toggle the open / closed state of the palette (so that hitting shortcut a second time
     /// will close the palette)
@@ -14669,30 +14596,15 @@ impl Workspace {
         });
     }
 
-    pub fn is_theme_creator_modal_open(&self) -> bool {
-        self.current_workspace_state.is_theme_creator_modal_open
-    }
 
-    pub fn is_theme_deletion_modal_open(&self) -> bool {
-        self.current_workspace_state.is_theme_deletion_modal_open
-    }
 
     pub fn is_palette_open(&self) -> bool {
         self.current_workspace_state.is_palette_open
             || self.current_workspace_state.is_ctrl_tab_palette_open
     }
 
-    pub fn is_workflow_modal_open(&self) -> bool {
-        self.current_workspace_state.is_workflow_modal_open
-    }
 
-    pub fn is_warp_drive_open(&self) -> bool {
-        self.current_workspace_state.is_warp_drive_open
-    }
 
-    pub fn is_left_panel_open(&self, ctx: &AppContext) -> bool {
-        self.active_tab_pane_group().as_ref(ctx).left_panel_open
-    }
 
     fn is_readonly_shared_session_active(&self, ctx: &mut ViewContext<Self>) -> bool {
         let active_terminal_view = self
@@ -16873,30 +16785,6 @@ impl Workspace {
             .active_session_terminal_model(app)
     }
 
-    /// Replace the active terminal input's buffer with `contents`. Adds to the
-    /// undo stack.
-    pub fn set_active_terminal_input_contents_and_focus_app(
-        &mut self,
-        contents: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-
-        match self.get_active_input_view_handle(ctx) {
-            Some(active_input_view_handle) => {
-                active_input_view_handle.update(ctx, |input_view, input_ctx| {
-                    input_view.replace_buffer_content(contents, input_ctx);
-                });
-
-                ctx.windows().show_window_and_focus_app(window_id);
-
-                ctx.notify();
-            }
-            _ => {
-                report_error!("workspace::view::fill_input(): no active input view handle to fill");
-            }
-        }
-    }
 
     /// Insert the given command that should open a subshell. And set a flag that we should
     /// automatically bootstrap AKA "warpify" that subshell if we support it. No-op if there is
@@ -27301,12 +27189,6 @@ impl Workspace {
         })
     }
 
-    pub fn get_tab_transfer_info(&self, index: usize, ctx: &AppContext) -> Option<TransferredTab> {
-        if self.tabs.len() <= 1 {
-            return None;
-        }
-        self.tab_transfer_info_at_index(index, ctx)
-    }
 
     pub fn get_tab_transfer_info_for_attach(
         &self,

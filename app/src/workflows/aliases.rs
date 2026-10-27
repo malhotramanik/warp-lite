@@ -56,9 +56,6 @@ impl WorkflowAliases {
         });
     }
 
-    pub fn get_all_aliases(&self) -> &[WorkflowAlias] {
-        &self.aliases
-    }
 
     /// A mapping of all aliases, for autocomplete.
     pub fn autocomplete_data(&self, ctx: &AppContext) -> HashMap<String, String> {

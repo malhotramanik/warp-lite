@@ -6,7 +6,7 @@ use std::time::Duration;
 use instant::Instant;
 pub use remote_server::setup::RemoteServerSetupState;
 pub use warp_terminal::event::{
-    ExecutedExecutorCommandEvent, ObservedExitStatus, ParseGeneratorOutputError,
+    ExecutedExecutorCommandEvent, ObservedExitStatus,
 };
 use warp_util::lazy::Lazy;
 
@@ -209,10 +209,6 @@ pub enum SshLoginStatus {
     ReadyToWarpify,
 }
 
-#[derive(Clone, Debug)]
-pub struct InitShellEvent {
-    pub pending_session_info: SessionInfo,
-}
 
 #[derive(Clone, Debug)]
 pub struct BootstrappedEvent {

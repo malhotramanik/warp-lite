@@ -52,7 +52,7 @@ use super::lifecycle::{
 };
 use super::secrets::{RespectObfuscatedSecrets, SecretAndHandle};
 use super::selection::ScrollDelta;
-use super::session::{BootstrapSessionType, InBandCommandOutputReceiver, SessionId};
+use super::session::{InBandCommandOutputReceiver, SessionId};
 use super::{Secret, SecretHandle};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::SerializedBlockListItem;
@@ -85,7 +85,7 @@ use crate::terminal::shared_session::{SharedSessionSource, SharedSessionStatus};
 use crate::terminal::shell::{ShellName, ShellType};
 use crate::terminal::ssh::util::{InteractiveSshCommand, SshLoginState};
 use crate::terminal::{
-    BlockPadding, ShellHost, ShellLaunchData, ShellLaunchState, SizeUpdate, SizeUpdateReason,
+    BlockPadding, ShellLaunchData, ShellLaunchState, SizeUpdate, SizeUpdateReason,
     color, ssh,
 };
 
@@ -104,51 +104,8 @@ pub enum ConversationTranscriptViewerStatus {
     ViewingAmbientConversation(AmbientAgentTaskId),
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct FindOptions {
-    pub query: Option<Arc<String>>,
-    pub is_case_sensitive: bool,
-    pub is_regex_enabled: bool,
 
-    /// If `Some()`, the find run only surfaces matches that are in blocks with the provided
-    /// indices. If `None`, the find run surfaces matches across the entire blocklist.
-    ///
-    /// This is ignored when the alt screen is active.
-    pub blocks_to_include_in_results: Option<Vec<BlockIndex>>,
-}
 
-impl FindOptions {
-    pub fn with_is_case_sensitive(mut self, is_case_sensitive: bool) -> Self {
-        self.is_case_sensitive = is_case_sensitive;
-        self
-    }
-
-    pub fn with_is_regex_enabled(mut self, is_regex_enabled: bool) -> Self {
-        self.is_regex_enabled = is_regex_enabled;
-        self
-    }
-
-    pub fn with_query(mut self, query: Option<impl Into<Arc<String>>>) -> Self {
-        self.query = query.map(Into::into);
-        self
-    }
-
-    pub fn with_blocks_to_include_in_results(
-        mut self,
-        block_indices: Option<impl IntoIterator<Item = BlockIndex>>,
-    ) -> Self {
-        self.blocks_to_include_in_results =
-            block_indices.map(|indices| indices.into_iter().collect());
-        self
-    }
-}
-
-pub enum FindOption {
-    ResetWithSameQuery,
-    Query(String),
-    IsCaseSensitive(bool),
-    IsRegexEnabled(bool),
-}
 
 /// A type that is either within the AltScreen or a specific part of the BlockList
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -303,11 +260,6 @@ impl WithinBlock<Point> {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct HistoryItem {
-    pub command: String,
-    pub shell_host: Option<ShellHost>,
-}
 
 /// Represents whether or not bytes read from the PTY should be considered in-band command output.
 enum IsReceivingInBandCommandOutput {
@@ -358,22 +310,6 @@ enum IsReceivingHook {
     No,
 }
 
-/// Information needed to render a warpify "success" block upon successful subshell bootstrap.
-#[derive(Debug, Clone)]
-pub struct SubshellSuccessBlockInfo {
-    /// The ID of the newly bootstrapped subshell session.
-    ///
-    /// This ID is needed in order to associate the success block with the subshell session (and
-    /// include it in the subshell "context" UI, with the flag and block border).
-    pub subshell_session_id: SessionId,
-
-    /// The command which spawned the subshell.
-    pub spawning_command: String,
-
-    pub shell_type: ShellType,
-
-    pub session_type: BootstrapSessionType,
-}
 
 pub struct TerminalModel {
     /// For fullscreen programs like vim.

@@ -1199,13 +1199,6 @@ impl LLMPreferences {
         self.fallback_llm_info(self.get_cli_agent_available(scope.team_uid(), app), app)
     }
 
-    pub fn get_default_cli_agent_model_for_team_uid<'a>(
-        &'a self,
-        team_uid: Option<ServerId>,
-        app: &'a AppContext,
-    ) -> &'a LLMInfo {
-        self.fallback_llm_info(self.get_cli_agent_available(team_uid, app), app)
-    }
 
     /// Helper to get the AvailableLLMs for cli_agent, falling back to agent_mode.
     fn get_cli_agent_available<'a>(
@@ -1221,16 +1214,6 @@ impl LLMPreferences {
             .unwrap_or(&models_by_feature.agent_mode)
     }
 
-    /// Returns the set of LLMs available for computer use agent.
-    pub fn get_computer_use_llm_choices<'a>(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a LLMInfo> {
-        self.get_computer_use_available(scope.team_uid(), app)
-            .choices
-            .iter()
-    }
 
     /// Returns the `LLMInfo` for the computer use agent model.
     pub fn get_active_computer_use_model<'a>(
@@ -1266,16 +1249,6 @@ impl LLMPreferences {
             .unwrap_or_else(|| available.default_llm_info())
     }
 
-    pub fn get_default_computer_use_model_for_team_uid<'a>(
-        &'a self,
-        team_uid: Option<ServerId>,
-        app: &'a AppContext,
-    ) -> &'a LLMInfo {
-        let available = self.get_computer_use_available(team_uid, app);
-        available
-            .usable_default_llm_info(app)
-            .unwrap_or_else(|| available.default_llm_info())
-    }
 
 
 
@@ -1662,20 +1635,6 @@ impl LLMPreferences {
         )
     }
 
-    /// Returns the effective default coding model as a fallback
-    /// (disable-aware, see [`Self::fallback_llm_info`]).
-    pub fn get_default_coding_model<'a>(
-        &'a self,
-        scope: &(impl TeamScope + ?Sized),
-        app: &'a AppContext,
-    ) -> &'a LLMInfo {
-        self.fallback_llm_info(
-            &UserWorkspaces::as_ref(app)
-                .feature_model_choice_for_scope(scope)
-                .coding,
-            app,
-        )
-    }
 
     /// Returns the preferred Codex model, if set by the server.
     pub fn get_preferred_codex_model<'a>(
@@ -1692,18 +1651,7 @@ impl LLMPreferences {
             .and_then(|id| agent_mode.info_for_id(id))
     }
 
-    /// Returns `true` when the most recent authed agent-mode model-list fetch
-    /// failed, so the server-provided model list is currently unavailable.
-    pub fn agent_mode_models_unavailable(&self, scope: &(impl TeamScope + ?Sized)) -> bool {
-        self.agent_mode_models_unavailable_for_team_uid(scope.team_uid())
-    }
 
-    pub fn agent_mode_models_unavailable_for_team_uid(&self, team_uid: Option<ServerId>) -> bool {
-        self.agent_mode_models_unavailable
-            .get(&team_uid)
-            .copied()
-            .unwrap_or(false)
-    }
 
     /// Sets whether the authed agent-mode model list is currently unavailable.
     /// Called from the authed fetch path on failure, from
@@ -1778,41 +1726,6 @@ impl LLMPreferences {
         }
     }
 
-    /// Updates the active execution profile's default Agent Mode model.
-    pub fn update_active_profile_base_model(
-        &self,
-        preferred_llm_id: &LLMId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &mut ModelContext<Self>,
-    ) -> bool {
-        let profiles = AIExecutionProfilesModel::handle(ctx);
-        let profile_id = profiles
-            .as_ref(ctx)
-            .active_profile(terminal_view_id, ctx)
-            .id()
-            .clone();
-        let (persisted, changed) = profiles.update(ctx, |profiles, ctx| {
-            let profile = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .expect("active execution profile should exist");
-            if profile.data().base_model.as_ref() == Some(preferred_llm_id) {
-                return (true, false);
-            }
-            profiles.set_base_model(&profile_id, Some(preferred_llm_id.clone()), ctx);
-            profiles.set_context_window_limit(&profile_id, None, ctx);
-            let persisted = profiles
-                .get_profile_by_id(&profile_id, ctx)
-                .is_some_and(|profile| {
-                    profile.data().base_model.as_ref() == Some(preferred_llm_id)
-                        && profile.data().context_window_limit.is_none()
-                });
-            (persisted, persisted)
-        });
-        if changed {
-            ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
-        }
-        persisted
-    }
 
     /// Pins an explicit child-run model independently of profile or TUI
     /// defaults. Persist the pin whenever it changes, but notify active-model

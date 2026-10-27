@@ -621,7 +621,6 @@ lazy_static! {
     static ref ALT_SCREEN_APPS_THAT_MUST_MATCH_BLOCKLIST_PADDING: HashSet<&'static str> = HashSet::from(["k9s", "lazygit"]);
 }
 
-pub const AI_CONTROL_PANEL_MARGIN: f32 = 10.;
 
 pub const OVERFLOW_BUTTON_OFFSET_X: f32 = -3.;
 pub const MAX_WAKEUPS_PER_SECOND: u64 = 60;
@@ -1659,12 +1658,6 @@ impl IndicatorPositionArg {
     }
 }
 
-#[derive(Clone)]
-pub struct ExecuteAIRequestedCommandEvent {
-    pub requested_command_id: AIAgentActionId,
-    pub command: String,
-    pub shell_type: ShellType,
-}
 
 #[derive(Clone)]
 pub struct ExecuteCommandEvent {
@@ -2478,10 +2471,6 @@ enum SecretTooltip {
     },
 }
 
-pub fn is_prompt_suggestions_enabled(app: &AppContext) -> bool {
-    AISettings::as_ref(app).is_prompt_suggestions_enabled(app)
-        && UserWorkspaces::as_ref(app).is_prompt_suggestions_toggleable()
-}
 
 type TerminalViewCallback = Box<dyn FnOnce(&mut TerminalView, &mut ViewContext<TerminalView>)>;
 type ConversationFinishedCallback =

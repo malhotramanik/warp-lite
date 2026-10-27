@@ -34,13 +34,6 @@ pub enum TuiTheme {
 }
 
 impl TuiTheme {
-    pub fn display_name(self) -> &'static str {
-        match self {
-            Self::Auto => "auto",
-            Self::Light => "light",
-            Self::Dark => "dark",
-        }
-    }
 
     #[cfg(feature = "tui")]
     pub fn resolve_for_background(self, background_luminance: BackgroundLuminance) -> WarpTheme {
@@ -94,9 +87,6 @@ define_settings_group!(TuiThemeSettings, settings: [
 ]);
 
 impl TuiThemeSettings {
-    pub fn selected_theme(&self) -> TuiTheme {
-        *self.theme.value()
-    }
 }
 
 #[cfg(test)]

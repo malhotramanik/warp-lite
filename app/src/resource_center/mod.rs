@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 
-use chrono::{DateTime, FixedOffset};
 use settings::Setting as _;
 use warp_errors::report_if_error;
 
@@ -17,7 +16,7 @@ pub use section_views::{ChangelogSectionView, ContentSectionView, FeatureSection
 pub mod sections;
 mod view;
 use serde::{Deserialize, Serialize};
-pub use view::{ResourceCenterAction, ResourceCenterEvent, ResourceCenterPage, ResourceCenterView};
+pub use view::{ResourceCenterEvent, ResourceCenterPage, ResourceCenterView};
 use warpui::keymap::Keystroke;
 use warpui::{AppContext, Entity, SingletonEntity};
 
@@ -195,14 +194,6 @@ pub struct ContentSectionData {
     pub items: Vec<ContentItem>,
 }
 
-#[derive(Clone)]
-pub struct ChangelogSectionData {
-    pub section_name: FeatureSection,
-    pub date: DateTime<FixedOffset>,
-    pub new_features_markdown: String,
-    pub improvements_markdown: String,
-    pub coming_soon_markdown: String,
-}
 
 #[derive(Default)]
 pub struct TipsCompleted {

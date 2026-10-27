@@ -1,6 +1,4 @@
 use std::collections::{HashMap, HashSet};
-#[cfg(not(target_family = "wasm"))]
-use std::path::Path;
 use std::time::Duration;
 
 use ai::api_keys::{ChatGPTConnection, ChatGPTConnectionStatus};
@@ -13,7 +11,6 @@ use async_trait::async_trait;
 use base64::Engine;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use cloud_object_models::CodeForge;
 use cynic::{MutationBuilder, QueryBuilder};
 use itertools::Itertools;
 #[cfg(test)]
@@ -24,7 +21,6 @@ use warp_core::features::FeatureFlag;
 use warp_errors::report_error;
 use warp_graphql::ai::{AgentTaskState, PlatformErrorCode};
 use warp_graphql::client::Operation;
-use warp_graphql::error::{UserFacingError, UserFacingErrorInterface};
 use warp_graphql::mutations::confirm_file_artifact_upload::{
     ConfirmFileArtifactUpload, ConfirmFileArtifactUploadInput, ConfirmFileArtifactUploadResult,
     ConfirmFileArtifactUploadVariables,
@@ -110,10 +106,6 @@ use warp_graphql::queries::get_relevant_fragments::{
 use warp_graphql::queries::get_request_limit_info::{
     GetRequestLimitInfo, GetRequestLimitInfoVariables,
 };
-use warp_graphql::queries::get_scheduled_agent_history::{
-    GetScheduledAgentHistory, GetScheduledAgentHistoryVariables, ScheduledAgentHistory,
-    ScheduledAgentHistoryInput, ScheduledAgentHistoryResult,
-};
 use warp_graphql::queries::rerank_fragments::{
     RerankFragments, RerankFragmentsResult, RerankFragmentsVariables,
 };
@@ -124,27 +116,18 @@ use warp_graphql::queries::setup_failure_debug_authorization::{
 use warp_graphql::queries::sync_merkle_tree::{
     SyncMerkleTree, SyncMerkleTreeInput, SyncMerkleTreeResult, SyncMerkleTreeVariables,
 };
-use warp_graphql::queries::task_attachments::{
-    Task as TaskAttachmentsQuery, TaskInput, TaskResult, TaskVariables,
-};
-use warp_graphql::queries::task_git_credentials::{
-    TaskGitCredentials, TaskGitCredentialsInput, TaskGitCredentialsLegacy,
-    TaskGitCredentialsLegacyInput, TaskGitCredentialsLegacyResult,
-    TaskGitCredentialsLegacyVariables, TaskGitCredentialsResult, TaskGitCredentialsVariables,
-};
 use warp_multi_agent_api::ConversationData;
 use warp_server_client::PresignedDownloadResponse;
 
 use super::ServerApi;
 #[cfg(not(target_family = "wasm"))]
-use super::download::write_response_body_to_path;
 use super::harness_support::{UploadField, UploadFieldValue, UploadTarget};
 #[cfg(not(feature = "agent_mode_evals"))]
 use crate::ai::BonusGrant;
 pub use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIAgentConversationFormat, AIAgentHarness, AIAgentSerializedBlockFormat,
+     AIAgentHarness, 
     ServerAIConversationMetadata,
 };
 use crate::ai::ambient_agents::AmbientAgentTaskId;
@@ -152,7 +135,7 @@ use crate::ai::ambient_agents::AmbientAgentTaskId;
 pub use crate::ai::ambient_agents::{
     AgentConfigSnapshot, AgentSource, AmbientAgentTask, AmbientAgentTaskState, ExecutionLocation,
     TaskStatusMessage,
-    task::{AttachmentInput, TaskAttachment},
+    task::{AttachmentInput},
 };
 use crate::ai::artifacts::Artifact;
 use crate::ai::generate_code_review_content::api::{
@@ -191,44 +174,7 @@ pub struct TaskStatusUpdate {
     pub platform_error: Option<Box<PlatformErrorInfo>>,
 }
 
-/// Error fetching git credentials for a task, either a structured platform error
-/// (potentially retryable) or a request-layer failure (workload-token issuance,
-/// network transport).
-#[derive(Debug, thiserror::Error)]
-pub enum TaskGitCredentialsError {
-    #[error("{message}")]
-    Platform {
-        message: String,
-        detail: Option<String>,
-        info: Box<PlatformErrorInfo>,
-    },
-    #[error("{message}")]
-    Unstructured { message: String },
-    #[error("Failed to fetch task git credentials")]
-    Request(#[source] anyhow::Error),
-}
 
-impl TaskGitCredentialsError {
-    pub(crate) fn from_user_facing(error: UserFacingError) -> Self {
-        let UserFacingError {
-            error,
-            response_context,
-        } = error;
-        match error {
-            UserFacingErrorInterface::PlatformError(error) => Self::Platform {
-                message: error.message,
-                detail: error.detail,
-                info: Box::new(error.info.into()),
-            },
-            error => Self::Unstructured {
-                message: get_user_facing_error_message(UserFacingError {
-                    error,
-                    response_context,
-                }),
-            },
-        }
-    }
-}
 
 fn agent_task_status_message_input(update: TaskStatusUpdate) -> AgentTaskStatusMessageInput {
     AgentTaskStatusMessageInput {
@@ -350,32 +296,8 @@ impl InitialSnapshotToken {
     }
 }
 
-/// Request body for `POST /agent/handoff/upload-snapshot`. Used by the local-to-cloud
-/// handoff flow to allocate a token and presigned upload URLs scoped to
-/// `handoff/{token}/` before any task exists.
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct UploadLocalHandoffSnapshotRequest {
-    pub files: Vec<SnapshotUploadFileInfo>,
-}
 
-/// Describes a single file the client wants to upload as part of a handoff snapshot.
-/// Wire-compatible with the server's `SnapshotUploadFileInfo` schema (also used by the
-/// existing harness-side `/harness-support/upload-snapshot` endpoint).
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct SnapshotUploadFileInfo {
-    pub filename: String,
-    pub mime_type: String,
-}
 
-/// Response body for `POST /agent/handoff/upload-snapshot`. The `uploads` array is aligned
-/// by index with the request `files` array; the client matches each `UploadTarget` back
-/// to the requested filename by index.
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct UploadLocalHandoffSnapshotResponse {
-    pub initial_snapshot_token: InitialSnapshotToken,
-    pub expires_at: String,
-    pub uploads: Vec<UploadTarget>,
-}
 
 /// Request body for `POST /agent/conversations/{conversation_id}/fork`.
 #[derive(Debug, Clone, serde::Serialize)]
@@ -418,27 +340,12 @@ pub struct SendAgentMessageRequest {
     pub sender_run_id: String,
 }
 
-#[derive(Debug, Clone)]
-pub struct ListAgentMessagesRequest {
-    pub unread_only: bool,
-    pub since: Option<String>,
-    pub limit: i32,
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SendAgentMessageResponse {
     pub message_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct AgentMessageHeader {
-    pub message_id: String,
-    pub sender_run_id: String,
-    pub subject: String,
-    pub sent_at: String,
-    pub delivered_at: Option<String>,
-    pub read_at: Option<String>,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct AgentRunEvent {
@@ -450,92 +357,11 @@ pub struct AgentRunEvent {
     pub sequence: i64,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ReportAgentEventRequest {
-    pub event_type: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub execution_id: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ref_id: Option<String>,
-}
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct ReportAgentEventResponse {
-    pub sequence: i64,
-}
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AgentRunClientEventRequest {
-    pub event_uuid: String,
-    pub event_name: String,
-    pub timestamp: DateTime<Utc>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload: Option<AgentRunClientEventPayload>,
-}
 
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(untagged)]
-pub enum AgentRunClientEventPayload {
-    SetupMetric(AgentRunClientSetupMetricPayload),
-}
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct AgentRunClientSetupMetricPayload {
-    pub start_ts: DateTime<Utc>,
-    pub finish_ts: DateTime<Utc>,
-    pub latency_ms: i64,
-    pub is_error: bool,
-}
-#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
-pub struct AgentRunEnvironmentSnapshotRequest {
-    pub captured_at: DateTime<Utc>,
-    pub repositories: Vec<AgentRunRepositoryRevision>,
-}
 
-#[derive(Debug, Clone, serde::Serialize, PartialEq, Eq)]
-pub struct AgentRunRepositoryRevision {
-    pub code_forge: CodeForge,
-    pub repo_owner: String,
-    pub repo_name: String,
-    pub checkout_path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub requested_checkout_ref: Option<String>,
-    pub resolved_head_sha: String,
-}
 
-impl AgentRunClientEventRequest {
-    pub fn timeline_event(event_name: impl Into<String>, timestamp: DateTime<Utc>) -> Self {
-        Self {
-            event_uuid: uuid::Uuid::new_v4().to_string(),
-            event_name: event_name.into(),
-            timestamp,
-            payload: None,
-        }
-    }
-
-    pub fn setup_metric_event(
-        event_name: impl Into<String>,
-        start_timestamp: DateTime<Utc>,
-        finish_timestamp: DateTime<Utc>,
-        is_error: bool,
-    ) -> Self {
-        Self {
-            event_uuid: uuid::Uuid::new_v4().to_string(),
-            event_name: event_name.into(),
-            timestamp: finish_timestamp,
-            payload: Some(AgentRunClientEventPayload::SetupMetric(
-                AgentRunClientSetupMetricPayload {
-                    start_ts: start_timestamp,
-                    finish_ts: finish_timestamp,
-                    latency_ms: finish_timestamp
-                        .signed_duration_since(start_timestamp)
-                        .num_milliseconds()
-                        .max(0),
-                    is_error,
-                },
-            )),
-        }
-    }
-}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ReadAgentMessageResponse {
@@ -586,16 +412,7 @@ impl ArtifactDownloadResponse {
         &self.common().artifact_uid
     }
 
-    pub fn artifact_type(&self) -> &'static str {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => "SCREENSHOT",
-            ArtifactDownloadResponse::File { .. } => "FILE",
-        }
-    }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
-        self.common().created_at
-    }
 
     pub fn download_url(&self) -> &str {
         match self {
@@ -604,12 +421,6 @@ impl ArtifactDownloadResponse {
         }
     }
 
-    pub fn expires_at(&self) -> DateTime<Utc> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => data.expires_at,
-            ArtifactDownloadResponse::File { data, .. } => data.expires_at,
-        }
-    }
 
     pub fn content_type(&self) -> &str {
         match self {
@@ -618,12 +429,6 @@ impl ArtifactDownloadResponse {
         }
     }
 
-    pub fn filepath(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => Some(&data.filepath),
-        }
-    }
 
     pub fn filename(&self) -> Option<&str> {
         match self {
@@ -632,19 +437,7 @@ impl ArtifactDownloadResponse {
         }
     }
 
-    pub fn description(&self) -> Option<&str> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { data, .. } => data.description.as_deref(),
-            ArtifactDownloadResponse::File { data, .. } => data.description.as_deref(),
-        }
-    }
 
-    pub fn size_bytes(&self) -> Option<i64> {
-        match self {
-            ArtifactDownloadResponse::Screenshot { .. } => None,
-            ArtifactDownloadResponse::File { data, .. } => data.size_bytes,
-        }
-    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -701,18 +494,7 @@ pub struct DownloadAttachmentsResponse {
     pub attachments: Vec<AttachmentDownloadInfo>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct HandoffSnapshotAttachmentInfo {
-    pub attachment_id: String,
-    pub filename: String,
-    pub download_url: String,
-    pub mime_type: Option<String>,
-}
 
-#[derive(Debug, Clone, serde::Deserialize)]
-pub struct ListHandoffSnapshotAttachmentsResponse {
-    pub attachments: Vec<HandoffSnapshotAttachmentInfo>,
-}
 
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct AttachmentUploadInfo {
@@ -786,36 +568,8 @@ pub struct CreateFileArtifactUploadResponse {
     pub upload_target: FileArtifactUploadTargetInfo,
 }
 
-/// Credentials for one managed Git host.
-#[derive(Clone, serde::Deserialize)]
-pub struct GitCredential {
-    /// The provider's OAuth or installation access token.
-    pub token: String,
-    /// The provider-specific git username, when available.
-    pub username: Option<String>,
-    /// The provider account's email, when available.
-    pub email: Option<String>,
-    /// The managed git host, such as `"github.com"` or `"gitlab.com"`.
-    pub host: String,
-}
 
-impl std::fmt::Debug for GitCredential {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GitCredential")
-            .field("host", &self.host)
-            .field("username_present", &self.username.is_some())
-            .field("email_present", &self.email.is_some())
-            .field("token_present", &!self.token.is_empty())
-            .finish()
-    }
-}
 
-/// One credential-retrieval cycle's outcome.
-#[derive(Clone, Default)]
-pub struct TaskGitCredentialsResponse {
-    pub credentials: Vec<GitCredential>,
-    pub failed_hosts: Vec<String>,
-}
 
 /// Filter parameters for listing ambient agent tasks.
 #[derive(Clone, Debug, Default)]
@@ -1020,120 +774,16 @@ impl<'de> serde::Deserialize<'de> for ListRunsResponse {
     }
 }
 
-/// Source information for an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillSource {
-    pub owner: String,
-    pub name: String,
-    pub skill_path: String,
-}
 
-/// Environment information for an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillEnvironment {
-    pub uid: String,
-    pub name: String,
-}
 
-/// A variant of an agent skill.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillVariant {
-    pub id: String,
-    pub description: String,
-    pub base_prompt: String,
-    pub source: AgentSkillSource,
-    pub environments: Vec<AgentSkillEnvironment>,
-}
 
-/// An agent skill item with its variants.
-#[derive(Clone, serde::Deserialize, Debug, PartialEq)]
-pub struct AgentSkillItem {
-    pub name: String,
-    pub variants: Vec<AgentSkillVariant>,
-}
 
-#[derive(serde::Deserialize)]
-struct ListSkillsResponse {
-    agents: Vec<AgentSkillItem>,
-}
 
-/// Reference to a managed secret by name.
-#[derive(Clone, serde::Serialize, serde::Deserialize, Debug, PartialEq, Eq)]
-pub struct SecretRef {
-    pub name: String,
-}
 
-/// JSON payload sent to `POST /agent/identities`.
-#[derive(Clone, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct CreateAgentRequest {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Optional base prompt for this agent.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub secrets: Vec<SecretRef>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub skills: Vec<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub base_model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub environment_id: Option<String>,
-}
 
-/// JSON payload sent to `PUT /agent/identities/{uid}`.
-///
-/// Each field uses the public API's PATCH semantics: `None` omits the field
-/// (leave unchanged), while `Some(String::new())` sends an empty value to clear
-/// it. See `CreateAgentRequest`/`UpdateAgentRequest` in
-/// `warp-server/public_api/openapi.yaml`.
-#[derive(Clone, Default, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct UpdateAgentRequest {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub name: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub description: Option<String>,
-    /// Replacement prompt. `None` leaves it unchanged; `Some(String::new())`
-    /// clears it via the public API's PATCH clear-via-empty semantics.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub prompt: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secrets: Option<Vec<SecretRef>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub skills: Option<Vec<String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub base_model: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub environment_id: Option<String>,
-}
 
-/// Public API representation of a named agent identity.
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq, Eq)]
-pub struct AgentResponse {
-    pub uid: String,
-    pub name: String,
-    pub description: Option<String>,
-    /// Optional base prompt for this agent.
-    #[serde(default)]
-    pub prompt: Option<String>,
-    pub available: bool,
-    pub created_at: DateTime<Utc>,
-    pub secrets: Vec<SecretRef>,
-    pub skills: Vec<String>,
-    pub base_model: Option<String>,
-    #[serde(default)]
-    pub environment_id: Option<String>,
-}
 
-#[derive(serde::Deserialize)]
-struct ListAgentsResponse {
-    agents: Vec<AgentResponse>,
-}
 
-fn build_agent_url(uid: &str) -> String {
-    format!("agent/identities/{}", urlencoding::encode(uid))
-}
 
 #[derive(Clone, serde::Deserialize, Debug, PartialEq, Eq)]
 pub struct ConnectedSelfHostedWorker {
@@ -1150,107 +800,19 @@ pub struct ListConnectedSelfHostedWorkersResponse {
 
 pub(crate) const CONNECTED_SELF_HOSTED_WORKERS_PATH: &str = "agent/connected-self-hosted-workers";
 
-/// A memory store returned by the public API.
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct MemoryStoreItem {
-    pub uid: String,
-    pub owner_type: String,
-    pub owner_uid: String,
-    pub description: Option<String>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
-#[derive(serde::Deserialize)]
-struct ListMemoryStoresResponse {
-    memory_stores: Vec<MemoryStoreItem>,
-}
 
-/// A memory in a memory store returned by the public API.
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct MemoryItem {
-    pub uid: String,
-    pub content: String,
-    pub version_id: String,
-    pub source: String,
-    pub source_id: Option<String>,
-    pub source_run_id: Option<String>,
-    pub is_tombstoned: bool,
-    pub tombstoned_at: Option<DateTime<Utc>>,
-    pub created_at: DateTime<Utc>,
-    pub updated_at: DateTime<Utc>,
-}
 
-#[derive(serde::Deserialize)]
-struct ListMemoriesResponse {
-    memories: Vec<MemoryItem>,
-}
 
-#[derive(Clone, Copy, serde::Serialize, Debug, PartialEq)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-pub enum MemorySource {
-    Manual,
-}
 
-#[derive(Clone, serde::Serialize, Debug, PartialEq)]
-pub struct CreateMemoryRequest {
-    pub content: String,
-    pub version: Option<String>,
-    pub source: MemorySource,
-    pub source_id: Option<String>,
-    pub reason: String,
-}
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct CreateMemoryResponse {
-    pub memory_id: String,
-    pub version_id: String,
-}
 
-#[derive(Clone, serde::Serialize, Debug, PartialEq)]
-pub struct UpdateMemoryStoreRequest {
-    pub description: Option<String>,
-}
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct MemoryVersionItem {
-    pub uid: String,
-    pub version: String,
-    pub content: String,
-    pub reason: Option<String>,
-    pub created_at: DateTime<Utc>,
-}
 
-#[derive(serde::Deserialize)]
-struct ListMemoryVersionsResponse {
-    versions: Vec<MemoryVersionItem>,
-}
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct AgentAttachmentItem {
-    pub uid: String,
-    pub name: String,
-    pub access: String,
-    pub instructions: String,
-}
 
-#[derive(serde::Deserialize)]
-struct ListMemoryStoreAgentsResponse {
-    agents: Vec<AgentAttachmentItem>,
-}
 
-#[derive(Clone, serde::Serialize, Debug, PartialEq)]
-pub struct UpdateMemoryRequest {
-    pub content: String,
-    pub version: Option<String>,
-    pub reason: String,
-}
 
-#[derive(Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
-pub struct UpdateMemoryResponse {
-    pub memory_id: String,
-    pub version_id: String,
-}
 
 #[cfg_attr(test, automock)]
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -1370,12 +932,6 @@ pub trait AIClient: 'static + Send + Sync {
         team_scope: RequestTeamScope,
     ) -> anyhow::Result<SpawnAgentResponse, anyhow::Error>;
 
-    /// Allocate an initial snapshot token and presigned upload URLs for staging local-to-cloud
-    /// handoff snapshot files before the corresponding cloud task exists.
-    async fn upload_local_handoff_snapshot(
-        &self,
-        request: UploadLocalHandoffSnapshotRequest,
-    ) -> anyhow::Result<UploadLocalHandoffSnapshotResponse, anyhow::Error>;
 
     /// Materialize a server-side fork of a conversation.
     async fn fork_conversation(
@@ -1398,50 +954,16 @@ pub trait AIClient: 'static + Send + Sync {
         request_team_scope: Option<RequestTeamScope>,
     ) -> anyhow::Result<Vec<AmbientAgentTask>, anyhow::Error>;
 
-    /// List agent runs and return the raw server JSON response.
-    async fn list_agent_runs_raw(
-        &self,
-        limit: i32,
-        filter: TaskListFilter,
-        request_team_scope: Option<RequestTeamScope>,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
     async fn get_ambient_agent_task(
         &self,
         task_id: &AmbientAgentTaskId,
     ) -> anyhow::Result<AmbientAgentTask, anyhow::Error>;
 
-    /// Fetch a single agent run and return the raw server JSON response.
-    async fn get_agent_run_raw(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_run_transcript(
-        &self,
-        run_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Bytes, anyhow::Error>;
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_run_transcript_to_path(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        destination: &Path,
-    ) -> anyhow::Result<(), anyhow::Error>;
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_conversation_transcript(
-        &self,
-        conversation_id: &str,
-    ) -> anyhow::Result<Bytes, anyhow::Error>;
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_conversation_transcript_to_path(
-        &self,
-        conversation_id: &str,
-        destination: &Path,
-    ) -> anyhow::Result<(), anyhow::Error>;
 
     async fn submit_run_followup(
         &self,
@@ -1449,10 +971,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: RunFollowupRequest,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn get_scheduled_agent_history(
-        &self,
-        schedule_id: &str,
-    ) -> anyhow::Result<ScheduledAgentHistory, anyhow::Error>;
 
     async fn get_ai_conversation(
         &self,
@@ -1464,10 +982,6 @@ pub trait AIClient: 'static + Send + Sync {
         conversation_ids: Option<Vec<String>>,
     ) -> anyhow::Result<Vec<ServerAIConversationMetadata>>;
 
-    async fn get_ai_conversation_format(
-        &self,
-        server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<AIAgentConversationFormat, anyhow::Error>;
 
     async fn get_block_snapshot(
         &self,
@@ -1479,115 +993,30 @@ pub trait AIClient: 'static + Send + Sync {
         server_conversation_token: String,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn list_skills(
-        &self,
-        repo: Option<String>,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error>;
 
-    async fn list_agents(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<AgentResponse>, anyhow::Error>;
 
-    async fn list_agents_raw(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    async fn get_agent(&self, uid: &str) -> anyhow::Result<AgentResponse, anyhow::Error>;
 
-    async fn get_agent_raw(&self, uid: &str) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    async fn create_agent(
-        &self,
-        request: CreateAgentRequest,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error>;
 
-    async fn create_agent_raw(
-        &self,
-        request: CreateAgentRequest,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    async fn update_agent(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error>;
 
-    async fn update_agent_raw(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    async fn delete_agent(&self, uid: &str) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn list_memory_stores(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<MemoryStoreItem>, anyhow::Error>;
 
-    async fn list_memory_store_memories(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<Vec<MemoryItem>, anyhow::Error>;
 
-    async fn create_memory_store_memory(
-        &self,
-        store_uid: &str,
-        request: CreateMemoryRequest,
-    ) -> anyhow::Result<CreateMemoryResponse, anyhow::Error>;
 
-    async fn update_memory_store_memory(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-        request: UpdateMemoryRequest,
-    ) -> anyhow::Result<UpdateMemoryResponse, anyhow::Error>;
 
-    async fn delete_memory_store_memory(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-    ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn get_memory_store(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<MemoryStoreItem, anyhow::Error>;
 
-    async fn update_memory_store(
-        &self,
-        store_uid: &str,
-        request: UpdateMemoryStoreRequest,
-    ) -> anyhow::Result<MemoryStoreItem, anyhow::Error>;
 
-    async fn list_memory_store_agents(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<Vec<AgentAttachmentItem>, anyhow::Error>;
 
-    async fn list_memory_versions(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-    ) -> anyhow::Result<Vec<MemoryVersionItem>, anyhow::Error>;
 
     async fn cancel_ambient_agent_task(
         &self,
         task_id: &AmbientAgentTaskId,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn get_task_git_credentials(
-        &self,
-        task_id: String,
-        workload_token: String,
-        accepts_partial_refresh: bool,
-        use_factory_repositories: bool,
-    ) -> Result<TaskGitCredentialsResponse, TaskGitCredentialsError>;
 
     /// Authorizes a REMOTE-2661 debug agent prompt against a retained environment-setup-failure
     /// session, called by the sharer with its own workload token. Anything short of `Ok(true)`
@@ -1599,10 +1028,6 @@ pub trait AIClient: 'static + Send + Sync {
         participant_firebase_uid: String,
     ) -> anyhow::Result<bool, anyhow::Error>;
 
-    async fn get_task_attachments(
-        &self,
-        task_id: String,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error>;
 
     async fn create_file_artifact_upload_target(
         &self,
@@ -1640,10 +1065,6 @@ pub trait AIClient: 'static + Send + Sync {
         attachment_ids: &[String],
     ) -> anyhow::Result<DownloadAttachmentsResponse, anyhow::Error>;
 
-    async fn get_handoff_snapshot_attachments(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error>;
 
     // --- Orchestrations V2 messaging ---
 
@@ -1652,11 +1073,6 @@ pub trait AIClient: 'static + Send + Sync {
         request: SendAgentMessageRequest,
     ) -> anyhow::Result<SendAgentMessageResponse, anyhow::Error>;
 
-    async fn list_agent_messages(
-        &self,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error>;
 
     /// Persists the latest observed event sequence number for a run on the
     /// server. Used to keep the server-side cursor in sync with the client so
@@ -1668,21 +1084,6 @@ pub trait AIClient: 'static + Send + Sync {
         sequence: i64,
     ) -> anyhow::Result<(), anyhow::Error>;
 
-    async fn report_agent_event(
-        &self,
-        run_id: &str,
-        request: ReportAgentEventRequest,
-    ) -> anyhow::Result<ReportAgentEventResponse, anyhow::Error>;
-    async fn post_agent_run_client_event(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        request: AgentRunClientEventRequest,
-    ) -> anyhow::Result<(), anyhow::Error>;
-    async fn post_agent_run_environment_snapshot(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        request: AgentRunEnvironmentSnapshotRequest,
-    ) -> anyhow::Result<(), anyhow::Error>;
 
     async fn mark_message_delivered(&self, message_id: &str) -> anyhow::Result<(), anyhow::Error>;
 
@@ -1691,17 +1092,7 @@ pub trait AIClient: 'static + Send + Sync {
         message_id: &str,
     ) -> anyhow::Result<ReadAgentMessageResponse, anyhow::Error>;
 
-    /// Fetch a normalized conversation by conversation ID.
-    async fn get_public_conversation(
-        &self,
-        conversation_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
-    /// Fetch a normalized conversation by run ID.
-    async fn get_run_conversation(
-        &self,
-        run_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error>;
 
     /// Generates AI copy for code-review flows: commit messages at dialog-open
     /// time and PR titles / bodies at confirm time. `output_type` in the
@@ -1724,27 +1115,7 @@ fn into_file_artifact_record(
     }
 }
 
-fn task_attachments_from_list(
-    attachments: Vec<warp_graphql::queries::task_attachments::TaskAttachment>,
-) -> Vec<TaskAttachment> {
-    attachments
-        .into_iter()
-        .map(|att| TaskAttachment {
-            file_id: att.file_id.into_inner(),
-            filename: att.filename,
-            download_url: att.download_url,
-            mime_type: att.mime_type,
-        })
-        .collect()
-}
 
-fn task_attachments_from_result(result: TaskResult) -> anyhow::Result<Vec<TaskAttachment>> {
-    match result {
-        TaskResult::TaskOutput(output) => Ok(task_attachments_from_list(output.task.attachments)),
-        TaskResult::UserFacingError(error) => Err(anyhow!(get_user_facing_error_message(error))),
-        TaskResult::Unknown => Err(anyhow!("Failed to fetch task attachments")),
-    }
-}
 
 impl ServerApi {
     async fn get_public_api_with_team_scope<R>(
@@ -1806,110 +1177,10 @@ impl ServerApi {
         Ok(response)
     }
 
-    async fn get_task_git_credentials_current(
-        &self,
-        task_id: String,
-        workload_token: String,
-        accepts_partial_refresh: bool,
-        use_factory_repositories: bool,
-    ) -> Result<TaskGitCredentialsResponse, TaskGitCredentialsError> {
-        let variables = TaskGitCredentialsVariables {
-            input: TaskGitCredentialsInput {
-                task_id: cynic::Id::new(task_id),
-                workload_token,
-                accepts_partial_refresh: Some(accepts_partial_refresh),
-                use_factory_repositories: use_factory_repositories.then_some(true),
-            },
-            request_context: get_request_context(),
-        };
-        let operation = TaskGitCredentials::build(variables);
-        let response = self
-            .send_graphql_request(operation, None)
-            .await
-            .map_err(TaskGitCredentialsError::Request)?;
 
-        match response.task_git_credentials {
-            TaskGitCredentialsResult::TaskGitCredentialsOutput(output) => {
-                Ok(TaskGitCredentialsResponse {
-                    credentials: output
-                        .credentials
-                        .into_iter()
-                        .map(into_git_credential)
-                        .collect(),
-                    failed_hosts: output.failed_hosts,
-                })
-            }
-            TaskGitCredentialsResult::UserFacingError(error) => {
-                Err(TaskGitCredentialsError::from_user_facing(error))
-            }
-            TaskGitCredentialsResult::Unknown => Err(TaskGitCredentialsError::Request(anyhow!(
-                "Unknown taskGitCredentials response"
-            ))),
-        }
-    }
-
-    async fn get_task_git_credentials_legacy(
-        &self,
-        task_id: String,
-        workload_token: String,
-    ) -> Result<TaskGitCredentialsResponse, TaskGitCredentialsError> {
-        let variables = TaskGitCredentialsLegacyVariables {
-            input: TaskGitCredentialsLegacyInput {
-                task_id: cynic::Id::new(task_id),
-                workload_token,
-            },
-            request_context: get_request_context(),
-        };
-        let operation = TaskGitCredentialsLegacy::build(variables);
-        let response = self
-            .send_graphql_request(operation, None)
-            .await
-            .map_err(TaskGitCredentialsError::Request)?;
-
-        match response.task_git_credentials {
-            TaskGitCredentialsLegacyResult::TaskGitCredentialsOutput(output) => {
-                Ok(TaskGitCredentialsResponse {
-                    credentials: output
-                        .credentials
-                        .into_iter()
-                        .map(into_git_credential)
-                        .collect(),
-                    failed_hosts: Vec::new(),
-                })
-            }
-            TaskGitCredentialsLegacyResult::UserFacingError(error) => {
-                Err(TaskGitCredentialsError::from_user_facing(error))
-            }
-            TaskGitCredentialsLegacyResult::Unknown => Err(TaskGitCredentialsError::Request(
-                anyhow!("Unknown taskGitCredentials response"),
-            )),
-        }
-    }
 }
 
-pub(super) fn into_git_credential(
-    credential: warp_graphql::queries::task_git_credentials::TaskGitCredential,
-) -> GitCredential {
-    GitCredential {
-        token: credential.token,
-        username: credential.username,
-        email: credential.email,
-        host: credential.host,
-    }
-}
 
-fn is_unknown_git_credential_schema_error(error: &TaskGitCredentialsError) -> bool {
-    let TaskGitCredentialsError::Request(error) = error else {
-        return false;
-    };
-    let message = error.to_string();
-    let names_partial_refresh_field =
-        message.contains("failedHosts") || message.contains("acceptsPartialRefresh");
-    names_partial_refresh_field
-        && (message.contains("Cannot query field")
-            || message.contains("Unknown argument")
-            || message.contains("is not defined by type"))
-}
 
 /// Convert a cynic `FileArtifactUploadField` into the shared [`UploadField`]
 /// domain type. Unknown variants bubble as an error rather than being silently
@@ -2561,15 +1832,6 @@ impl AIClient for ServerApi {
             .await
     }
 
-    async fn upload_local_handoff_snapshot(
-        &self,
-        request: UploadLocalHandoffSnapshotRequest,
-    ) -> anyhow::Result<UploadLocalHandoffSnapshotResponse, anyhow::Error> {
-        let response: UploadLocalHandoffSnapshotResponse = self
-            .post_public_api("agent/handoff/upload-snapshot", &request)
-            .await?;
-        Ok(response)
-    }
 
     async fn fork_conversation(
         &self,
@@ -2608,18 +1870,6 @@ impl AIClient for ServerApi {
         Ok(response.runs)
     }
 
-    async fn list_agent_runs_raw(
-        &self,
-        limit: i32,
-        filter: TaskListFilter,
-        request_team_scope: Option<RequestTeamScope>,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        let url = build_list_agent_runs_url(limit, &filter);
-        let response: serde_json::Value = self
-            .get_public_api_with_team_scope(&url, request_team_scope)
-            .await?;
-        Ok(response)
-    }
 
     #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
     async fn get_ambient_agent_task(
@@ -2632,15 +1882,6 @@ impl AIClient for ServerApi {
         Ok(response)
     }
 
-    async fn get_agent_run_raw(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        let response: serde_json::Value = self
-            .get_public_api(&format!("agent/runs/{task_id}"))
-            .await?;
-        Ok(response)
-    }
 
     async fn submit_run_followup(
         &self,
@@ -2651,30 +1892,6 @@ impl AIClient for ServerApi {
             .await
     }
 
-    async fn get_scheduled_agent_history(
-        &self,
-        schedule_id: &str,
-    ) -> anyhow::Result<ScheduledAgentHistory, anyhow::Error> {
-        let variables = GetScheduledAgentHistoryVariables {
-            request_context: get_request_context(),
-            input: ScheduledAgentHistoryInput {
-                schedule_id: schedule_id.to_string().into(),
-            },
-        };
-
-        let operation = GetScheduledAgentHistory::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.scheduled_agent_history {
-            ScheduledAgentHistoryResult::ScheduledAgentHistoryOutput(output) => Ok(output.history),
-            ScheduledAgentHistoryResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            ScheduledAgentHistoryResult::Unknown => {
-                Err(anyhow!("failed to get scheduled agent history"))
-            }
-        }
-    }
 
     #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
     async fn get_ai_conversation(
@@ -2765,42 +1982,6 @@ impl AIClient for ServerApi {
         }
     }
 
-    async fn get_ai_conversation_format(
-        &self,
-        server_conversation_token: ServerConversationToken,
-    ) -> anyhow::Result<AIAgentConversationFormat, anyhow::Error> {
-        use warp_graphql::queries::get_ai_conversation_format::{
-            GetAIConversationFormat, GetAIConversationFormatResult,
-            GetAIConversationFormatVariables,
-        };
-        use warp_graphql::queries::list_ai_conversations::ListAIConversationsInput;
-
-        let conversation_id = server_conversation_token.as_str().to_string();
-        let operation = GetAIConversationFormat::build(GetAIConversationFormatVariables {
-            input: ListAIConversationsInput {
-                conversation_ids: Some(vec![cynic::Id::new(conversation_id)]),
-            },
-            request_context: get_request_context(),
-        });
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.list_ai_conversations {
-            GetAIConversationFormatResult::ListAIConversationsOutput(output) => {
-                let conversation = output
-                    .conversations
-                    .into_iter()
-                    .next()
-                    .ok_or_else(|| anyhow!("Conversation not found"))?;
-                Ok(convert_conversation_format(conversation.format))
-            }
-            GetAIConversationFormatResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            GetAIConversationFormatResult::Unknown => {
-                Err(anyhow!("Failed to get AI conversation format"))
-            }
-        }
-    }
 
     async fn get_block_snapshot(
         &self,
@@ -2846,187 +2027,22 @@ impl AIClient for ServerApi {
         }
     }
 
-    async fn list_skills(
-        &self,
-        repo: Option<String>,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<AgentSkillItem>, anyhow::Error> {
-        let path = match repo {
-            Some(repo) => format!("agent?repo={}", urlencoding::encode(&repo)),
-            None => "agent".to_string(),
-        };
-        let response: ListSkillsResponse = self.get_public_api_for_team(&path, team_scope).await?;
-        Ok(response.agents)
-    }
-    async fn list_memory_stores(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<MemoryStoreItem>, anyhow::Error> {
-        let response: ListMemoryStoresResponse = self
-            .get_public_api_for_team("memory_stores", team_scope)
-            .await?;
-        Ok(response.memory_stores)
-    }
 
-    async fn list_memory_store_memories(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<Vec<MemoryItem>, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        let response: ListMemoriesResponse = self
-            .get_public_api(&format!("memory_stores/{encoded_store_uid}/memories"))
-            .await?;
-        Ok(response.memories)
-    }
 
-    async fn create_memory_store_memory(
-        &self,
-        store_uid: &str,
-        request: CreateMemoryRequest,
-    ) -> anyhow::Result<CreateMemoryResponse, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        self.post_public_api(
-            &format!("memory_stores/{encoded_store_uid}/memories"),
-            &request,
-        )
-        .await
-    }
 
-    async fn update_memory_store_memory(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-        request: UpdateMemoryRequest,
-    ) -> anyhow::Result<UpdateMemoryResponse, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        let encoded_memory_uid = urlencoding::encode(memory_uid);
-        self.put_public_api(
-            &format!("memory_stores/{encoded_store_uid}/memories/{encoded_memory_uid}"),
-            &request,
-        )
-        .await
-    }
 
-    async fn delete_memory_store_memory(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        let encoded_memory_uid = urlencoding::encode(memory_uid);
-        self.delete_public_api_unit(&format!(
-            "memory_stores/{encoded_store_uid}/memories/{encoded_memory_uid}",
-        ))
-        .await
-    }
 
-    async fn get_memory_store(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<MemoryStoreItem, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        self.get_public_api(&format!("memory_stores/{encoded_store_uid}"))
-            .await
-    }
 
-    async fn update_memory_store(
-        &self,
-        store_uid: &str,
-        request: UpdateMemoryStoreRequest,
-    ) -> anyhow::Result<MemoryStoreItem, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        self.put_public_api(&format!("memory_stores/{encoded_store_uid}"), &request)
-            .await
-    }
 
-    async fn list_memory_store_agents(
-        &self,
-        store_uid: &str,
-    ) -> anyhow::Result<Vec<AgentAttachmentItem>, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        let response: ListMemoryStoreAgentsResponse = self
-            .get_public_api(&format!("memory_stores/{encoded_store_uid}/agents"))
-            .await?;
-        Ok(response.agents)
-    }
 
-    async fn list_memory_versions(
-        &self,
-        store_uid: &str,
-        memory_uid: &str,
-    ) -> anyhow::Result<Vec<MemoryVersionItem>, anyhow::Error> {
-        let encoded_store_uid = urlencoding::encode(store_uid);
-        let encoded_memory_uid = urlencoding::encode(memory_uid);
-        let response: ListMemoryVersionsResponse = self
-            .get_public_api(&format!(
-                "memory_stores/{encoded_store_uid}/memories/{encoded_memory_uid}/versions"
-            ))
-            .await?;
-        Ok(response.versions)
-    }
 
-    async fn list_agents(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<Vec<AgentResponse>, anyhow::Error> {
-        let response: ListAgentsResponse = self
-            .get_public_api_for_team("agent/identities", team_scope)
-            .await?;
-        Ok(response.agents)
-    }
-    async fn list_agents_raw(
-        &self,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        self.get_public_api_for_team("agent/identities", team_scope)
-            .await
-    }
 
-    async fn get_agent(&self, uid: &str) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        self.get_public_api(&build_agent_url(uid)).await
-    }
 
-    async fn get_agent_raw(&self, uid: &str) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        self.get_public_api(&build_agent_url(uid)).await
-    }
 
-    async fn create_agent(
-        &self,
-        request: CreateAgentRequest,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        self.post_public_api_for_team("agent/identities", &request, team_scope)
-            .await
-    }
 
-    async fn create_agent_raw(
-        &self,
-        request: CreateAgentRequest,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        self.post_public_api_for_team("agent/identities", &request, team_scope)
-            .await
-    }
 
-    async fn update_agent(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<AgentResponse, anyhow::Error> {
-        self.put_public_api(&build_agent_url(uid), &request).await
-    }
 
-    async fn update_agent_raw(
-        &self,
-        uid: &str,
-        request: UpdateAgentRequest,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        self.put_public_api(&build_agent_url(uid), &request).await
-    }
 
-    async fn delete_agent(&self, uid: &str) -> anyhow::Result<(), anyhow::Error> {
-        self.delete_public_api_unit(&build_agent_url(uid)).await
-    }
 
     async fn cancel_ambient_agent_task(
         &self,
@@ -3038,35 +2054,6 @@ impl AIClient for ServerApi {
         Ok(())
     }
 
-    async fn get_task_git_credentials(
-        &self,
-        task_id: String,
-        workload_token: String,
-        accepts_partial_refresh: bool,
-        use_factory_repositories: bool,
-    ) -> Result<TaskGitCredentialsResponse, TaskGitCredentialsError> {
-        match self
-            .get_task_git_credentials_current(
-                task_id.clone(),
-                workload_token.clone(),
-                accepts_partial_refresh,
-                use_factory_repositories,
-            )
-            .await
-        {
-            Ok(response) => Ok(response),
-            Err(error)
-                if !use_factory_repositories && is_unknown_git_credential_schema_error(&error) =>
-            {
-                log::info!(
-                    "taskGitCredentials partial-refresh fields are unavailable; falling back to the pre-deploy schema"
-                );
-                self.get_task_git_credentials_legacy(task_id, workload_token)
-                    .await
-            }
-            Err(error) => Err(error),
-        }
-    }
 
     #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
     async fn setup_failure_debug_authorization(
@@ -3099,22 +2086,6 @@ impl AIClient for ServerApi {
         }
     }
 
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
-    async fn get_task_attachments(
-        &self,
-        task_id: String,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error> {
-        let variables = TaskVariables {
-            input: TaskInput {
-                task_id: cynic::Id::new(task_id),
-            },
-            request_context: get_request_context(),
-        };
-        let operation = TaskAttachmentsQuery::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        task_attachments_from_result(response.task)
-    }
 
     async fn create_file_artifact_upload_target(
         &self,
@@ -3264,74 +2235,10 @@ impl AIClient for ServerApi {
         Ok(response)
     }
 
-    #[tracing::instrument(skip_all, err, fields(tags.cloud_agent = true))]
-    async fn get_handoff_snapshot_attachments(
-        &self,
-        task_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Vec<TaskAttachment>, anyhow::Error> {
-        let response: ListHandoffSnapshotAttachmentsResponse = self
-            .get_public_api(&format!("agent/runs/{task_id}/handoff/attachments"))
-            .await?;
 
-        Ok(response
-            .attachments
-            .into_iter()
-            .map(|attachment| TaskAttachment {
-                file_id: attachment.attachment_id,
-                filename: attachment.filename,
-                download_url: attachment.download_url,
-                mime_type: attachment
-                    .mime_type
-                    .unwrap_or_else(|| "application/octet-stream".to_string()),
-            })
-            .collect())
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_run_transcript(
-        &self,
-        run_id: &AmbientAgentTaskId,
-    ) -> anyhow::Result<Bytes, anyhow::Error> {
-        let response = self
-            .get_public_api_response(&format!("agent/runs/{run_id}/transcript"))
-            .await?;
-        Ok(response.bytes().await?)
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_run_transcript_to_path(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        destination: &Path,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        let response = self
-            .get_public_api_response(&format!("agent/runs/{run_id}/transcript"))
-            .await?;
-        write_response_body_to_path(response, destination).await
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_conversation_transcript(
-        &self,
-        conversation_id: &str,
-    ) -> anyhow::Result<Bytes, anyhow::Error> {
-        let response = self
-            .get_public_api_response(&format!("agent/conversations/{conversation_id}/transcript"))
-            .await?;
-        Ok(response.bytes().await?)
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    async fn download_conversation_transcript_to_path(
-        &self,
-        conversation_id: &str,
-        destination: &Path,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        let response = self
-            .get_public_api_response(&format!("agent/conversations/{conversation_id}/transcript"))
-            .await?;
-        write_response_body_to_path(response, destination).await
-    }
 
     // --- Orchestrations V2 messaging ---
 
@@ -3344,23 +2251,6 @@ impl AIClient for ServerApi {
         Ok(response)
     }
 
-    async fn list_agent_messages(
-        &self,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        let mut params = vec![format!("limit={}", request.limit)];
-        if request.unread_only {
-            params.push("unread=true".to_string());
-        }
-        if let Some(since) = request.since {
-            params.push(format!("since={}", urlencoding::encode(&since)));
-        }
-
-        let path = format!("agent/messages/{run_id}?{}", params.join("&"));
-        let response: Vec<AgentMessageHeader> = self.get_public_api(&path).await?;
-        Ok(response)
-    }
 
     async fn update_event_sequence_on_server(
         &self,
@@ -3379,42 +2269,6 @@ impl AIClient for ServerApi {
         .await
     }
 
-    async fn report_agent_event(
-        &self,
-        run_id: &str,
-        request: ReportAgentEventRequest,
-    ) -> anyhow::Result<ReportAgentEventResponse, anyhow::Error> {
-        let response: ReportAgentEventResponse = self
-            .post_public_api(&format!("agent/events/{run_id}"), &request)
-            .await?;
-        Ok(response)
-    }
-    async fn post_agent_run_client_event(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        request: AgentRunClientEventRequest,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        self.post_public_api_response_for_task(
-            run_id,
-            &format!("agent/runs/{run_id}/client-events"),
-            &request,
-        )
-        .await?;
-        Ok(())
-    }
-    async fn post_agent_run_environment_snapshot(
-        &self,
-        run_id: &AmbientAgentTaskId,
-        request: AgentRunEnvironmentSnapshotRequest,
-    ) -> anyhow::Result<(), anyhow::Error> {
-        self.post_public_api_response_for_task(
-            run_id,
-            &format!("agent/runs/{run_id}/environment-snapshot"),
-            &request,
-        )
-        .await?;
-        Ok(())
-    }
 
     async fn mark_message_delivered(&self, message_id: &str) -> anyhow::Result<(), anyhow::Error> {
         self.post_public_api_unit(&format!("agent/messages/{message_id}/delivered"), &())
@@ -3431,25 +2285,7 @@ impl AIClient for ServerApi {
         Ok(response)
     }
 
-    async fn get_public_conversation(
-        &self,
-        conversation_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        let response: serde_json::Value = self
-            .get_public_api(&format!("agent/conversations/{conversation_id}"))
-            .await?;
-        Ok(response)
-    }
 
-    async fn get_run_conversation(
-        &self,
-        run_id: &str,
-    ) -> anyhow::Result<serde_json::Value, anyhow::Error> {
-        let response: serde_json::Value = self
-            .get_public_api(&format!("agent/runs/{run_id}/conversation"))
-            .await?;
-        Ok(response)
-    }
 
     async fn generate_code_review_content(
         &self,
@@ -3748,22 +2584,7 @@ fn convert_harness(harness: warp_graphql::ai::AgentHarness) -> AIAgentHarness {
     }
 }
 
-fn convert_block_snapshot_format(
-    format: warp_graphql::ai::SerializedBlockFormat,
-) -> AIAgentSerializedBlockFormat {
-    match format {
-        warp_graphql::ai::SerializedBlockFormat::JsonV1 => AIAgentSerializedBlockFormat::JsonV1,
-    }
-}
 
-fn convert_conversation_format(
-    format: warp_graphql::ai::AIConversationFormat,
-) -> AIAgentConversationFormat {
-    AIAgentConversationFormat {
-        has_task_list: format.has_task_list,
-        block_snapshot: format.block_snapshot.map(convert_block_snapshot_format),
-    }
-}
 
 impl TryFrom<warp_graphql::ai::AIConversation> for ServerAIConversationMetadata {
     type Error = anyhow::Error;

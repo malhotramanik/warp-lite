@@ -99,24 +99,6 @@ impl DataSource {
             })
     }
 
-    pub fn top_n(
-        &self,
-        limit: usize,
-        app: &AppContext,
-    ) -> impl Iterator<Item = QueryResult<<Self as SyncDataSource>::Action>> + use<> {
-        self.searcher
-            .searchable_conversations(app)
-            .into_iter()
-            .k_largest_by_key(limit, |conversation| conversation.last_updated)
-            .map(|conversation| {
-                QueryResult::from(ConversationSearchItem::new(ConversationAction::Resume(
-                    Box::new(MatchedConversation {
-                        conversation,
-                        match_result: ConversationMatchResult::no_match(),
-                    }),
-                )))
-            })
-    }
 }
 
 /// Get the selected conversation in the focused pane.

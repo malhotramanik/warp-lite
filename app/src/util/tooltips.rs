@@ -24,19 +24,7 @@ pub struct TooltipLink<OnClick> {
 }
 
 impl<OnClick> TooltipLink<OnClick> {
-    pub fn new(text: String, on_click: OnClick, mouse_state: MouseStateHandle) -> Self {
-        Self {
-            text,
-            on_click,
-            detail: None,
-            mouse_state,
-        }
-    }
 
-    pub fn with_detail(mut self, detail: String) -> Self {
-        self.detail = Some(detail);
-        self
-    }
 }
 
 /// Configuration for redaction messaging in tooltips

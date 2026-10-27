@@ -137,8 +137,6 @@ const CURSOR_BLINK_INTERVAL: Duration = Duration::from_millis(500);
 const DEFAULT_TAB_SIZE: usize = 4;
 
 pub const ACCEPT_AUTOSUGGESTION_KEYBINDING_NAME: &str = "editor_view:insert_autosuggestion";
-pub const VOICE_LIMIT_HIT_TOAST_TEXT: &str = "You have hit the limit for Voice requests. Your limit will be refreshed as a part of your next cycle.";
-pub const VOICE_ERROR_TOAST_TEXT: &str = "An error occurred while processing your voice input.";
 
 pub const MAX_IMAGES_PER_CONVERSATION: usize = 200;
 
@@ -1414,7 +1412,7 @@ pub enum BaselinePositionComputationMethod {
 // Re-export voice transcription types for backwards compatibility
 use warp_errors::report_error;
 
-pub use crate::voice::transcriber::{Transcriber, VoiceTranscriber};
+pub use crate::voice::transcriber::Transcriber;
 
 /// Similar to [`ImageContext`], but contains un-processed and un-resized image data.
 #[derive(Clone)]
@@ -1623,27 +1621,7 @@ pub fn default_cursor_colors(ctx: &AppContext) -> CursorColors {
     }
 }
 
-#[derive(Debug)]
-pub enum VoiceTranscriptionOptions {
-    /// Voice transcription is enabled, possibly showing a microphone button.
-    Enabled { show_button: bool },
 
-    /// Voice transcription is disabled.
-    Disabled,
-}
-
-impl VoiceTranscriptionOptions {
-    pub fn is_enabled(&self) -> bool {
-        matches!(self, VoiceTranscriptionOptions::Enabled { .. })
-    }
-
-    pub fn should_show_button(&self) -> bool {
-        matches!(
-            self,
-            VoiceTranscriptionOptions::Enabled { show_button: true }
-        )
-    }
-}
 
 #[derive(Debug)]
 pub enum ImageContextOptions {

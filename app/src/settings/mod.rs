@@ -68,8 +68,6 @@ pub(crate) use onboarding::*;
 pub use pane::*;
 pub use privacy::*;
 pub use same_line_prompt_block::*;
-#[cfg(not(target_family = "wasm"))]
-pub use schema_generation::dump_settings_schema;
 pub use scroll::*;
 pub use select::*;
 pub use shared_object_limit_banner::*;
@@ -153,13 +151,8 @@ use crate::user_config::WarpConfig;
 
 // The following are user preferences keys.
 pub const CHANGELOG_VERSIONS: &str = "ChangelogVersions";
-pub const RESTORE_SESSION: &str = "RestoreSession";
-pub const INPUT_MODE: &str = "InputMode";
-pub const ACTIVATION_HOTKEY_ENABLED: &str = "ActivationHotkeyEnabled";
-pub const ACTIVATION_HOTKEY_KEYBINDING: &str = "ActivationHotkeyKeybinding";
 pub const DISMISSED_AI_ASSISTANT_WELCOME_KEY: &str = "DismissedWarpAIWarmWelcome";
 
-pub const TIMES_TO_SHOW_AUTOSUGGESTION_HINT: i8 = 2;
 pub const QUAKE_WINDOW_AUTOHIDE_SUPPORTED: bool = cfg!(any(target_os = "macos", windows));
 
 lazy_static! {
@@ -595,16 +588,7 @@ impl TerminalSpacing {
     }
 }
 
-/// The argument type for set_extra_meta_keys action.
-#[derive(Clone)]
-pub struct ExtraMetaKeysChangedArg {
-    pub keys: ExtraMetaKeys,
-}
 
-/// Returns the path to the user preferences file.
-pub fn user_preferences_file_path() -> PathBuf {
-    warp_core::paths::config_local_dir().join("user_preferences.json")
-}
 
 /// Returns the path to the TOML settings file for the active settings surface.
 ///

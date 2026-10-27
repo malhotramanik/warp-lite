@@ -1,32 +1,7 @@
-use std::path::Path;
 
 use lazy_static::lazy_static;
 use regex::Regex;
 
-/// Converts a multiline bash or zsh script to one line by turning newlines into semicolons or
-/// deleting them, as appropriate.
-///
-/// Extra semicolons are a syntax error in bash, so this is careful to avoid adding them except
-/// where necessary.
-///
-/// This function exists because there's a strange macOS ssh server bug where sending a lot of data
-/// containing newlines to a shell results in data corruption.
-pub fn convert_script_to_one_line(script: &str) -> String {
-    lazy_static! {
-        static ref EXTRA_SPACES_REGEX: Regex = Regex::new(r"\n+\s*").expect("invalid regex");
-        static ref NO_SEMICOLON_REGEX: Regex =
-            Regex::new("(; ?|\\{|do|then|else|in)\n").expect("invalid regex");
-        static ref REMOVE_COMMENTS_REGEX: Regex = Regex::new(r"(?m)^ *#.*").expect("invalid regex");
-        static ref REMOVE_LEADING_NEWLINES: Regex = Regex::new(r"^\n*").expect("invalid regex");
-    };
-    let script = REMOVE_COMMENTS_REGEX.replace_all(script, "");
-    let script = REMOVE_LEADING_NEWLINES.replace_all(&script, "");
-    let script = EXTRA_SPACES_REGEX.replace_all(&script, "\n");
-    let script = NO_SEMICOLON_REGEX.replace_all(&script, "$1 ");
-    let mut script = script.replace('\n', ";");
-    script.push('\n');
-    script
-}
 
 pub enum SshLoginState {
     LastLogin,
@@ -227,47 +202,6 @@ fn parse_ssh_command_tokens(command: &str) -> Option<Vec<String>> {
     Some(tokens)
 }
 
-/// Creates an sftp command that copies a given local file into the pwd in the warpified ssh session.
-pub fn transfer_file_sftp_command(
-    local_file_path: String,
-    ssh_host: String,
-    ssh_port: Option<String>,
-    pwd: Option<String>,
-) -> Option<String> {
-    // "sftp "
-    let mut command = String::from("sftp ");
-
-    // "sftp -P 2222"
-    if let Some(port) = ssh_port {
-        command += &format!("-P {port} ");
-    }
-
-    // "sftp -P 2222 sshuser@127.0.0.1 <<< "put "
-    command += &ssh_host;
-    command += " <<< \"put ";
-
-    // "sftp -P 2222 sshuser@127.0.0.1 <<< "put -r"
-    let is_dir = Path::new(&local_file_path)
-        .metadata()
-        .is_ok_and(|m| m.is_dir());
-    if is_dir {
-        command += "-r "
-    }
-
-    // "sftp -P 2222 sshuser@127.0.0.1 <<< "put -r \"path/to/local/file\""
-    command += &format!("\\\"{}\\\"", &local_file_path);
-
-    // "sftp -P 2222 sshuser@127.0.0.1 <<< "put -r path/to/local/file pwd/on/remote"
-    if let Some(pwd) = pwd {
-        command += " ";
-        command += &format!("\\\"{}\\\"", &pwd);
-    }
-
-    // "sftp -P 2222 sshuser@127.0.0.1 <<< "put -r path/to/local/file pwd/on/remote""
-    command += "\"";
-
-    Some(command)
-}
 
 #[cfg(test)]
 #[path = "util_tests.rs"]

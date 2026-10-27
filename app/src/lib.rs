@@ -142,7 +142,7 @@ use ::ai::index::full_source_code_embedding::manager::{
 };
 use ::ai::project_context::model::ProjectContextModel;
 pub(crate) use ai::agent::todos::AIAgentTodoList;
-pub(crate) use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
+pub(crate) use ai::agent::{AIAgentActionResultType, FileEdit};
 use ai::agent_conversations_model::AgentConversationsModel;
 use ai::agent_management::AgentNotificationsModel;
 use ai::ambient_agents::scheduled::ScheduledAgentManager;
@@ -296,7 +296,7 @@ use crate::server::iap_identity_minter::ManagedSecretsIapMinter;
 use crate::server::server_api::managed_secrets::AppManagedSecretManager as ManagedSecretManager;
 use crate::server::sync_queue::{QueueItem, SyncQueue};
 pub(crate) use crate::server::telemetry::{
-    AgentModeEntrypoint, AgentModeEntrypointSelectionType, TelemetryEvent,
+    AgentModeEntrypoint, TelemetryEvent,
 };
 use crate::server::telemetry::{AppStartupInfo, CloseTarget, PaletteSource, TelemetryCollector};
 use crate::session_management::{RunningSessionSummary, SessionNavigationData};

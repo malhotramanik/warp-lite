@@ -17,24 +17,22 @@ mod tips;
 mod view_impl;
 
 pub use auth_secret_ftux_view::{
-    AuthSecretFtuxAction, AuthSecretFtuxView, AuthSecretFtuxViewEvent,
+    AuthSecretFtuxView, AuthSecretFtuxViewEvent,
 };
 pub use auth_secret_selector::{
-    AuthSecretSelector, AuthSecretSelectorAction, AuthSecretSelectorEvent,
+    AuthSecretSelector, AuthSecretSelectorEvent,
 };
 pub use block::*;
 pub use first_time_setup::{FirstTimeCloudAgentSetupView, FirstTimeCloudAgentSetupViewEvent};
-pub use footer::{render_error_footer, render_loading_footer};
-pub use harness_selector::{HarnessSelector, HarnessSelectorAction, HarnessSelectorEvent};
+pub use footer::{ render_loading_footer};
+pub use harness_selector::{HarnessSelector, HarnessSelectorEvent};
 pub use host_selector::{
-    Host, HostSelector, HostSelectorAction, HostSelectorEvent, NakedHeaderButtonTheme,
+    HostSelector, HostSelectorEvent, NakedHeaderButtonTheme,
 };
-pub use loading_screen::{render_cloud_mode_error_screen, render_cloud_mode_loading_screen};
-pub use model::{AgentProgress, AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
+pub use model::{AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
 pub use model_selector::{
-    HarnessSelection, ModelSelection, ModelSelector, ModelSelectorAction, ModelSelectorEvent,
+    ModelSelector, ModelSelectorEvent,
 };
-pub use progress::{ProgressProps, ProgressStep, ProgressStepState, render_progress};
 pub use progress_ui_state::AmbientAgentProgressUIState;
 pub use team_required::{CloudAgentTeamRequiredView, CloudAgentTeamRequiredViewEvent};
 pub(crate) use team_required::{

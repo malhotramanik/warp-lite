@@ -190,7 +190,7 @@ pub use pane::settings_pane::SettingsPane;
 pub use pane::terminal_pane::TerminalPane;
 pub use pane::{
     AnyPaneContent, BackingView, PaneConfiguration, PaneConfigurationEvent, PaneContent, PaneEvent,
-    PaneHeaderAction, PaneHeaderCustomAction, PaneId, PaneView, TerminalPaneId,
+    PaneHeaderAction, PaneHeaderCustomAction, PaneId, TerminalPaneId,
 };
 pub use tree::{Direction, PaneData, PaneFlex, PaneNode, SplitDirection};
 use warp_errors::report_error;

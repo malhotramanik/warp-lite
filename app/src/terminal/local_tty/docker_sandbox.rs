@@ -3,7 +3,6 @@ use std::path::PathBuf;
 
 use futures::FutureExt as _;
 use futures::future::BoxFuture;
-pub use warp_terminal::local_tty::docker_sandbox::*;
 use warpui::{AppContext, SingletonEntity as _};
 
 use crate::terminal::local_shell::LocalShellState;

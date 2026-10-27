@@ -306,11 +306,6 @@ impl AuthSecretFtuxView {
         self
     }
 
-    /// Returns true when the view is rendering in the compact (modal)
-    /// presentation.
-    pub fn is_compact_mode(&self) -> bool {
-        self.compact_mode
-    }
 
     /// Hide the in-dropdown "Skip" affordance. Used by modal hosts.
     pub fn with_skip_hidden(mut self) -> Self {
@@ -318,10 +313,6 @@ impl AuthSecretFtuxView {
         self
     }
 
-    /// Returns the harness this view is currently targeting.
-    pub fn harness(&self) -> Harness {
-        self.harness
-    }
 
     /// Retarget at a new harness: clear in-progress creation state and
     /// propagate the harness change to the embedded dropdown.

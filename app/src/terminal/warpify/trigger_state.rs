@@ -46,9 +46,6 @@ pub enum SshBlockState {
 }
 
 impl SshBlockState {
-    pub fn should_prevent_input(&self) -> bool {
-        true
-    }
 
     pub fn get_block_view_id(&self) -> EntityId {
         match self {
@@ -112,34 +109,10 @@ pub struct WarpifyState {
 }
 
 impl WarpifyState {
-    pub fn delete_state(&mut self) {
-        self.pending_state.take();
-    }
 
-    pub fn is_shell_detection_in_progress(&self) -> bool {
-        self.pending_state
-            .as_ref()
-            .map(|state| state.is_shell_detection_in_progress)
-            .unwrap_or_default()
-    }
 
-    pub fn set_shell_detection_in_progress(&mut self) {
-        if let Some(ref mut pending_state) = self.pending_state.as_mut() {
-            pending_state.is_shell_detection_in_progress = true;
-        }
-    }
 
-    pub fn set_shell_type(&mut self, shell_type: &ShellType) {
-        let pending_state = self.pending_state.get_or_insert_with(Default::default);
-        pending_state.shell_type = Some(shell_type.to_owned());
-        pending_state.is_shell_detection_in_progress = false;
-    }
 
-    pub fn get_shell_type(&self) -> Option<ShellType> {
-        self.pending_state
-            .as_ref()
-            .and_then(|state| state.shell_type)
-    }
 
     pub fn add_subshell_separator(
         &mut self,
@@ -195,10 +168,6 @@ impl WarpifyState {
         };
     }
 
-    pub fn add_ssh_warpify_timeout_handle(&mut self, spawned_future_handle: SpawnedFutureHandle) {
-        let pending_state = self.pending_state.get_or_insert_with(Default::default);
-        pending_state.ssh_warpify_timeout_handle = Some(spawned_future_handle);
-    }
 
     pub fn abort_ssh_warpify_timeout(&mut self) {
         self.replace_timeout_id();
@@ -234,17 +203,7 @@ impl WarpifyState {
             .and_then(|state: &WarpifyTriggerState| state.pending_warpify_ssh_host.clone())
     }
 
-    pub fn get_pending_ssh_command(&self) -> Option<String> {
-        self.pending_state
-            .as_ref()
-            .and_then(|state: &WarpifyTriggerState| state.pending_command.clone())
-    }
 
-    pub fn take_pending_ssh_host(&mut self) -> Option<String> {
-        self.pending_state
-            .as_mut()
-            .and_then(|state: &mut WarpifyTriggerState| state.pending_warpify_ssh_host.take())
-    }
 
     pub fn clear_pending_ssh_host(&mut self) {
         if let Some(ref mut pending_state) = self.pending_state.as_mut() {
@@ -269,9 +228,6 @@ impl WarpifyState {
             .and_then(|state| state.block_id.clone())
     }
 
-    pub fn timeout_id(&self) -> u8 {
-        self.timeout_id
-    }
 
     /// Generates a new timeout ID. This is used to validate that a timeout is still valid.
     /// Call this to get a new timeout ID before starting a new timeout, or to invalidate
@@ -281,13 +237,6 @@ impl WarpifyState {
         self.timeout_id
     }
 
-    /// The terminal view should prevent typing
-    pub fn should_prevent_input(&self) -> bool {
-        let Some(state) = self.ssh_block_state() else {
-            return false;
-        };
-        state.should_prevent_input()
-    }
 
     /// Called once whenever we get a local block completed, as opposed to a remote ssh block
     /// and we have a Warpify Success block.

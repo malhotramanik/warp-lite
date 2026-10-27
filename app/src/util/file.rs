@@ -11,12 +11,6 @@ use crate::terminal::ShellLaunchData;
 use crate::terminal::model::grid::grid_handler::{ContainsPoint, Link};
 use crate::terminal::model::index::Point;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum FilePathType {
-    Absolute,
-    /// Contains the working directory PathBuf.
-    Relative(PathBuf),
-}
 
 #[derive(Debug)]
 pub enum ShellPathType {
@@ -92,16 +86,6 @@ fn is_path_valid(path: &Path, clean_path_result: &CleanPathResult) -> bool {
     metadata.is_file() || (metadata.is_dir() && clean_path_result.line_and_column_num.is_none())
 }
 
-impl FilePathType {
-    /// Given a path that we've identified the FilePathType of,
-    /// returns the absolute path.
-    pub fn absolute_path(&self, path: PathBuf) -> PathBuf {
-        match self {
-            FilePathType::Absolute => path,
-            FilePathType::Relative(directory) => directory.join(&path),
-        }
-    }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileLink {

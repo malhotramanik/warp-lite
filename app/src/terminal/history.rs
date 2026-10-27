@@ -870,16 +870,7 @@ impl History {
         self.collect_visible_commands_for_session(session_id, Arc::clone)
     }
 
-    #[allow(clippy::len_without_is_empty)]
-    pub fn len(&self, session_id: SessionId) -> usize {
-        self.commands(session_id)
-            .map(|c| c.len())
-            .unwrap_or_default()
-    }
 
-    pub fn is_empty(&self, session_id: SessionId) -> bool {
-        self.len(session_id) == 0
-    }
 
     #[cfg(feature = "integration_tests")]
     pub fn session_commands(&self) -> &HashMap<ShellHost, Vec<Arc<HistoryEntry>>> {

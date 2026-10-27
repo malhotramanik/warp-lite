@@ -407,9 +407,6 @@ impl CloudModeV2SlashCommandView {
         ctx.emit(SlashCommandsEvent::Close(CloseReason::ManualDismissal));
     }
 
-    pub fn result_count(&self, app: &AppContext) -> usize {
-        self.mixer.as_ref(app).results().len()
-    }
 
     fn current_query_text(&self, app: &AppContext) -> String {
         self.input_buffer_model

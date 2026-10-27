@@ -6,7 +6,7 @@ pub(crate) mod positioning;
 pub mod styles;
 mod view;
 
-pub use message_bar::{InlineMenuMessageArgs, InlineMenuMessageBarArgs};
+pub use message_bar::InlineMenuMessageArgs;
 pub use message_provider::{InlineMenuMessageProvider, default_navigation_message_items};
 pub use model::{InlineMenuModel, InlineMenuModelEvent, InlineMenuTabConfig};
 pub use positioning::InlineMenuPositioner;

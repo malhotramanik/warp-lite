@@ -1101,7 +1101,6 @@ pub mod styles {
     use crate::themes::theme::Fill;
 
     pub const CORNER_RADIUS: f32 = 8.;
-    pub const VIEW_WIDTH: f32 = 700.;
     pub const VIEW_HEIGHT: f32 = 450.;
     pub const TOP_PADDING: f32 = CORNER_RADIUS;
     pub const SCROLLBAR_WIDTH: ScrollbarWidth = ScrollbarWidth::Auto;

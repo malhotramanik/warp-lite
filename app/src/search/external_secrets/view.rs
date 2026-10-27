@@ -22,7 +22,7 @@ use crate::search::external_secrets::searcher::{
     ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
 };
 use crate::search::result_renderer::{QueryResultRenderer, QueryResultRendererStyles};
-use crate::search::search_bar::{SearchBar, SearchBarEvent, SearchBarState, SearchResultOrdering};
+use crate::search::search_bar::{SearchBar, SearchBarState, SearchResultOrdering};
 
 lazy_static! {
     static ref QUERY_RESULT_RENDERER_STYLES: QueryResultRendererStyles =
@@ -38,7 +38,6 @@ lazy_static! {
         };
 }
 
-const DEFAULT_PLACEHOLDER_TEXT: &str = "Search for a secret";
 
 pub struct ExternalSecretsMenu {
     scroll_state: ScrollStateHandle,
@@ -67,62 +66,6 @@ pub enum ExternalSecretsMenuEvent {
 }
 
 impl ExternalSecretsMenu {
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let appearance = Appearance::as_ref(ctx);
-        let ui_font_family = appearance.ui_font_family();
-
-        let search_bar_state = ctx.add_model(|_| {
-            SearchBarState::new(SearchResultOrdering::TopDown).run_query_on_buffer_empty()
-        });
-
-        ctx.observe(&search_bar_state, |_, _, ctx| {
-            ctx.notify();
-        });
-
-        let mixer = ctx.add_model(|_| ExternalSecretSearchMixer::new());
-
-        let search_bar = ctx.add_typed_action_view(|ctx| {
-            SearchBar::new(
-                mixer.clone(),
-                search_bar_state.clone(),
-                DEFAULT_PLACEHOLDER_TEXT,
-                |result_index, result| {
-                    QueryResultRenderer::new(
-                        result,
-                        format!("QueryResultRenderer:{result_index}"),
-                        |result_index, result_action, event_ctx| {
-                            event_ctx.dispatch_typed_action(
-                                ExternalSecretsMenuAction::ResultClicked {
-                                    result_index,
-                                    result_action: Box::new(result_action),
-                                },
-                            )
-                        },
-                        *QUERY_RESULT_RENDERER_STYLES,
-                    )
-                },
-                ctx,
-            )
-            .with_font_family(ui_font_family, ctx)
-        });
-
-        ctx.subscribe_to_view(&search_bar, |me, _handle, event, ctx| {
-            me.handle_search_bar_event(event, ctx);
-        });
-
-        ctx.subscribe_to_model(&search_bar_state, |me, _handle, event, ctx| {
-            me.handle_search_bar_event(event, ctx);
-        });
-
-        Self {
-            search_bar,
-            search_bar_state,
-            mixer,
-            handle: ctx.handle(),
-            scroll_state: Default::default(),
-            list_state: Default::default(),
-        }
-    }
 
     pub fn setup(&mut self, secrets: Vec<ExternalSecret>, ctx: &mut ViewContext<Self>) {
         self.mixer.update(ctx, |mixer, ctx| {
@@ -144,26 +87,6 @@ impl ExternalSecretsMenu {
         ctx.emit(ExternalSecretsMenuEvent::Close);
     }
 
-    fn handle_search_bar_event(
-        &mut self,
-        event: &SearchBarEvent<ExternalSecretSearchItemAction>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            SearchBarEvent::Close => self.close(ctx),
-            SearchBarEvent::BufferCleared { .. } => {}
-            SearchBarEvent::ResultAccepted { action, .. } => {
-                self.handle_result_selected(action.clone(), ctx);
-            }
-            SearchBarEvent::ResultSelected { index } => {
-                self.list_state.scroll_to(*index);
-                ctx.notify();
-            }
-            SearchBarEvent::QueryFilterChanged { .. } => {}
-            SearchBarEvent::SelectionUpdateInZeroState { .. } => {}
-            SearchBarEvent::EnterInZeroState { .. } => {}
-        }
-    }
 
     fn handle_result_selected(
         &mut self,

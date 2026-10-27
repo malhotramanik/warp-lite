@@ -38,10 +38,6 @@ impl Manager {
         }
     }
 
-    /// Returns true iff there are >= 1 active shares.
-    pub fn is_some_session_being_shared(&self) -> bool {
-        !self.shared.is_empty()
-    }
 
     /// Returns true iff there are >= 1 active joined sessions.
     pub fn is_some_session_being_viewed(&self) -> bool {
@@ -157,15 +153,6 @@ impl Manager {
         self.joined.keys().cloned()
     }
 
-    /// Returns an iterator over the set of all shared sessions.
-    pub fn shared_views<'a>(
-        &'a self,
-        ctx: &'a AppContext,
-    ) -> impl Iterator<Item = ViewHandle<TerminalView>> + 'a {
-        self.shared
-            .values()
-            .filter_map(move |state| state.view_handle.upgrade(ctx))
-    }
 
     pub fn started_share(
         &mut self,

@@ -7,9 +7,7 @@ use crate::terminal::input::{
     SET_INPUT_MODE_AGENT_ACTION_NAME, SET_INPUT_MODE_TERMINAL_ACTION_NAME,
     SET_INPUT_MODE_UNLOCKED_AGENT_ACTION_NAME, SET_INPUT_MODE_UNLOCKED_TERMINAL_ACTION_NAME,
 };
-use crate::util::bindings::{
-    CustomAction, custom_tag_to_keystroke, keybinding_name_to_display_string,
-};
+use crate::util::bindings::keybinding_name_to_display_string;
 
 /// Cache of keybindings used in terminal.
 pub struct TerminalKeybindings {
@@ -60,15 +58,7 @@ impl TerminalKeybindings {
         self.set_input_mode_terminal_keybinding.clone()
     }
 
-    /// Display label for the keybinding to set input mode to unlocked agent mode
-    pub fn set_input_mode_unlocked_agent_keybinding(&self) -> Option<String> {
-        self.set_input_mode_unlocked_agent_keybinding.clone()
-    }
 
-    /// Display label for the keybinding to set input mode to unlocked terminal mode
-    pub fn set_input_mode_unlocked_terminal_keybinding(&self) -> Option<String> {
-        self.set_input_mode_unlocked_terminal_keybinding.clone()
-    }
 
     fn handle_keybinding_change(
         &mut self,
@@ -105,7 +95,3 @@ impl Entity for TerminalKeybindings {
 
 impl SingletonEntity for TerminalKeybindings {}
 
-/// The keybinding label to display for a [`CustomAction`].
-pub fn custom_action_to_display(action: CustomAction) -> Option<String> {
-    custom_tag_to_keystroke(action.into()).map(|keystroke| keystroke.displayed())
-}
