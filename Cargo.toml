@@ -300,42 +300,8 @@ tracing-subscriber = { version = "0.3.22", default-features = false, features = 
   "registry",
   "std",
 ] }
-arborium = { version = "2", default-features = false, features = [
-  "lang-rust",
-  "lang-go",
-  "lang-yaml",
-  "lang-python",
-  "lang-javascript",
-  "lang-typescript",
-  "lang-tsx",
-  "lang-java",
-  "lang-cpp",
-  "lang-bash",
-  "lang-c-sharp",
-  "lang-html",
-  "lang-css",
-  "lang-c",
-  "lang-json",
-  "lang-jq",
-  "lang-hcl",
-  "lang-lua",
-  "lang-nix",
-  "lang-ruby",
-  "lang-php",
-  "lang-toml",
-  "lang-swift",
-  "lang-kotlin",
-  "lang-scala",
-  "lang-powershell",
-  "lang-elixir",
-  "lang-sql",
-  "lang-starlark",
-  "lang-objc",
-  "lang-xml",
-  "lang-vue",
-  "lang-dockerfile",
-  "lang-markdown",
-] }
+# warp-lite: no language grammars; the code editor is removed.
+arborium = { version = "2", default-features = false }
 unicode-general-category = "1.1.0"
 unicode-linebreak = "0.1.5"
 unicode-segmentation = "1.11.0"
