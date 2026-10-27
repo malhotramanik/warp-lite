@@ -429,9 +429,10 @@ rmcp = { version = "3.5" }
 # peak memory during ThinLTO + codegen (which was OOM-killing release builds
 # on CI), at the cost of not being able to inspect locals/types when
 # attaching a debugger to a release binary.
-debug = 1
-# Force the rust compiler to create a dSYM. Starting in 1.53 the default on MacOS is "unpacked".
-split-debuginfo = "packed"
+# warp-lite: no debug info or symbols in release builds; this keeps the binary
+# small and there is no crash reporting to symbolicate for.
+debug = false
+strip = "symbols"
 
 [profile.dev]
 # Use line-tables-only to speed up dev builds. Change to `debug = true` if you
