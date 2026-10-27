@@ -86,8 +86,7 @@ use crate::settings::{
     AISettings, QuakeModeSettings, ThemeSettings, apply_account_first_onboarding_settings,
     apply_onboarding_settings,
 };
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
-use crate::settings_view::{OpenTeamsSettingsModalArgs, SettingsSection, flags};
+use crate::settings_view::{ SettingsSection, flags};
 use crate::terminal::available_shells::AvailableShell;
 use crate::terminal::general_settings::GeneralSettings;
 use crate::terminal::keys_settings::KeysSettings;
@@ -95,7 +94,7 @@ use crate::terminal::shell::ShellType;
 use crate::terminal::view::{TerminalAction, cell_size_and_padding};
 use crate::themes::onboarding_theme_picker_themes;
 use crate::themes::theme::{AnsiColorIdentifier, Blend, Fill, ThemeKind, WarpThemeConfig};
-use crate::uri::{OpenMCPSettingsArgs, OpenSettingsArgs, url_reports_checkout_success};
+use crate::uri::{OpenSettingsArgs, url_reports_checkout_success};
 use crate::util::bindings::{self, is_binding_pty_compliant};
 use crate::util::traffic_lights::{TrafficLightData, TrafficLightMouseStates, traffic_light_data};
 use crate::view_components::DismissibleToast;
@@ -400,14 +399,6 @@ pub fn init(app: &mut AppContext) {
         RootView::open_warp_drive_object_in_existing_window,
     );
 
-    app.add_global_action(
-        "root_view:open_team_settings_with_email_invite_in_new_window",
-        open_team_settings_with_email_invite_in_new_window,
-    );
-    app.add_action(
-        "root_view:open_team_settings_with_email_invite_in_existing_window",
-        RootView::open_team_settings_with_email_invite_in_existing_window,
-    );
 
     app.add_global_action(
         "root_view:open_settings_page_in_new_window",
@@ -427,14 +418,6 @@ pub fn init(app: &mut AppContext) {
         RootView::open_settings_in_existing_window,
     );
 
-    app.add_global_action(
-        "root_view:open_mcp_settings_in_new_window",
-        open_mcp_settings_in_new_window,
-    );
-    app.add_action(
-        "root_view:open_mcp_settings_in_existing_window",
-        RootView::open_mcp_settings_in_existing_window,
-    );
 
     app.add_global_action(
         "root_view:open_codex_in_new_window",
@@ -1013,25 +996,6 @@ fn create_environment_and_run(arg: &CreateEnvironmentArg, ctx: &mut AppContext) 
 
     ctx.windows().show_window_and_focus_app(window_id);
 }
-fn open_team_settings_with_email_invite_in_new_window(
-    arg: &OpenTeamsSettingsModalArgs,
-    ctx: &mut AppContext,
-) {
-    let root_handle = open_new_window_get_handles(None, ctx).1;
-    root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            let email_invite = arg.invite_email.clone();
-            workspace_view_handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.show_team_settings_page_with_email_invite(email_invite.as_ref(), ctx)
-                });
-            });
-        }
-    });
-}
 
 fn open_settings_page_in_new_window(section: &SettingsSection, ctx: &mut AppContext) {
     let root_handle = open_new_window_get_handles(None, ctx).1;
@@ -1077,28 +1041,6 @@ fn open_settings_in_new_window(args: &OpenSettingsArgs, ctx: &mut AppContext) {
     });
 }
 
-/// MCP servers need to wait for initial load to complete, so we have this action in addition
-/// to the general-purpose [`open_settings_page_in_new_window`].
-fn open_mcp_settings_in_new_window(args: &OpenMCPSettingsArgs, ctx: &mut AppContext) {
-    let autoinstall = args.autoinstall.clone();
-    let root_handle = open_new_window_get_handles(None, ctx).1;
-    root_handle.update(ctx, |root_view, ctx| {
-        if let AuthOnboardingState::Terminal(workspace_view_handle) =
-            &root_view.auth_onboarding_state
-        {
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            workspace_view_handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.open_mcp_servers_page(
-                        MCPServersSettingsPage::List,
-                        autoinstall.as_deref(),
-                        ctx,
-                    )
-                });
-            });
-        }
-    });
-}
 
 /// Opens a new window and shows the Codex modal.
 fn open_codex_in_new_window(_: &(), ctx: &mut AppContext) {
@@ -3011,21 +2953,6 @@ impl RootView {
         true
     }
 
-    pub fn open_team_settings_with_email_invite_in_existing_window(
-        &mut self,
-        arg: &OpenTeamsSettingsModalArgs,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            handle.update(ctx, |workspace, ctx| {
-                workspace.show_team_settings_page_with_email_invite(arg.invite_email.as_ref(), ctx)
-            });
-            return true;
-        } else {
-            log::warn!("Auth not complete before trying to open settings pane");
-        }
-        false
-    }
 
     pub fn open_warp_drive_object_in_existing_window(
         &mut self,
@@ -3355,32 +3282,6 @@ impl RootView {
         true
     }
 
-    /// Opens the MCP servers settings page in an existing window, optionally triggering auto-install.
-    /// Waits for `initial_load_complete` before opening so gallery data is available for autoinstall.
-    pub fn open_mcp_settings_in_existing_window(
-        &mut self,
-        args: &OpenMCPSettingsArgs,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if let AuthOnboardingState::Terminal(handle) = &self.auth_onboarding_state {
-            let autoinstall = args.autoinstall.clone();
-            let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-            handle.update(ctx, |_, ctx| {
-                let _ = ctx.spawn(initial_load_complete, move |workspace, _, ctx| {
-                    workspace.open_mcp_servers_page(
-                        MCPServersSettingsPage::List,
-                        autoinstall.as_deref(),
-                        ctx,
-                    )
-                });
-            });
-            let window_id = ctx.window_id();
-            ctx.windows().show_window_and_focus_app(window_id);
-        } else {
-            report_error!("Auth not complete before trying to open MCP settings page");
-        }
-        true
-    }
 
     /// Opens the Codex modal in an existing window.
     pub fn open_codex_in_existing_window(&mut self, _: &(), ctx: &mut ViewContext<Self>) -> bool {

@@ -153,7 +153,4 @@ pub enum OpenConversationPreference {
 }
 
 impl OpenConversationPreference {
-    pub fn is_new_tab(&self) -> bool {
-        matches!(self, Self::NewTab)
-    }
 }

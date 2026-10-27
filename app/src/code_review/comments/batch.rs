@@ -7,7 +7,6 @@ use super::{
     AttachedReviewComment, AttachedReviewCommentTarget, CommentId, PendingImportedReviewComment,
 };
 use crate::code::buffer_location::LocalOrRemotePath;
-use crate::code::editor::EditorReviewComment;
 use crate::code_review::diff_state::DiffMode;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

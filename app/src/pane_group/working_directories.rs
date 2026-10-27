@@ -22,9 +22,7 @@ use warpui::{Entity, EntityId, ModelContext, ModelHandle, ViewHandle};
 use crate::code::buffer_location::LocalOrRemotePath;
 #[cfg(feature = "local_fs")]
 use crate::code::file_tree::FileTreeView;
-use crate::code_review::comments::{
-    AttachedReviewComment, ReviewCommentBatch,
-};
+use crate::code_review::comments::ReviewCommentBatch;
 use crate::code_review::diff_state::DiffStateModel;
 use crate::workspace::view::global_search::view::GlobalSearchView;
 

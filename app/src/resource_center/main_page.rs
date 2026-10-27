@@ -197,34 +197,9 @@ impl ResourceCenterMainView {
     fn handle_feature_section_event(
         &mut self,
         event: &FeatureSectionEvent,
-        ctx: &mut ViewContext<Self>,
+        _ctx: &mut ViewContext<Self>,
     ) {
-        match event {
-            FeatureSectionEvent::CloseResourceCenter => {
-                ctx.emit(ResourceCenterMainEvent::Close);
-                ctx.notify();
-            }
-            FeatureSectionEvent::ExpandSection(section_name) => {
-                for section_view in &self.section_views {
-                    match section_view {
-                        SectionViewHandle::Feature(feature_view_handle) => {
-                            if feature_view_handle
-                                .as_ref(ctx)
-                                .feature_section_data
-                                .section_name
-                                == *section_name
-                            {
-                                feature_view_handle.update(ctx, |view, ctx| {
-                                    view.expand_section(ctx);
-                                })
-                            }
-                        }
-                        SectionViewHandle::Content(_) => {}
-                        SectionViewHandle::Changelog(_) => {}
-                    }
-                }
-                ctx.notify();
-            }
+        match *event {
         }
     }
 

@@ -1122,27 +1122,6 @@ impl LLMPreferences {
         });
     }
 
-    /// Returns the set of LLMs available for coding.
-    pub fn get_coding_llm_choices<'a, S: TeamScope + ?Sized>(
-        &'a self,
-        scope: &S,
-        app: &'a AppContext,
-    ) -> impl Iterator<Item = &'a LLMInfo> + use<'a, S> {
-        // Don't show admin-disabled models in the dropdown
-        let routers_enabled = FeatureFlag::CustomModelRouters.is_enabled();
-        UserWorkspaces::as_ref(app)
-            .feature_model_choice_for_scope(scope)
-            .coding
-            .choices
-            .iter()
-            .filter(|llm| !matches!(llm.disable_reason, Some(DisableReason::AdminDisabled)))
-            // Gate cloud/team routers behind the same flag as local routers.
-            .filter(move |llm| {
-                routers_enabled || !custom_model_routers::is_cloud_custom_router_id(llm.id.as_str())
-            })
-            .chain(self.custom_llm_choices(app))
-            .chain(self.custom_router_choices())
-    }
 
     /// Returns the set of LLMs available for CLI agent.
     pub fn get_cli_agent_llm_choices<'a, S: TeamScope + ?Sized>(
@@ -1189,15 +1168,6 @@ impl LLMPreferences {
             .unwrap_or_else(|| self.fallback_llm_info(available, app))
     }
 
-    /// Returns the effective default CLI agent model as a fallback
-    /// (disable-aware, see [`Self::fallback_llm_info`]).
-    pub fn get_default_cli_agent_model<'a>(
-        &'a self,
-        scope: &(impl TeamScope + ?Sized),
-        app: &'a AppContext,
-    ) -> &'a LLMInfo {
-        self.fallback_llm_info(self.get_cli_agent_available(scope.team_uid(), app), app)
-    }
 
 
     /// Helper to get the AvailableLLMs for cli_agent, falling back to agent_mode.
@@ -1798,38 +1768,6 @@ impl LLMPreferences {
         ctx.dispatch_global_action("workspace:save_app", ());
     }
 
-    pub fn update_preferred_coding_llm(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        preferred_llm_id: &LLMId,
-        terminal_view_id: Option<EntityId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let new_value = if preferred_llm_id
-            == &UserWorkspaces::as_ref(ctx)
-                .feature_model_choice_for_scope(scope)
-                .coding
-                .default_id
-        {
-            None
-        } else {
-            Some(preferred_llm_id.clone())
-        };
-
-        let mut changed = false;
-        AIExecutionProfilesModel::handle(ctx).update(ctx, |profiles, ctx| {
-            let profile = profiles.active_profile(terminal_view_id, ctx);
-
-            if profile.data().coding_model != new_value {
-                profiles.set_coding_model(profile.id(), new_value, ctx);
-                changed = true;
-            }
-        });
-
-        if changed {
-            ctx.emit(LLMPreferencesEvent::UpdatedActiveCodingLLM);
-        }
-    }
 
     pub fn new_choices_since_last_update(&self) -> Option<Vec<LLMInfo>> {
         self.last_update.as_ref().map(|update| {

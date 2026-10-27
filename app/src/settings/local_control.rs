@@ -47,18 +47,11 @@ fn default_mode_for_channel(channel: Channel) -> LocalControlMode {
 }
 
 impl LocalControlMode {
-    pub const ALL: [Self; 2] = [Self::Disabled, Self::Enabled];
 
     pub fn is_enabled(self) -> bool {
         matches!(self, Self::Enabled)
     }
 
-    pub fn as_dropdown_label(self) -> &'static str {
-        match self {
-            Self::Disabled => "Disabled",
-            Self::Enabled => "Enabled",
-        }
-    }
 }
 
 define_settings_group!(LocalControlSettings, settings: [

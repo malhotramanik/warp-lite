@@ -114,7 +114,6 @@ use crate::server::telemetry::{
 use crate::session_management::SessionNavigationData;
 use crate::settings::{AISettings, DefaultSessionMode, PaneSettings};
 use crate::settings_view::SettingsSection;
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::available_shells::{AvailableShell, AvailableShells};
 #[cfg(not(target_family = "wasm"))]
@@ -650,7 +649,6 @@ pub enum Event {
     InvalidatedActiveConversation,
     OpenConversationHistory,
     OpenMCPSettingsPage {
-        page: Option<MCPServersSettingsPage>,
     },
     OpenAddPromptPane {
         /// The initial prompt body content.

@@ -48,9 +48,6 @@ struct FeatureMouseStateHandles {
 }
 
 pub enum FeatureSectionEvent {
-    /// Event fired when the tips dialog should close.
-    CloseResourceCenter,
-    ExpandSection(FeatureSection),
 }
 
 pub struct FeatureSectionView {
@@ -128,11 +125,6 @@ impl FeatureSectionView {
         }
     }
 
-    pub fn expand_section(&mut self, ctx: &mut ViewContext<Self>) {
-        self.is_expanded = true;
-
-        ctx.notify();
-    }
 
     pub fn toggle_expanded(&mut self, ctx: &mut ViewContext<Self>) {
         self.is_expanded = !self.is_expanded;

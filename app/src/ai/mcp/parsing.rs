@@ -11,36 +11,6 @@ use crate::ai::mcp::templatable_installation::{
 #[cfg(feature = "local_fs")]
 use crate::ai::mcp::{JSONMCPServer, JSONTransportType};
 
-/// Normalize MCP JSON input to ensure it has a server name wrapper.
-///
-/// If the JSON is a single server definition (has `command` or `url` at the top level),
-/// wrap it with a generated name. Otherwise, return the JSON as-is.
-///
-/// Note: When returning the original JSON, we preserve the exact input string.
-#[cfg(not(target_family = "wasm"))]
-pub(crate) fn normalize_mcp_json(json_str: &str) -> serde_json::Result<String> {
-    // Some docs don't show curly braces around the json object, so add them if necessary.
-    let json = json_str.trim();
-    let json_for_parsing = if json.starts_with('{') {
-        json.to_owned()
-    } else {
-        format!("{{{json}}}")
-    };
-
-    let value: serde_json::Value = serde_json::from_str(&json_for_parsing)?;
-
-    // Check if this is a single server definition (has command or url at top level)
-    let is_single_server = value.get("command").is_some() || value.get("url").is_some();
-
-    if is_single_server {
-        let server_name = uuid::Uuid::new_v4().to_string();
-        let mut map = serde_json::Map::new();
-        map.insert(server_name, value);
-        Ok(serde_json::Value::Object(map).to_string())
-    } else {
-        Ok(json_str.to_string())
-    }
-}
 
 /// A single entry under `[mcp_servers.<name>]` in a Codex TOML file.
 ///
@@ -255,26 +225,6 @@ impl ParsedTemplatableMCPServerResult {
             .collect())
     }
 
-    /// Parses the user json and returns a vector of ParsedTemplatableMCPServerResult
-    /// If the json is invalid, returns an error
-    /// It's up to the caller to handle cases where there are an unexpected number of servers
-    pub fn from_user_json(json: &str) -> serde_json::Result<Vec<Self>> {
-        // Some docs don't show curly braces around the json object, so add them if necessary.
-        let json = json.trim();
-        let json = if json.starts_with('{') {
-            json.to_owned()
-        } else {
-            format!("{{{json}}}")
-        };
-
-        let config: serde_json::Value = serde_json::from_str(&json)?;
-        let template_jsons = TemplatableMCPServer::find_template_map(config)?;
-
-        Ok(template_jsons
-            .iter()
-            .map(|(name, json)| Self::parse_result(name, json))
-            .collect())
-    }
 
     /// Parses a single MCP config
     /// Returns a ParsedTemplatableMCPServerResult
@@ -392,10 +342,6 @@ pub fn resolve_json(installation: &TemplatableMCPServerInstallation) -> String {
     render_template(installation.template_json(), &variable_values_strings)
 }
 
-pub fn prettify_json(json: &str) -> String {
-    let value: serde_json::Value = serde_json::from_str(json).unwrap_or_default();
-    serde_json::to_string_pretty(&value).unwrap_or(json.to_string())
-}
 
 #[cfg(test)]
 #[path = "parsing_tests.rs"]

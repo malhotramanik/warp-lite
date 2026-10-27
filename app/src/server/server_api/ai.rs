@@ -36,9 +36,6 @@ use warp_graphql::mutations::delete_ai_conversation::{
     DeleteAIConversation, DeleteAIConversationVariables, DeleteConversationInput,
     DeleteConversationResult,
 };
-use warp_graphql::mutations::disconnect_chatgpt::{
-    DisconnectChatGPT, DisconnectChatGPTResult, DisconnectChatGPTVariables,
-};
 use warp_graphql::mutations::generate_code_embeddings::{
     GenerateCodeEmbeddings, GenerateCodeEmbeddingsInput, GenerateCodeEmbeddingsResult,
     GenerateCodeEmbeddingsVariables,
@@ -63,9 +60,6 @@ use warp_graphql::mutations::request_bonus::{
     ProvideNegativeFeedbackResponseForAiConversation,
     ProvideNegativeFeedbackResponseForAiConversationInput,
     ProvideNegativeFeedbackResponseForAiConversationVariables, RequestsRefundedResult,
-};
-use warp_graphql::mutations::start_chatgpt_link::{
-    StartChatGPTLink, StartChatGPTLinkResult, StartChatGPTLinkVariables,
 };
 use warp_graphql::mutations::update_agent_task::{
     AgentTaskStatusMessageInput, UpdateAgentTask, UpdateAgentTaskInput, UpdateAgentTaskResult,
@@ -92,9 +86,6 @@ use warp_graphql::queries::get_available_harnesses::{
 };
 use warp_graphql::queries::get_chatgpt_connection::{
     GetChatGPTConnection, GetChatGPTConnectionVariables,
-};
-use warp_graphql::queries::get_conversation_usage::{
-    ConversationUsage, GetConversationUsage, GetConversationUsageVariables, UserResult,
 };
 use warp_graphql::queries::get_feature_model_choices::{
     GetFeatureModelChoices, GetFeatureModelChoicesVariables,
@@ -825,23 +816,8 @@ pub trait AIClient: 'static + Send + Sync {
     /// Fetches the ChatGPT account linked to the authenticated user, if any.
     async fn get_chatgpt_connection(&self) -> Result<ChatGPTConnectionStatus, anyhow::Error>;
 
-    /// Unlinks the authenticated user's ChatGPT account on the server.
-    async fn disconnect_chatgpt(&self) -> Result<(), anyhow::Error>;
 
-    /// Returns the browser URL that links a ChatGPT account to the authenticated user. The
-    /// browser flow finishes by opening `continue_url` with `chatgpt_linked=1` or
-    /// `chatgpt_error=<code>` appended.
-    async fn start_chatgpt_link(&self, continue_url: String) -> Result<String, anyhow::Error>;
 
-    /// Returns conversation usage history for the current user over the requested number of days.
-    ///
-    /// If `last_updated_end_timestamp` is provided, only conversations updated before that timestamp are returned.
-    async fn get_conversation_usage_history(
-        &self,
-        days: Option<i32>,
-        limit: Option<i32>,
-        last_updated_end_timestamp: Option<warp_graphql::scalars::Time>,
-    ) -> Result<Vec<ConversationUsage>, anyhow::Error>;
 
     async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error>;
 
@@ -1435,55 +1411,8 @@ impl AIClient for ServerApi {
         }
     }
 
-    async fn disconnect_chatgpt(&self) -> Result<(), anyhow::Error> {
-        let operation = DisconnectChatGPT::build(DisconnectChatGPTVariables {
-            request_context: get_request_context(),
-        });
-        let response = self.send_graphql_request(operation, None).await?;
 
-        match response.disconnect_chatgpt {
-            DisconnectChatGPTResult::DisconnectChatGPTOutput(_) => Ok(()),
-            DisconnectChatGPTResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            DisconnectChatGPTResult::Unknown => Err(anyhow!("failed to disconnect ChatGPT")),
-        }
-    }
 
-    async fn start_chatgpt_link(&self, continue_url: String) -> Result<String, anyhow::Error> {
-        let operation = StartChatGPTLink::build(StartChatGPTLinkVariables {
-            request_context: get_request_context(),
-            continue_url,
-        });
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.start_chatgpt_link {
-            StartChatGPTLinkResult::StartChatGPTLinkOutput(output) => Ok(output.authorization_url),
-            StartChatGPTLinkResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            StartChatGPTLinkResult::Unknown => Err(anyhow!("failed to start ChatGPT link")),
-        }
-    }
-
-    async fn get_conversation_usage_history(
-        &self,
-        days: Option<i32>,
-        limit: Option<i32>,
-        last_updated_end_timestamp: Option<warp_graphql::scalars::Time>,
-    ) -> Result<Vec<ConversationUsage>, anyhow::Error> {
-        let operation = GetConversationUsage::build(GetConversationUsageVariables {
-            request_context: get_request_context(),
-            days,
-            limit,
-            last_updated_end_timestamp,
-        });
-        let response = self.send_graphql_request(operation, None).await?;
-        match response.user {
-            UserResult::UserOutput(output) => Ok(output.user.conversation_usage),
-            UserResult::Unknown => Err(anyhow!("Unable to fetch conversation usage")),
-        }
-    }
 
     async fn get_feature_model_choices(&self) -> Result<ModelsByFeature, anyhow::Error> {
         let variables = GetFeatureModelChoicesVariables {

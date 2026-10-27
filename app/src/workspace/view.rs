@@ -7,7 +7,6 @@ pub(crate) mod codex_modal;
 pub mod conversation_list;
 #[cfg(enable_crash_recovery)]
 mod crash_recovery;
-pub(crate) mod feature_intro_modal;
 pub(crate) mod free_ai_removal_modal;
 pub mod global_search;
 pub(crate) mod launch_modal;
@@ -110,7 +109,6 @@ use warpui::platform::{
     Cursor, FilePickerConfiguration, FullscreenState, SystemTheme, TerminationMode,
 };
 use warpui::text_layout::ClipConfig;
-use warpui::ui_components::button::Button;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 use warpui::windowing::state::ApplicationStage;
 use warpui::windowing::{StateEvent, WindowManager};
@@ -250,7 +248,6 @@ use crate::cloud_object::{
     CloudObject, GenericStringObjectFormat, JsonObjectType, ObjectType, Owner, Space,
 };
 use crate::code::buffer_location::LocalOrRemotePath;
-use crate::code::editor::{add_color, remove_color};
 #[cfg(feature = "local_fs")]
 use crate::code::editor_management::CodeManager;
 use crate::code::editor_management::CodeSource;
@@ -344,11 +341,7 @@ use crate::settings::{
     PrivacySettings, SelectionSettings, Settings, SshSettings, ThemeSettings, active_theme_kind,
     respect_system_theme,
 };
-use crate::settings_view::handoff_environment_creation_modal::{
-    HandoffEnvironmentCreationModal, HandoffEnvironmentCreationModalEvent,
-};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::pane_manager::SettingsPaneManager;
 use crate::settings_view::{SettingsSection, SettingsView, SettingsViewEvent, flags};
 #[cfg(all(target_os = "windows", feature = "local_tty"))]
@@ -381,9 +374,6 @@ use crate::terminal::block_list_viewport::InputMode;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
 use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
-use crate::terminal::enable_auto_reload_modal::{
-    EnableAutoReloadModal, EnableAutoReloadModalEvent,
-};
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::input::slash_commands::fork_button_action;
@@ -511,10 +501,6 @@ use crate::workspace::view::cloud_agent_capacity_modal::{
     CloudAgentCapacityModal, CloudAgentCapacityModalEvent, CloudAgentCapacityModalVariant,
 };
 use crate::workspace::view::codex_modal::{CodexModal, CodexModalEvent};
-use crate::workspace::view::feature_intro_modal::{
-    FeatureIntroCtaTarget, FeatureIntroId, FeatureIntroModal, FeatureIntroModalEvent,
-    feature_intro_by_id,
-};
 use crate::workspace::view::free_ai_removal_modal::{
     FreeAiRemovalModal, FreeAiRemovalModalEvent, FreeAiRemovalModalTelemetryEvent,
     FreeAiRemovalModalVariant,
@@ -709,9 +695,6 @@ const MOBILE_OVERLAY_SCRIM_ALPHA: u8 = 128;
 pub const NEW_TAB_BUTTON_POSITION_ID: &str = "new_tab_button";
 pub const NEW_SESSION_MENU_BUTTON_POSITION_ID: &str = "new_session_menu_button";
 
-/// Save position for the feature-intro popover, so the changelog chip can float
-/// just above it (see `feature_intro_chip_positioning`).
-const FEATURE_INTRO_MODAL_POSITION_ID: &str = "workspace:feature_intro_modal";
 
 // The max length of the title of a fork toast (after which we truncate it).
 const MAX_FORK_TOAST_TITLE_LENGTH: usize = 100;
@@ -1128,14 +1111,12 @@ pub struct Workspace {
     openwarp_launch_modal: ViewHandle<OpenWarpLaunchModal>,
     orchestration_launch_modal: ViewHandle<OrchestrationLaunchModal>,
     agent_cli_launch_modal: ViewHandle<AgentCliLaunchModal>,
-    feature_intro_modal: ViewHandle<FeatureIntroModal>,
     /// Tab that first received the feature-intro popover. The popover stays
     /// pinned to this tab for the rest of its lifetime so switching tabs does
     /// not re-show it elsewhere.
     feature_intro_tab_pane_group_id: Option<EntityId>,
     auto_handoff_sleep_modal: ViewHandle<AutoHandoffSleepModal>,
     chatgpt_plan_modal: ViewHandle<ChatGPTPlanModal>,
-    enable_auto_reload_modal: ViewHandle<EnableAutoReloadModal>,
     build_plan_migration_modal: ViewHandle<BuildPlanMigrationModal>,
     codex_modal: ViewHandle<CodexModal>,
     cloud_agent_capacity_modal: ViewHandle<CloudAgentCapacityModal>,
@@ -1220,7 +1201,6 @@ pub struct Workspace {
     tab_config_action_sidecar_item: Option<SidecarItemKind>,
     tab_config_action_sidecar_mouse_states: crate::tab_configs::action_sidecar::SidecarMouseStates,
     remove_tab_config_confirmation_dialog: ViewHandle<RemoveTabConfigConfirmationDialog>,
-    handoff_environment_creation_modal: Option<ViewHandle<HandoffEnvironmentCreationModal>>,
     /// Workspace-level modal hosting `AuthSecretFtuxView` for the
     /// orchestration cards' "New API key…" flow. Cloud mode renders the
     /// FTUX view inline and does not use this.
@@ -2629,16 +2609,6 @@ impl Workspace {
             appearance,
         )
     }
-    fn build_enable_auto_reload_modal(
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<EnableAutoReloadModal> {
-        let enable_auto_reload_modal = ctx.add_typed_action_view(EnableAutoReloadModal::new);
-        ctx.subscribe_to_view(&enable_auto_reload_modal, move |me, _, event, ctx| {
-            me.handle_enable_auto_reload_modal_event(event, ctx);
-        });
-
-        enable_auto_reload_modal
-    }
 
     /// Subscribe to the [`ServerApiProvider`] model to report status changes.
     fn observe_server_api(ctx: &mut ViewContext<Self>) {
@@ -2680,14 +2650,6 @@ impl Workspace {
                 {
                     toast_stack.update(ctx, |toast_stack, ctx| {
                         toast_stack.add_persistent_toast(toast.clone(), ctx)
-                    });
-                }
-                WorkspaceToastStackEvent::RemoveToast {
-                    window_id,
-                    identifier,
-                } if *window_id == ctx.window_id() => {
-                    toast_stack.update(ctx, |toast_stack, ctx| {
-                        toast_stack.dismiss_older_toasts(identifier, ctx)
                     });
                 }
                 _ => {}
@@ -2971,10 +2933,6 @@ impl Workspace {
         let resource_center_view =
             Self::build_resource_center_view(ctx, tips_completed.clone(), changelog_model.clone());
 
-        let enable_auto_reload_modal = ctx.add_typed_action_view(EnableAutoReloadModal::new);
-        ctx.subscribe_to_view(&enable_auto_reload_modal, |me, _, event, ctx| {
-            me.handle_enable_auto_reload_modal_event(event, ctx);
-        });
 
         let build_plan_migration_modal = ctx.add_typed_action_view(BuildPlanMigrationModal::new);
         ctx.subscribe_to_view(&build_plan_migration_modal, |me, _, event, ctx| {
@@ -3044,10 +3002,6 @@ impl Workspace {
             me.handle_agent_cli_launch_modal_event(event, ctx);
         });
 
-        let feature_intro_view = ctx.add_typed_action_view(FeatureIntroModal::new);
-        ctx.subscribe_to_view(&feature_intro_view, |me, _, event, ctx| {
-            me.handle_feature_intro_modal_event(event, ctx);
-        });
 
         let auto_handoff_sleep_view = ctx.add_typed_action_view(AutoHandoffSleepModal::new);
         ctx.subscribe_to_view(&auto_handoff_sleep_view, |me, _, event, ctx| {
@@ -3066,7 +3020,6 @@ impl Workspace {
 
         let session_config_modal = Self::build_session_config_modal(ctx);
 
-        let enable_auto_reload_modal = Self::build_enable_auto_reload_modal(ctx);
 
         let close_session_confirmation_dialog = Self::build_close_session_confirmation_dialog(ctx);
         let rewind_confirmation_dialog = Self::build_rewind_confirmation_dialog(ctx);
@@ -3386,8 +3339,6 @@ impl Workspace {
                         me.show_hoa_onboarding_flow(ctx);
                     } else if model_ref.is_build_plan_migration_modal_open() {
                         me.focus_build_plan_migration_modal(ctx);
-                    } else if let Some(id) = model_ref.active_feature_intro() {
-                        me.show_feature_intro_modal(id, ctx);
                     }
                 }
             } else {
@@ -3529,11 +3480,9 @@ impl Workspace {
             openwarp_launch_modal: openwarp_launch_view,
             orchestration_launch_modal: orchestration_launch_view,
             agent_cli_launch_modal: agent_cli_launch_view,
-            feature_intro_modal: feature_intro_view,
             feature_intro_tab_pane_group_id: None,
             auto_handoff_sleep_modal: auto_handoff_sleep_view,
             chatgpt_plan_modal: chatgpt_plan_view,
-            enable_auto_reload_modal,
             agent_management_view,
             notification_mailbox_view,
             notification_toast_stack,
@@ -3560,7 +3509,6 @@ impl Workspace {
             tab_config_action_sidecar_mouse_states: Default::default(),
             remove_tab_config_confirmation_dialog:
                 Self::build_remove_tab_config_confirmation_dialog(ctx),
-            handoff_environment_creation_modal: None,
             create_auth_secret_modal: None,
         };
 
@@ -10625,25 +10573,6 @@ impl Workspace {
         );
     }
 
-    fn handle_enable_auto_reload_modal_event(
-        &mut self,
-        event: &EnableAutoReloadModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            EnableAutoReloadModalEvent::Close => {
-                self.current_workspace_state
-                    .is_enable_auto_reload_modal_open = false;
-                ctx.notify();
-            }
-            EnableAutoReloadModalEvent::ShowToast { message, flavor } => {
-                self.toast_stack.update(ctx, |toast_stack, ctx| {
-                    toast_stack
-                        .add_ephemeral_toast(DismissibleToast::new(message.clone(), *flavor), ctx);
-                });
-            }
-        }
-    }
 
     fn handle_welcome_tips_event(&mut self, event: &TipsEvent, ctx: &mut ViewContext<Self>) {
         match event {
@@ -11709,8 +11638,7 @@ impl Workspace {
             if closed_tab_id.is_some() && closed_tab_id == self.feature_intro_tab_pane_group_id {
                 // The pinned tab is gone; drop the intro so it does not reappear
                 // on a different tab.
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_feature_intro_dismissed(ctx);
+                OneTimeModalModel::handle(ctx).update(ctx, |_model, _ctx| {
                 });
                 self.feature_intro_tab_pane_group_id = None;
             }
@@ -14530,82 +14458,6 @@ impl Workspace {
         });
     }
 
-    fn show_handoff_environment_creation_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        // Capture the initiating source view now, before async creation begins.
-        // If we waited until the Created callback, the user may have switched panes.
-        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-        let source_view = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx);
-
-        let modal = ctx.add_typed_action_view(HandoffEnvironmentCreationModal::new);
-        ctx.subscribe_to_view(&modal, move |me, _, event, ctx| match event {
-            HandoffEnvironmentCreationModalEvent::Created { env_id } => {
-                let env_id = *env_id;
-                me.handoff_environment_creation_modal = None;
-                #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-                {
-                    if let Some(source_view) = source_view.as_ref() {
-                        let (launch, entry_point) = source_view.update(ctx, |view, ctx| {
-                            let input = view.input().clone();
-                            input.update(ctx, |input, ctx| {
-                                let prompt = input
-                                    .editor()
-                                    .as_ref(ctx)
-                                    .buffer_text(ctx)
-                                    .trim()
-                                    .to_owned();
-                                let attachments = input.collect_cloud_launch_attachments(ctx);
-                                let entry_point = input.handoff_entry_point(ctx);
-                                input.exit_cloud_handoff_compose_and_clear_prompt(ctx);
-                                let launch = if prompt.is_empty() {
-                                    None
-                                } else {
-                                    Some(PendingCloudLaunch {
-                                        prompt,
-                                        attachments,
-                                    })
-                                };
-                                (launch, entry_point)
-                            })
-                        });
-                        ctx.dispatch_typed_action_deferred(
-                            WorkspaceAction::OpenLocalToCloudHandoffPane {
-                                launch,
-                                environment_id: Some(env_id),
-                                entry_point,
-                            },
-                        );
-                    }
-                }
-                #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
-                {
-                    let _ = env_id;
-                }
-            }
-            HandoffEnvironmentCreationModalEvent::Cancelled => {
-                me.handoff_environment_creation_modal = None;
-                me.focus_active_tab(ctx);
-            }
-            HandoffEnvironmentCreationModalEvent::CreationFailed { error_message } => {
-                me.handoff_environment_creation_modal = None;
-                me.toast_stack.update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!(
-                            "Failed to create environment: {error_message}"
-                        )),
-                        ctx,
-                    );
-                });
-                me.focus_active_tab(ctx);
-            }
-        });
-        modal.update(ctx, |modal, ctx| modal.show(ctx));
-        ctx.focus(&modal);
-        self.handoff_environment_creation_modal = Some(modal);
-        ctx.notify();
-    }
 
     /// Opens the workspace-level blocking modal for creating a new managed
     /// auth secret. Persists the new secret on success and dismisses the
@@ -14664,81 +14516,6 @@ impl Workspace {
         }
     }
 
-    fn show_cloud_mode_v2_environment_creation_modal(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(source_view) = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx)
-        else {
-            return;
-        };
-        let modal = ctx.add_typed_action_view(HandoffEnvironmentCreationModal::new);
-        ctx.subscribe_to_view(&modal, move |me, _, event, ctx| match event {
-            HandoffEnvironmentCreationModalEvent::Created { env_id } => {
-                let env_id = *env_id;
-                me.handoff_environment_creation_modal = None;
-                let Some(model_handle) =
-                    source_view.as_ref(ctx).ambient_agent_view_model().cloned()
-                else {
-                    return;
-                };
-                let pending = source_view.update(ctx, |view, ctx| {
-                    let input = view.input().clone();
-                    input.update(ctx, |input, ctx| {
-                        let prompt = input
-                            .editor()
-                            .as_ref(ctx)
-                            .buffer_text(ctx)
-                            .trim()
-                            .to_owned();
-                        if prompt.is_empty() {
-                            return None;
-                        }
-                        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-                        let attachments = input
-                            .collect_cloud_launch_attachments(ctx)
-                            .request_attachments;
-                        #[cfg(not(all(feature = "local_fs", not(target_family = "wasm"))))]
-                        let attachments = Vec::new();
-                        input.editor().update(ctx, |editor, ctx| {
-                            editor.clear_buffer(ctx);
-                        });
-                        input.ai_context_model().update(ctx, |model, ctx| {
-                            model.clear_pending_attachments(ctx);
-                        });
-                        Some((prompt, attachments))
-                    })
-                });
-                let scope = UserWorkspaces::as_ref(ctx).team_context_for_operation(ctx);
-                model_handle.update(ctx, |model, ctx| {
-                    model.set_environment_id(Some(env_id), ctx);
-                    if let Some((prompt, attachments)) = pending {
-                        model.spawn_agent(prompt, attachments, &scope, ctx);
-                    }
-                });
-            }
-            HandoffEnvironmentCreationModalEvent::Cancelled => {
-                me.handoff_environment_creation_modal = None;
-                me.focus_active_tab(ctx);
-            }
-            HandoffEnvironmentCreationModalEvent::CreationFailed { error_message } => {
-                me.handoff_environment_creation_modal = None;
-                me.toast_stack.update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast(
-                        DismissibleToast::error(format!(
-                            "Failed to create environment: {error_message}"
-                        )),
-                        ctx,
-                    );
-                });
-                me.focus_active_tab(ctx);
-            }
-        });
-        modal.update(ctx, |modal, ctx| modal.show(ctx));
-        ctx.focus(&modal);
-        self.handoff_environment_creation_modal = Some(modal);
-        ctx.notify();
-    }
 
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
     fn restore_source_handoff_draft(
@@ -15245,6 +15022,8 @@ impl Workspace {
         ctx: &mut ViewContext<Self>,
     ) {
         match event {
+            // warp-lite: MCP settings are removed.
+            pane_group::Event::OpenMCPSettingsPage {} => {}
             pane_group::Event::AppStateChanged => {
                 ctx.dispatch_global_action("workspace:save_app", ());
                 self.refresh_working_directories_for_pane_group(&pane_group, ctx);
@@ -15267,12 +15046,6 @@ impl Workspace {
             pane_group::Event::Escape => {
                 if self.current_workspace_state.is_resource_center_open {
                     self.current_workspace_state.is_resource_center_open = false;
-                    ctx.notify();
-                } else if self.is_feature_intro_visible_on_active_tab(ctx) {
-                    OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.mark_feature_intro_dismissed(ctx);
-                    });
-                    self.feature_intro_tab_pane_group_id = None;
                     ctx.notify();
                 }
             }
@@ -15352,12 +15125,9 @@ impl Workspace {
             pane_group::Event::OpenSettings(section) => {
                 self.show_settings_with_section(Some(*section), ctx);
             }
-            pane_group::Event::OpenAutoReloadModal { purchased_credits } => {
+            pane_group::Event::OpenAutoReloadModal { purchased_credits: _ } => {
                 self.current_workspace_state
                     .is_enable_auto_reload_modal_open = true;
-                self.enable_auto_reload_modal.update(ctx, |modal, ctx| {
-                    modal.set_selected_denomination_by_credits(*purchased_credits, ctx);
-                });
                 ctx.notify();
             }
             #[cfg(not(target_family = "wasm"))]
@@ -15413,10 +15183,6 @@ impl Workspace {
             }
             pane_group::Event::OpenCLIAgentToolbarEditor => {
                 self.open_agent_toolbar_editor(AgentToolbarEditorMode::CLIAgent, ctx);
-            }
-            pane_group::Event::OpenMCPSettingsPage { page } => {
-                // Open the MCP servers settings page to the list page
-                self.open_mcp_servers_page(page.unwrap_or_default(), None, ctx);
             }
             pane_group::Event::OpenAddRulePane => {
                 send_telemetry_from_ctx!(
@@ -17659,39 +17425,12 @@ impl Workspace {
             .is_some();
         self.show_settings_with_section(Some(SettingsSection::Teams), ctx);
         if show_join_modal {
-            self.settings_pane.update(ctx, |view, ctx| {
-                view.open_teams_page_join_modal(ctx);
+            self.settings_pane.update(ctx, |_view, _ctx| {
             });
         }
     }
 
-    /// Opens the team settings page and fills the invite field with the given email. This is used when linking directing to
-    /// settings with the intent of inviting a user.
-    pub fn show_team_settings_page_with_email_invite(
-        &mut self,
-        email_invite: Option<&String>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.show_settings_with_section(Some(SettingsSection::Teams), ctx);
 
-        self.settings_pane.update(ctx, |view, ctx| {
-            view.open_teams_page_email_invite(email_invite, ctx);
-        });
-    }
-
-    /// Opens the MCP servers settings page, optionally triggering auto-install of a gallery MCP.
-    pub fn open_mcp_servers_page(
-        &mut self,
-        page: MCPServersSettingsPage,
-        autoinstall_gallery_title: Option<&str>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.show_settings_with_section(Some(SettingsSection::AgentMCPServers), ctx);
-
-        self.settings_pane.update(ctx, |view, ctx| {
-            view.open_mcp_servers_page(page, autoinstall_gallery_title, ctx);
-        });
-    }
 
     /// Shows the theme chooser so the user can change the active theme.
     pub fn show_theme_chooser_for_active_theme(&mut self, ctx: &mut ViewContext<Self>) {
@@ -18083,34 +17822,6 @@ impl Workspace {
         }
     }
 
-    fn handle_feature_intro_modal_event(
-        &mut self,
-        event: &FeatureIntroModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let cta_target = if let FeatureIntroModalEvent::GetStarted(id) = event {
-            feature_intro_by_id(*id).and_then(|intro| intro.cta_target)
-        } else {
-            None
-        };
-        OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-            model.mark_feature_intro_dismissed(ctx);
-        });
-        self.feature_intro_tab_pane_group_id = None;
-        self.focus_active_tab(ctx);
-
-        if let Some(cta_target) = cta_target {
-            match cta_target {
-                FeatureIntroCtaTarget::SettingsWidget { page, widget_id } => {
-                    self.open_settings_pane(Some(page), None, ctx);
-                    self.settings_pane.update(ctx, |settings, ctx| {
-                        settings.scroll_to_settings_widget(page, widget_id(), ctx);
-                    });
-                }
-            }
-        }
-        ctx.notify();
-    }
 
     fn handle_auto_handoff_sleep_modal_event(
         &mut self,
@@ -21706,18 +21417,6 @@ impl Workspace {
         }
     }
 
-    /// Offset positioning for the changelog chip while the feature-intro popover is
-    /// open: floats the chip just above the popover's top-right edge instead of
-    /// anchoring it to the input box.
-    fn feature_intro_chip_positioning(&self) -> OffsetPositioning {
-        OffsetPositioning::offset_from_save_position_element(
-            FEATURE_INTRO_MODAL_POSITION_ID,
-            vec2f(0., -8.),
-            PositionedElementOffsetBounds::WindowByPosition,
-            PositionedElementAnchor::TopRight,
-            ChildAnchor::BottomRight,
-        )
-    }
 
     fn add_toggle_setting_context_flags(&self, app: &AppContext, context: &mut Context) {
         let privacy_settings = PrivacySettings::as_ref(app);
@@ -22013,9 +21712,6 @@ impl Workspace {
             context
                 .set
                 .insert(flags::SESSION_CONFIG_TAB_CONFIG_CHIP_OPEN);
-        }
-        if self.is_feature_intro_visible_on_active_tab(app) {
-            context.set.insert(flags::FEATURE_INTRO_MODAL_OPEN);
         }
 
         if tab_settings
@@ -22452,38 +22148,7 @@ impl Workspace {
         ctx.focus(&self.agent_cli_launch_modal);
     }
 
-    fn show_feature_intro_modal(&mut self, id: FeatureIntroId, ctx: &mut ViewContext<Self>) {
-        // Non-blocking popover: set the descriptor but intentionally do NOT focus it,
-        // so the terminal and input stay usable while it is visible. Pin to the
-        // currently active tab so the popover only appears there for the rest of
-        // its lifetime (switching tabs hides it; returning shows it again).
-        if self.feature_intro_tab_pane_group_id.is_none() {
-            self.feature_intro_tab_pane_group_id = self
-                .tabs
-                .get(self.active_tab_index)
-                .map(|tab| tab.pane_group.id());
-        }
-        let intro = feature_intro_by_id(id);
-        self.feature_intro_modal.update(ctx, |modal, ctx| {
-            modal.set_feature(intro, ctx);
-        });
-    }
 
-    fn is_feature_intro_visible_on_active_tab(&self, app: &AppContext) -> bool {
-        let one_time = OneTimeModalModel::as_ref(app);
-        if one_time.target_window_id() != Some(self.window_id)
-            || one_time.active_feature_intro().is_none()
-        {
-            return false;
-        }
-        let Some(pinned_tab) = self.feature_intro_tab_pane_group_id else {
-            // Fallback before the pin is assigned: only the currently active tab.
-            return true;
-        };
-        self.tabs
-            .get(self.active_tab_index)
-            .is_some_and(|tab| tab.pane_group.id() == pinned_tab)
-    }
 
     fn focus_auto_handoff_sleep_modal(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.focus(&self.auto_handoff_sleep_modal);
@@ -22893,8 +22558,7 @@ impl TypedActionView for Workspace {
                 self.dismiss_session_config_tab_config_chip(ctx);
             }
             DismissFeatureIntroModal => {
-                OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                    model.mark_feature_intro_dismissed(ctx);
+                OneTimeModalModel::handle(ctx).update(ctx, |_model, _ctx| {
                 });
                 self.feature_intro_tab_pane_group_id = None;
                 ctx.notify();
@@ -23084,10 +22748,8 @@ impl TypedActionView for Workspace {
                 }
             }
             ShowHandoffEnvironmentCreationModal => {
-                self.show_handoff_environment_creation_modal(ctx);
             }
             ShowCloudModeV2EnvironmentCreationModal => {
-                self.show_cloud_mode_v2_environment_creation_modal(ctx);
             }
             OpenCreateAuthSecretModal { harness } => {
                 self.show_create_auth_secret_modal(*harness, ctx);
@@ -24668,17 +24330,7 @@ impl TypedActionView for Workspace {
                 log::info!("Free AI removal modal seen state has been reset");
             }
             #[cfg(debug_assertions)]
-            OpenFeatureIntroModal => {
-                if let Some(id) = crate::workspace::view::feature_intro_modal::FEATURE_INTROS
-                    .first()
-                    .map(|intro| intro.id)
-                {
-                    OneTimeModalModel::handle(ctx).update(ctx, |model, ctx| {
-                        model.force_open_feature_intro(id, ctx);
-                    });
-                    ctx.notify();
-                }
-            }
+            OpenFeatureIntroModal => {}
             #[cfg(debug_assertions)]
             ResetFeatureIntroModalState => {
                 AISettings::handle(ctx).update(ctx, |ai_settings, ctx| {
@@ -26241,12 +25893,6 @@ impl View for Workspace {
             }
         }
 
-        if self
-            .current_workspace_state
-            .is_enable_auto_reload_modal_open
-        {
-            stack.add_child(ChildView::new(&self.enable_auto_reload_modal).finish());
-        }
 
         if should_show_modal && one_time_modal_model.is_build_plan_migration_modal_open() {
             stack.add_child(ChildView::new(&self.build_plan_migration_modal).finish());
@@ -26268,9 +25914,6 @@ impl View for Workspace {
             stack.add_child(ChildView::new(lightbox_view).finish());
         }
 
-        if let Some(handoff_modal) = &self.handoff_environment_creation_modal {
-            stack.add_child(ChildView::new(handoff_modal).finish());
-        }
 
         if let Some(create_auth_secret_modal) = &self.create_auth_secret_modal {
             stack.add_child(ChildView::new(create_auth_secret_modal).finish());
@@ -26516,44 +26159,11 @@ impl View for Workspace {
             );
         }
 
-        // Feature-intro popover: a non-blocking bottom-right card anchored just above
-        // the input box (or the window corner when there is no input). Pinned to
-        // the tab that first received it so it does not follow tab switches.
-        // Added before the changelog chip below so the chip renders above it.
-        let show_feature_intro = self.is_feature_intro_visible_on_active_tab(app);
-        if show_feature_intro {
-            let positioning = match &input_position_id {
-                Some(input_position_id) => {
-                    self.update_toast_positioning(input_position_id.clone(), app)
-                }
-                None => OffsetPositioning::offset_from_parent(
-                    vec2f(-16., -16.),
-                    ParentOffsetBounds::WindowByPosition,
-                    ParentAnchor::BottomRight,
-                    ChildAnchor::BottomRight,
-                ),
-            };
-            stack.add_positioned_overlay_child(
-                SavePosition::new(
-                    ChildView::new(&self.feature_intro_modal).finish(),
-                    FEATURE_INTRO_MODAL_POSITION_ID,
-                )
-                .finish(),
-                positioning,
-            );
-        }
-
         if let Some(input_position_id) = input_position_id
             && FeatureFlag::AvatarInTabBar.is_enabled()
             && self.is_input_box_visible(app)
         {
-            // When the feature-intro popover is visible, float the changelog chip
-            // just above it instead of anchoring it to the input box.
-            let positioning = if show_feature_intro {
-                self.feature_intro_chip_positioning()
-            } else {
-                self.update_toast_positioning(input_position_id, app)
-            };
+            let positioning = self.update_toast_positioning(input_position_id, app);
             stack.add_positioned_overlay_child(
                 ChildView::new(&self.update_toast_stack).finish(),
                 positioning,

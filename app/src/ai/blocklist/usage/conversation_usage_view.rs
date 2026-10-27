@@ -39,7 +39,6 @@ use crate::ui_components::blended_colors;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DisplayMode {
-    Settings,
     Footer,
 }
 
@@ -135,27 +134,6 @@ pub struct ConversationUsageView {
 }
 
 impl ConversationUsageView {
-    pub fn new(
-        usage_info: ConversationUsageInfo,
-        display_mode: DisplayMode,
-        timing_info: Option<TimingInfo>,
-        full_terminal_use_tooltip_mouse_state: MouseStateHandle,
-    ) -> Self {
-        Self {
-            usage_info,
-            display_mode,
-            timing_info,
-            full_terminal_use_tooltip_mouse_state,
-            parent_conversation_id: None,
-            details_expanded: false,
-            show_all_clicked: false,
-            details_toggle_mouse_state: MouseStateHandle::default(),
-            show_more_mouse_state: MouseStateHandle::default(),
-            context_window_expanded: false,
-            context_window_toggle_mouse_state: MouseStateHandle::default(),
-            context_window_other_tooltip_mouse_state: MouseStateHandle::default(),
-        }
-    }
 
     /// Constructs the view in `DisplayMode::Footer` with orchestration
     /// credit rollup wired in. The view subscribes to

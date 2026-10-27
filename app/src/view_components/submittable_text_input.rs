@@ -20,8 +20,6 @@ const ENTER_BUTTON_SIZE: f32 = 22.;
 enum ValidatorType {
     /// Validates whenever the input changes.
     OnEdit,
-    /// Only validates on submission.
-    OnSubmitOnly,
 }
 
 /// This View is a text input in which you can submit its contents by clicking the embedded button
@@ -72,13 +70,6 @@ impl SubmittableTextInput {
         self
     }
 
-    /// Validates the input contents using the provided `validator`
-    /// whenever a submit action is attempted.
-    pub fn validate_on_submit<F: Fn(&str) -> bool + 'static>(mut self, validator: F) -> Self {
-        self.validator_type = ValidatorType::OnSubmitOnly;
-        self.validator = Box::new(validator);
-        self
-    }
 
     pub fn set_placeholder_text(&mut self, text: impl Into<String>, ctx: &mut ViewContext<Self>) {
         self.editor.update(ctx, |editor, ctx| {
@@ -86,16 +77,7 @@ impl SubmittableTextInput {
         });
     }
 
-    pub fn set_outer_margins(&mut self, top: f32, bottom: f32, ctx: &mut ViewContext<Self>) {
-        self.outer_margin_top = top;
-        self.outer_margin_bottom = bottom;
-        ctx.notify();
-    }
 
-    /// Returns a handle to the backing [`EditorView`].
-    pub fn editor(&self) -> &ViewHandle<EditorView> {
-        &self.editor
-    }
 
     fn handle_editor_event(
         &mut self,
@@ -112,7 +94,6 @@ impl SubmittableTextInput {
                 let content = self.editor.read(ctx, |editor, ctx| editor.buffer_text(ctx));
                 self.has_error = match self.validator_type {
                     ValidatorType::OnEdit => !(self.validator)(&content),
-                    ValidatorType::OnSubmitOnly => false,
                 };
                 ctx.notify();
             }

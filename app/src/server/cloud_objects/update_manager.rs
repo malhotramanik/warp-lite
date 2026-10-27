@@ -29,7 +29,6 @@ use super::listener::ObjectUpdateMessage;
 use crate::ai::agent::conversation::AIConversationId;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
-use crate::ai::cloud_environments::{AmbientAgentEnvironment, CloudAmbientAgentEnvironmentModel};
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::execution_profiles::{AIExecutionProfile, CloudAIExecutionProfileModel};
 use crate::ai::facts::{AIFact, CloudAIFactModel};
@@ -47,7 +46,7 @@ use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, Updat
 use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
 use crate::cloud_object::{
     CloudLinkSharing, CloudModelType, CloudObject, CloudObjectEventEntrypoint, CloudObjectLocation,
-    CloudObjectSyncStatus, CreateCloudObjectResult, CreateObjectRequest, GenericCloudObject,
+    CloudObjectSyncStatus, GenericCloudObject,
     GenericServerObject, GenericStringObjectFormat, JsonObjectType, NumInFlightRequests,
     ObjectDeleteResult, ObjectIdType, ObjectMetadataUpdateResult, ObjectPermissionsUpdateData,
     ObjectType, Owner, Revision, RevisionAndLastEditor, ServerAIExecutionProfile, ServerAIFact,
@@ -262,41 +261,6 @@ impl UpdateManager {
         }
     }
 
-    /// Remove team-owned objects in response to leaving a team.
-    pub fn remove_team_objects(&mut self, left_team_uid: ServerId, ctx: &mut ModelContext<Self>) {
-        let cloud_model = CloudModel::handle(ctx);
-        let objects_to_remove = cloud_model
-            .as_ref(ctx)
-            .all_cloud_objects_in_space(
-                Space::Team {
-                    team_uid: left_team_uid,
-                },
-                ctx,
-            )
-            .map(|object| object.cloud_object_type_and_id())
-            .collect_vec();
-
-        // First, delete in-memory from CloudModel and object actions.
-        cloud_model.update(ctx, |cloud_model, ctx| {
-            for object in objects_to_remove.iter() {
-                cloud_model.delete_object(object.sync_id(), ctx);
-            }
-        });
-        ObjectActions::handle(ctx).update(ctx, |object_actions, ctx| {
-            for object in objects_to_remove.iter() {
-                object_actions.delete_actions_for_object(&object.uid(), ctx);
-            }
-        });
-
-        // Then, delete from SQLite.
-        let object_ids_and_types = objects_to_remove
-            .into_iter()
-            .map(|object| (object.sync_id(), object.object_id_type()))
-            .collect();
-        self.save_to_db([ModelEvent::DeleteObjects {
-            ids: object_ids_and_types,
-        }]);
-    }
 
     fn handle_team_tester_status_changed(
         &mut self,
@@ -1903,21 +1867,6 @@ impl UpdateManager {
         self.update_object(CloudAIFactModel::new(ai_fact), ai_fact_id, revision_ts, ctx);
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub fn update_templatable_mcp_server(
-        &mut self,
-        templatable_mcp_server: TemplatableMCPServer,
-        templatable_mcp_server_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudTemplatableMCPServerModel::new(templatable_mcp_server),
-            templatable_mcp_server_id,
-            revision_ts,
-            ctx,
-        );
-    }
 
     pub fn update_workflow(
         &mut self,
@@ -1964,20 +1913,6 @@ impl UpdateManager {
         );
     }
 
-    pub fn update_ambient_agent_environment(
-        &mut self,
-        environment: AmbientAgentEnvironment,
-        environment_id: SyncId,
-        revision_ts: Option<Revision>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.update_object(
-            CloudAmbientAgentEnvironmentModel::new(environment),
-            environment_id,
-            revision_ts,
-            ctx,
-        );
-    }
 
     pub fn update_notebook_data(
         &mut self,
@@ -3198,46 +3133,7 @@ impl UpdateManager {
         );
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub fn create_ambient_agent_environment(
-        &mut self,
-        ambient_agent_environment: AmbientAgentEnvironment,
-        client_id: ClientId,
-        owner: Owner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.create_object(
-            CloudAmbientAgentEnvironmentModel::new(ambient_agent_environment),
-            owner,
-            client_id,
-            Default::default(),
-            false,
-            None,
-            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-            // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
-            InitiatedBy::User,
-            ctx,
-        )
-    }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub fn create_ambient_agent_environment_online(
-        &mut self,
-        ambient_agent_environment: AmbientAgentEnvironment,
-        client_id: ClientId,
-        owner: Owner,
-        ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = anyhow::Result<ServerId>> + use<> {
-        self.create_object_online(
-            CloudAmbientAgentEnvironmentModel::new(ambient_agent_environment),
-            owner,
-            client_id,
-            Default::default(),
-            false,
-            None,
-            ctx,
-        )
-    }
 
 
 
@@ -3583,135 +3479,6 @@ impl UpdateManager {
         });
     }
 
-    /// Create a new cloud object as an online-only operation.
-    ///
-    /// This is intended for creating objects where the caller will await completion and
-    /// handle retries, such as the CLI.
-    ///
-    /// The cloud model and SQLite are only updated on success. This is to prevent the
-    /// sync queue from clashing with caller-managed retries and potentially creating
-    /// duplicates of the object.
-    #[allow(clippy::too_many_arguments)]
-    fn create_object_online<K, M>(
-        &mut self,
-        model: M,
-        owner: Owner,
-        client_id: ClientId,
-        entrypoint: CloudObjectEventEntrypoint,
-        force_expand: bool,
-        initial_folder_id: Option<SyncId>,
-        ctx: &mut ModelContext<Self>,
-    ) -> impl Future<Output = anyhow::Result<ServerId>> + use<K, M>
-    where
-        K: HashableId
-            + ToServerId
-            + std::fmt::Debug
-            + Into<String>
-            + Clone
-            + Copy
-            + Send
-            + Sync
-            + 'static,
-        M: CloudModelType<IdType = K, CloudObjectType = GenericCloudObject<K, M>> + 'static,
-    {
-        let (tx, rx) = oneshot::channel();
-        let completion = async move { rx.await? };
-
-        let initial_server_folder_id = match initial_folder_id {
-            Some(SyncId::ServerId(id)) => Some(FolderId::from(id)),
-            Some(SyncId::ClientId(_)) => {
-                let _ = tx.send(Err(anyhow::anyhow!("Folder does not exist on the server")));
-                return completion;
-            }
-            None => None,
-        };
-
-        let object_client = self.object_client.clone();
-        let serialized_model = model.serialized();
-        let handle = ctx.spawn(
-            async move {
-                M::send_create_request(
-                    object_client,
-                    CreateObjectRequest {
-                        serialized_model: Some(serialized_model),
-                        // TODO: Need a generic way to access this on cloud object models.
-                        title: None,
-                        owner,
-                        client_id,
-                        initial_folder_id: initial_server_folder_id,
-                        entrypoint,
-                    },
-                )
-                .await
-            },
-            move |me, result, ctx| match result {
-                Ok(CreateCloudObjectResult::Success {
-                    created_cloud_object,
-                }) => {
-                    let server_id = created_cloud_object.server_id_and_type.id;
-
-                    // On success, and only on success, update the in-memory model and SQLite.
-                    let upsert_event = CloudModel::handle(ctx).update(ctx, |cloud_model, ctx| {
-                        // Because we don't fetch the full object from the server on creation, we
-                        // instead create a local object and populate the server metadata. This
-                        // mirrors how we handle SyncQueueEvent::ObjectCreationSuccessful, but
-                        // since this is a fresh object, there are no dependencies or existing
-                        // actions to modify.
-                        let mut object = GenericCloudObject::<K, M>::new_local(
-                            model.clone(),
-                            owner,
-                            initial_folder_id,
-                            client_id,
-                        );
-                        object.set_pending_content_changes_status(
-                            CloudObjectSyncStatus::NoLocalChanges,
-                        );
-                        object.set_server_id(server_id);
-                        let object_id = SyncId::ServerId(server_id);
-                        cloud_model.create_object(object_id, object, ctx);
-                        let server_uid = server_id.uid();
-                        cloud_model.set_latest_revision_and_editor(
-                            &server_uid,
-                            created_cloud_object.revision_and_editor,
-                            ctx,
-                        );
-                        cloud_model.update_object_metadata_last_updated_ts(
-                            &server_uid,
-                            created_cloud_object.metadata_ts,
-                            ctx,
-                        );
-
-                        if force_expand {
-                            cloud_model.force_expand_object_and_ancestors(object_id, ctx);
-                        }
-
-                        cloud_model
-                            .get_object_of_type::<K, M>(&object_id)
-                            .map(|obj| obj.upsert_event())
-                    });
-
-                    // Save the object to SQLite.
-                    if let Some(upsert_event) = upsert_event {
-                        me.save_to_db([upsert_event]);
-                    }
-
-                    // Notify the caller.
-                    let _ = tx.send(Ok(server_id));
-                }
-                Ok(CreateCloudObjectResult::UserFacingError(error)) => {
-                    let _ = tx.send(Err(anyhow::anyhow!(error)));
-                }
-                Ok(CreateCloudObjectResult::GenericStringObjectUniqueKeyConflict) => {
-                    let _ = tx.send(Err(anyhow::anyhow!("Unique key conflict")));
-                }
-                Err(err) => {
-                    let _ = tx.send(Err(err));
-                }
-            },
-        );
-        self.spawned_futures.push(handle.future_id());
-        completion
-    }
 
 
     /// Generic function for updating a cloud object with a new model.

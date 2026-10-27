@@ -10,12 +10,7 @@ use warp_core::channel::{Channel, ChannelState};
 use warp_graphql::mutations::share_block::{
     BlockInput, ShareBlock, ShareBlockResult, ShareBlockVariables,
 };
-use warp_graphql::mutations::unshare_block::{
-    UnshareBlock, UnshareBlockInput, UnshareBlockResult, UnshareBlockVariables,
-};
-use warp_graphql::queries::get_blocks_for_user::{
-    Block as GqlBlock, GetBlocksForUser, GetBlocksForUserVariables,
-};
+use warp_graphql::queries::get_blocks_for_user::Block as GqlBlock;
 
 use super::ServerApi;
 use crate::ai::generate_block_title::api::{GenerateBlockTitleRequest, GenerateBlockTitleResponse};
@@ -26,8 +21,6 @@ use crate::server::graphql::{get_request_context, get_user_facing_error_message}
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait BlockClient: 'static + Send + Sync {
-    /// Unshares a block identified at `block_id`.
-    async fn unshare_block(&self, block_id: String) -> Result<(), anyhow::Error>;
 
     /// Uploads a given block to the server via the /share_block endpoint.
     async fn save_block(
@@ -38,7 +31,6 @@ pub trait BlockClient: 'static + Send + Sync {
         display_setting: DisplaySetting,
     ) -> Result<String, anyhow::Error>;
 
-    async fn blocks_owned_by_user(&self) -> Result<Vec<Block>, anyhow::Error>;
 
     async fn generate_shared_block_title(
         &self,
@@ -49,28 +41,6 @@ pub trait BlockClient: 'static + Send + Sync {
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl BlockClient for ServerApi {
-    async fn unshare_block(&self, block_uid: String) -> Result<(), anyhow::Error> {
-        let variables = UnshareBlockVariables {
-            input: UnshareBlockInput { block_uid },
-            request_context: get_request_context(),
-        };
-
-        let operation = UnshareBlock::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-        match response.unshare_block {
-            UnshareBlockResult::UnshareBlockOutput(output) => {
-                if output.success {
-                    Ok(())
-                } else {
-                    Err(anyhow!("Failed to unshare block"))
-                }
-            }
-            UnshareBlockResult::UserFacingError(error) => {
-                Err(anyhow!(get_user_facing_error_message(error)))
-            }
-            UnshareBlockResult::Unknown => Err(anyhow!("Failed to unshare block")),
-        }
-    }
 
     async fn save_block(
         &self,
@@ -116,27 +86,6 @@ impl BlockClient for ServerApi {
         }
     }
 
-    async fn blocks_owned_by_user(&self) -> Result<Vec<Block>, anyhow::Error> {
-        let variables = GetBlocksForUserVariables {
-            request_context: get_request_context(),
-        };
-        let operation = GetBlocksForUser::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        match response.user {
-            warp_graphql::queries::get_blocks_for_user::UserResult::UserOutput(user_output) => {
-                Ok(user_output
-                    .user
-                    .blocks
-                    .into_iter()
-                    .filter_map(|block| block.try_into().ok())
-                    .collect())
-            }
-            warp_graphql::queries::get_blocks_for_user::UserResult::Unknown => {
-                Err(anyhow!("Unable to fetch blocks"))
-            }
-        }
-    }
 
     async fn generate_shared_block_title(
         &self,

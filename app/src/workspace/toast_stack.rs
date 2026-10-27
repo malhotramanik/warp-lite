@@ -38,17 +38,6 @@ impl ToastStack {
     }
 
 
-    pub fn remove_toast_by_identifier(
-        &mut self,
-        identifier: String,
-        window_id: WindowId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.emit(ToastStackEvent::RemoveToast {
-            window_id,
-            identifier,
-        });
-    }
 }
 
 #[allow(clippy::enum_variant_names)]
@@ -62,11 +51,6 @@ pub enum ToastStackEvent {
         /// The window for which this event is for.
         window_id: WindowId,
         toast: DismissibleToast<WorkspaceAction>,
-    },
-    RemoveToast {
-        /// The window for which this event is for.
-        window_id: WindowId,
-        identifier: String,
     },
 }
 

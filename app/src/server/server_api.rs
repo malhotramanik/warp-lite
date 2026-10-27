@@ -69,7 +69,7 @@ use crate::auth::auth_state::AuthState;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryApi;
 use crate::settings::PrivacySettingsSnapshot;
-use crate::{ChannelState, settings_view};
+use crate::ChannelState;
 
 pub const FETCH_CHANNEL_VERSIONS_TIMEOUT: std::time::Duration = Duration::from_secs(60);
 #[derive(Serialize)]
@@ -1472,7 +1472,6 @@ impl ServerApiProvider {
             state.apply_latest_state(experiments, ctx);
         });
 
-        settings_view::handle_experiment_change(ctx);
     }
 
     /// Constructs a new SeverApiProvider for tests.
@@ -1524,9 +1523,6 @@ impl ServerApiProvider {
         self.server_api.clone()
     }
 
-    pub fn get_integrations_client(&self) -> Arc<dyn integrations::IntegrationsClient> {
-        self.server_api.clone()
-    }
 
     pub fn get_managed_secrets_client(&self) -> Arc<AppManagedSecretsClient> {
         self.server_api.clone()

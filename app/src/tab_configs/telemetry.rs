@@ -31,7 +31,6 @@ pub enum WorktreeBranchNamingMode {
 pub enum GuidedModalSessionType {
     Terminal,
     Oz,
-    CliAgent,
 }
 
 impl From<&SessionType> for GuidedModalSessionType {

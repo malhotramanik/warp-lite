@@ -19,7 +19,7 @@ use warpui::{
 
 use crate::code::editor::comments::{EditorCommentsModel, PendingCommentEvent};
 use crate::code::editor::line::EditorLineLocation;
-use crate::code_review::comments::{CommentId, CommentOrigin};
+use crate::code_review::comments::CommentId;
 use crate::editor::InteractionState;
 use crate::notebooks::editor::model::NotebooksEditorModel;
 use crate::notebooks::editor::rich_text_styles;
@@ -218,14 +218,6 @@ impl CommentEditor {
     ) {
         match event {
             PendingCommentEvent::NewPendingComment(line) => self.attach_to_line(line, ctx),
-            PendingCommentEvent::ReopenPendingComment {
-                id,
-                line,
-                comment_text,
-                origin,
-            } => {
-                self.reopen_saved_comment(id, Some(line.clone()), comment_text, origin, ctx);
-            }
         }
     }
 
@@ -259,32 +251,6 @@ impl CommentEditor {
         self.update_save_button_state(ctx);
     }
 
-    pub fn reopen_saved_comment(
-        &mut self,
-        id: &CommentId,
-        line: Option<EditorLineLocation>,
-        comment_text: &str,
-        origin: &CommentOrigin,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.editor.update(ctx, |editor, ctx| {
-            editor.model().update(ctx, |model, ctx| {
-                model.reset_with_markdown(comment_text, ctx);
-            });
-        });
-
-        self.comment_id = Some(*id);
-        self.line = line;
-        self.show_remove_button = true;
-        self.is_imported_comment = origin.is_imported_from_github();
-
-        self.save_button.update(ctx, |button, ctx| {
-            button.set_label("Update", ctx);
-        });
-        ctx.notify();
-
-        self.update_save_button_state(ctx);
-    }
 
     fn reset(&mut self, ctx: &mut ViewContext<Self>) {
         self.editor.update(ctx, |editor, ctx| {

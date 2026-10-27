@@ -368,7 +368,6 @@ use crate::settings::{
     PrivacySettingsSnapshot, SelectionSettings, VimBannerSettings,
 };
 use crate::settings_view::keybindings::KeybindingChangedNotifier;
-use crate::settings_view::mcp_servers_page::MCPServersSettingsPage;
 use crate::settings_view::{SettingsSection, flags};
 use crate::shell_indicator::ShellIndicatorType;
 use crate::terminal::alias::{AliasedCommand, check_for_alias_async};
@@ -1969,7 +1968,6 @@ pub enum Event {
     OpenThemeChooser,
     OpenConversationHistory,
     OpenMCPSettingsPage {
-        page: Option<MCPServersSettingsPage>,
     },
     OpenAddRulePane,
     OpenRulesPane,
@@ -2922,8 +2920,6 @@ pub struct TerminalView {
     /// Mouse state handle for the ambient agent cancel button in the pane header.
     ambient_agent_cancel_mouse_state: warpui::elements::MouseStateHandle,
 
-    /// First-time cloud agent setup view (full-screen overlay for creating initial environment).
-    first_time_cloud_agent_setup_view: ViewHandle<ambient_agent::FirstTimeCloudAgentSetupView>,
     cloud_agent_team_required_view: ViewHandle<ambient_agent::CloudAgentTeamRequiredView>,
 
     /// Environment setup mode selector modal for /create-environment command.
@@ -4240,12 +4236,7 @@ impl TerminalView {
             }
         });
 
-        let first_time_cloud_agent_setup_view =
-            ctx.add_typed_action_view(ambient_agent::FirstTimeCloudAgentSetupView::new);
 
-        ctx.subscribe_to_view(&first_time_cloud_agent_setup_view, |me, _, event, ctx| {
-            me.handle_first_time_cloud_agent_setup_event(event, ctx);
-        });
 
         let cloud_agent_team_required_view =
             ctx.add_typed_action_view(ambient_agent::CloudAgentTeamRequiredView::new);
@@ -4506,7 +4497,6 @@ impl TerminalView {
             manual_pty_shutdown_requested: false,
             pending_cloud_shell_recovery: None,
             pending_shell_replacement: None,
-            first_time_cloud_agent_setup_view,
             cloud_agent_team_required_view,
             environment_setup_mode_selector,
             is_environment_setup_mode_selector_open: false,
@@ -27841,6 +27831,8 @@ impl TypedActionView for TerminalView {
         let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
 
         match action {
+            // warp-lite: MCP panes are removed.
+            OpenViewMCPPane | OpenAddMCPPane => {}
             Scroll { delta } => self.scroll(*delta, ctx),
             AltScroll { delta, point } => self.alt_scroll(*delta, *point, ctx),
             SharedSessionViewerAltScroll { new_scroll_top } => {
@@ -28736,16 +28728,6 @@ impl TypedActionView for TerminalView {
                     });
                 }
             }
-            OpenViewMCPPane => {
-                ctx.emit(Event::OpenMCPSettingsPage {
-                    page: Some(MCPServersSettingsPage::List),
-                });
-            }
-            OpenAddMCPPane => {
-                ctx.emit(Event::OpenMCPSettingsPage {
-                    page: Some(MCPServersSettingsPage::Edit { item_id: None }),
-                });
-            }
             OpenBillingAndUsagePane => {
                 ctx.emit(Event::OpenSettings(SettingsSection::BillingAndUsage));
             }
@@ -29489,8 +29471,6 @@ impl View for TerminalView {
             is_configuring,
         ) {
             stack.add_child(ChildView::new(&self.cloud_agent_team_required_view).finish());
-        } else if is_in_setup {
-            stack.add_child(ChildView::new(&self.first_time_cloud_agent_setup_view).finish());
         }
 
         if self.ssh_file_upload.as_ref(app).has_upload() {

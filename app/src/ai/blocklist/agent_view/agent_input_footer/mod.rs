@@ -2681,6 +2681,7 @@ impl TypedActionView for AgentInputFooter {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut warpui::ViewContext<Self>) {
         match action {
+            AgentInputFooterAction::OpenCodingAgentSettings => {}
             #[cfg(feature = "voice_input")]
             AgentInputFooterAction::ToggleVoiceInput => {
                 // In CLI agent mode, handle voice recording/transcription
@@ -2846,13 +2847,6 @@ impl TypedActionView for AgentInputFooter {
             }
             AgentInputFooterAction::StopRemoteControl => {
                 ctx.emit(AgentInputFooterEvent::StopRemoteControl);
-            }
-            AgentInputFooterAction::OpenCodingAgentSettings => {
-                #[cfg(not(target_family = "wasm"))]
-                ctx.dispatch_typed_action_deferred(WorkspaceAction::ScrollToSettingsWidget {
-                    page: SettingsSection::ThirdPartyCLIAgents,
-                    widget_id: crate::settings_view::cli_agent_settings_widget_id(),
-                });
             }
             AgentInputFooterAction::HandoffChipClicked => {
                 if FeatureFlag::OzHandoff.is_enabled()

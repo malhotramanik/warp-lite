@@ -38,7 +38,6 @@ use warp_editor::content::buffer::{
     VimInsertPoint,
 };
 use warp_editor::content::edit::EditDelta;
-use warp_editor::content::find::{SearchConfig, SearchResults};
 use warp_editor::content::hidden_lines_model::HiddenLinesModel;
 use warp_editor::content::selection_model::BufferSelectionModel;
 use warp_editor::content::text::{BufferBlockStyle, IndentBehavior, IndentUnit};
@@ -50,7 +49,7 @@ use warp_editor::multiline::{AnyMultilineString, LF, MultilineString};
 use warp_editor::render::model::{
     AutoScrollMode, BlockItem, ColumnUnit,
     Decoration, LineCount, LineDecoration,
-    RenderEvent, RenderLineLocation, RenderState, RichTextStyles, StyleUpdateAction,
+    RenderEvent, RenderState, RichTextStyles, StyleUpdateAction,
     UpdateDecorationAfterLayout, WidthSetting,
 };
 use warp_editor::selection::{SelectionMode, SelectionModel, TextDirection, TextUnit};
@@ -72,7 +71,7 @@ use super::diff::{
 use super::line::EditorLineLocation;
 use crate::appearance::Appearance;
 use crate::code::editor::line_iterator::LineIterator;
-use crate::code_review::comments::{CommentId, CommentOrigin, LineDiffContent};
+use crate::code_review::comments::LineDiffContent;
 use crate::editor::InteractionState;
 use crate::notebooks::editor::model::word_unit;
 use crate::themes::theme::AnsiColorIdentifier;
@@ -114,8 +113,6 @@ pub enum LineBound {
 pub enum DiffNavigationState {
     /// Diff hunks are collapsed and not visible
     Collapsed,
-    /// All diff hunks are expanded but none is specifically focused
-    Expanded,
     /// All diff hunks are expanded and one specific hunk is focused
     Focused(usize),
 }
@@ -989,7 +986,7 @@ impl CodeEditorModel {
             DiffNavigationState::Collapsed => {
                 // No diff decorations when collapsed
             }
-            DiffNavigationState::Expanded | DiffNavigationState::Focused(_) => {
+            DiffNavigationState::Focused(_) => {
                 let focused_diff_index = self.focused_diff_index();
                 // Show all diffs expanded, with the focused one getting special highlighting
                 let Some(base) = self.diff.as_ref(ctx).base() else {

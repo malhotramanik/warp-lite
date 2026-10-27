@@ -906,15 +906,7 @@ pub(super) enum SummaryPaneKind {
     CLIAgent { agent: CLIAgent, is_ambient: bool },
     Code { title: String },
     CodeDiff,
-    File,
-    Notebook { is_plan: bool },
-    Workflow { is_ai_prompt: bool },
     Settings,
-    EnvVarCollection,
-    EnvironmentManagement,
-    AIFact,
-    AIDocument,
-    ExecutionProfileEditor,
     Other,
 }
 
@@ -5095,15 +5087,7 @@ pub(super) fn render_summary_pane_kind_icon_circle(
         ),
         SummaryPaneKind::Terminal
         | SummaryPaneKind::CodeDiff
-        | SummaryPaneKind::File
-        | SummaryPaneKind::Notebook { .. }
-        | SummaryPaneKind::Workflow { .. }
         | SummaryPaneKind::Settings
-        | SummaryPaneKind::EnvVarCollection
-        | SummaryPaneKind::EnvironmentManagement
-        | SummaryPaneKind::AIFact
-        | SummaryPaneKind::AIDocument
-        | SummaryPaneKind::ExecutionProfileEditor
         | SummaryPaneKind::Other => {
             let (icon, icon_color) = summary_pane_kind_icon(kind, appearance);
             (
@@ -5153,7 +5137,7 @@ fn summary_pane_kind_icon(
     let theme = appearance.theme();
     let main_text = theme.main_text_color(theme.background());
     let sub_text = theme.sub_text_color(theme.background());
-    let drive_color = |object_type: DriveObjectType| -> WarpThemeFill {
+    let _drive_color = |object_type: DriveObjectType| -> WarpThemeFill {
         WarpThemeFill::Solid(warp_drive_icon_color(appearance, object_type))
     };
 
@@ -5171,39 +5155,9 @@ fn summary_pane_kind_icon(
         ),
         SummaryPaneKind::Code { .. } => (WarpIcon::Code2, sub_text),
         SummaryPaneKind::CodeDiff => (WarpIcon::Diff, sub_text),
-        SummaryPaneKind::File => (WarpIcon::File, sub_text),
-        SummaryPaneKind::Notebook { is_plan } => (
-            if is_plan {
-                WarpIcon::Compass
-            } else {
-                WarpIcon::Notebook
-            },
-            drive_color(DriveObjectType::Notebook {
-                is_ai_document: is_plan,
-            }),
-        ),
-        SummaryPaneKind::Workflow { is_ai_prompt } => (
-            if is_ai_prompt {
-                WarpIcon::Prompt
-            } else {
-                WarpIcon::Workflow
-            },
-            if is_ai_prompt {
-                drive_color(DriveObjectType::AgentModeWorkflow)
-            } else {
-                drive_color(DriveObjectType::Workflow)
-            },
-        ),
-        SummaryPaneKind::Settings | SummaryPaneKind::EnvironmentManagement => {
+        SummaryPaneKind::Settings  => {
             (WarpIcon::Gear, main_text)
         }
-        SummaryPaneKind::EnvVarCollection => (
-            WarpIcon::EnvVarCollection,
-            drive_color(DriveObjectType::EnvVarCollection),
-        ),
-        SummaryPaneKind::AIFact => (WarpIcon::BookOpen, drive_color(DriveObjectType::AIFact)),
-        SummaryPaneKind::AIDocument => (WarpIcon::Compass, sub_text),
-        SummaryPaneKind::ExecutionProfileEditor => (WarpIcon::Lightning, sub_text),
         SummaryPaneKind::Other => (WarpIcon::File, sub_text),
     }
 }

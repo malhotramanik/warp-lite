@@ -6,7 +6,6 @@ use anyhow::Context as _;
 #[cfg(not(feature = "agent_mode_evals"))]
 use indexmap::IndexMap;
 use settings::Setting as _;
-use uuid::Uuid;
 use warp_core::channel::ChannelState;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
@@ -36,7 +35,7 @@ use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncer;
 #[cfg(not(feature = "agent_mode_evals"))]
 use crate::settings::cloud_preferences_syncer::CloudPreferencesSyncerEvent;
 use crate::settings::{
-    AISettings, AISettingsChangedEvent, AgentModeCommandExecutionPredicate, ExecutionProfiles,
+    AISettings, AISettingsChangedEvent, ExecutionProfiles,
 };
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{CloudModel, LaunchMode, TelemetryEvent, send_telemetry_from_ctx};
@@ -840,64 +839,6 @@ impl AIExecutionProfilesModel {
         }
     }
 
-    pub fn create_profile(&mut self, ctx: &mut ModelContext<Self>) -> Option<ExecutionProfileId> {
-        let profile_id = ExecutionProfileId::new();
-        if self.settings_migration_state == SettingsMigrationState::PendingLegacyImport {
-            let mut profiles = self.pending_legacy_profiles(ctx);
-            let mut new_profile = self.default_profile(ctx).data().clone();
-            new_profile.name = String::new();
-            new_profile.is_default_profile = false;
-            new_profile.autosync_plans_to_warp_drive = true;
-            profiles.insert(profile_id.clone(), new_profile);
-            if !self.activate_pending_settings_collection(profiles, ctx) {
-                return None;
-            }
-            send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileCreated, ctx);
-            return Some(profile_id);
-        }
-
-        if self.settings_are_authoritative() {
-            let mut profiles = AISettings::as_ref(ctx).execution_profiles.value().clone();
-            let mut new_profile = self.default_profile(ctx).data().clone();
-            new_profile.name = String::new();
-            new_profile.is_default_profile = false;
-            new_profile.autosync_plans_to_warp_drive = true;
-            profiles.insert(profile_id.clone(), new_profile);
-            if let Err(error) = AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings.execution_profiles.set_value(profiles, ctx)
-            }) {
-                report_error!(error.context("Failed to create execution profile in settings"));
-                return None;
-            }
-            send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileCreated, ctx);
-            return Some(profile_id);
-        }
-
-        let Some(owner) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) else {
-            report_error!("Failed to create AI execution profile: personal drive not available");
-            return None;
-        };
-
-        let mut new_profile = self.default_profile(ctx).data().clone();
-        new_profile.name = "".to_string();
-        new_profile.is_default_profile = false;
-        new_profile.autosync_plans_to_warp_drive = true;
-
-        let update_manager = UpdateManager::handle(ctx);
-        let client_id = ClientId::default();
-        update_manager.update(ctx, |update_manager, ctx| {
-            update_manager.create_ai_execution_profile(new_profile, client_id, owner, ctx);
-        });
-
-        self.profile_id_to_sync_id
-            .insert(profile_id.clone(), SyncId::ClientId(client_id));
-
-        send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileCreated, ctx);
-
-        ctx.emit(AIExecutionProfilesModelEvent::ProfileCreated);
-
-        Some(profile_id)
-    }
 
 
     // On logout, we need to clear any existing profile state.
@@ -1506,57 +1447,7 @@ impl AIExecutionProfilesModel {
 
 
 
-    pub fn add_to_command_allowlist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        predicate: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.command_allowlist.contains(predicate) {
-                    profile.command_allowlist.push(predicate.clone());
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
 
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileAddedToAllowlist {
-                list_type: "command".to_string(),
-                value: predicate.to_string(),
-            },
-            ctx
-        );
-    }
-
-    pub fn remove_from_command_allowlist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        predicate: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.command_allowlist.len();
-                profile.command_allowlist.retain(|p| p != predicate);
-                profile.command_allowlist.len() != original_len
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileRemovedFromAllowlist {
-                list_type: "command".to_string(),
-                value: predicate.to_string(),
-            },
-            ctx
-        );
-    }
 
     pub fn add_to_directory_allowlist(
         &mut self,
@@ -1585,186 +1476,12 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn remove_from_directory_allowlist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        path: &PathBuf,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.directory_allowlist.len();
-                profile.directory_allowlist.retain(|p| p != path);
-                profile.directory_allowlist.len() != original_len
-            },
-            ctx,
-        );
 
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileRemovedFromAllowlist {
-                list_type: "directory".to_string(),
-                value: path.to_string_lossy().to_string(),
-            },
-            ctx
-        );
-    }
 
-    pub fn add_to_command_denylist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        predicate: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.command_denylist.contains(predicate) {
-                    profile.command_denylist.push(predicate.clone());
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
 
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileAddedToDenylist {
-                list_type: "command".to_string(),
-                value: predicate.to_string(),
-            },
-            ctx
-        );
-    }
 
-    pub fn remove_from_command_denylist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        predicate: &AgentModeCommandExecutionPredicate,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.command_denylist.len();
-                profile.command_denylist.retain(|p| p != predicate);
-                profile.command_denylist.len() != original_len
-            },
-            ctx,
-        );
 
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileRemovedFromDenylist {
-                list_type: "command".to_string(),
-                value: predicate.to_string(),
-            },
-            ctx
-        );
-    }
 
-    pub fn add_to_mcp_allowlist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.mcp_allowlist.contains(id) {
-                    profile.mcp_allowlist.push(*id);
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileAddedToAllowlist {
-                list_type: "mcp".to_string(),
-                value: id.to_string(),
-            },
-            ctx
-        );
-    }
-
-    pub fn remove_from_mcp_allowlist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.mcp_allowlist.len();
-                profile.mcp_allowlist.retain(|p| p != id);
-                profile.mcp_allowlist.len() != original_len
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileRemovedFromAllowlist {
-                list_type: "mcp".to_string(),
-                value: id.to_string(),
-            },
-            ctx
-        );
-    }
-
-    pub fn add_to_mcp_denylist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if !profile.mcp_denylist.contains(id) {
-                    profile.mcp_denylist.push(*id);
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileAddedToDenylist {
-                list_type: "mcp".to_string(),
-                value: id.to_string(),
-            },
-            ctx
-        );
-    }
-
-    pub fn remove_from_mcp_denylist(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        id: &Uuid,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                let original_len = profile.mcp_denylist.len();
-                profile.mcp_denylist.retain(|p| p != id);
-                profile.mcp_denylist.len() != original_len
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileRemovedFromDenylist {
-                list_type: "mcp".to_string(),
-                value: id.to_string(),
-            },
-            ctx
-        );
-    }
 
     /// `edit_profile_internal` edits an AIExecutionProfile and upserts the changed profile to the cloud
     /// Parameters:

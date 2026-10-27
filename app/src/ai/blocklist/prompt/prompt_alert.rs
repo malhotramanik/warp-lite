@@ -16,7 +16,7 @@ use crate::ai::credit_availability::{AICreditAvailability, AICreditDenialReason}
 use crate::auth::AuthStateProvider;
 use crate::network::NetworkStatus;
 use crate::server::ids::ServerId;
-use crate::settings_view::{AdminActions, SettingsSection};
+use crate::settings_view::{ SettingsSection};
 use crate::ui_components::icons::Icon;
 use crate::workspace::WorkspaceAction;
 use crate::workspaces::team::Team;
@@ -69,21 +69,21 @@ fn enterprise_limit_cta(
                     || workspace
                         .is_some_and(|workspace| workspace.is_native_workspaces_admin(user_email))
             })
-            .map(|team| AdminActions::admin_panel_link_for_team(team.uid)),
+            .map(|_team| String::new()),
             NON_ADMIN_CONTACT_ADMIN_TEXT,
             false,
         ),
         PromptAlertState::EnterpriseUnassignedUserSpendLimitReached => (
             workspace
                 .filter(|workspace| workspace.is_native_workspaces_admin(user_email))
-                .map(|_| AdminActions::admin_panel_link_for_workspace()),
+                .map(|_| String::new()),
             NON_ADMIN_ASK_WORKSPACE_ADMIN_TO_INCREASE_LIMIT_TEXT,
             true,
         ),
         PromptAlertState::EnterpriseWorkspaceSpendLimitReached => (
             workspace
                 .filter(|workspace| workspace.is_native_workspaces_admin(user_email))
-                .map(|_| AdminActions::admin_panel_link_for_workspace()),
+                .map(|_| String::new()),
             NON_ADMIN_CONTACT_WORKSPACE_ADMIN_TEXT,
             false,
         ),

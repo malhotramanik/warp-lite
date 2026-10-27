@@ -4,13 +4,10 @@ use cynic::{MutationBuilder, QueryBuilder};
 #[cfg(test)]
 use mockall::{automock, predicate::*};
 use warp_core::channel::ChannelState;
-use warp_graphql::mutations::send_referral_invite_emails::{
-    SendReferralInviteEmails, SendReferralInviteEmailsResult, SendReferralInviteEmailsVariables,
-};
 use warp_graphql::queries::get_referral_info::{GetReferralInfo, GetReferralInfoVariables};
 
 use super::ServerApi;
-use crate::server::graphql::{get_request_context, get_user_facing_error_message};
+use crate::server::graphql::get_request_context;
 
 /// Referral information for the logged-in user
 pub struct ReferralInfo {
@@ -31,8 +28,6 @@ pub trait ReferralsClient: 'static + Send + Sync {
     /// Gets the user's referral information.
     async fn get_referral_info(&self) -> Result<ReferralInfo>;
 
-    /// Send one or more email invites.
-    async fn send_invite(&self, emails: Vec<String>) -> Result<Vec<String>>;
 }
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -65,28 +60,4 @@ impl ReferralsClient for ServerApi {
         }
     }
 
-    async fn send_invite(&self, emails: Vec<String>) -> Result<Vec<String>> {
-        let variables = SendReferralInviteEmailsVariables {
-            input: warp_graphql::mutations::send_referral_invite_emails::SendReferralInviteEmailsInput {
-                emails,
-            },
-            request_context: get_request_context(),
-        };
-        let operation = SendReferralInviteEmails::build(variables);
-        let response = self.send_graphql_request(operation, None).await?;
-
-        let send_referral_invite_emails_result = response.send_referral_invite_emails;
-
-        match send_referral_invite_emails_result {
-            SendReferralInviteEmailsResult::SendReferralInviteEmailsOutput(output) => {
-                Ok(output.successful_emails)
-            }
-            SendReferralInviteEmailsResult::UserFacingError(error) => {
-                Err(anyhow!(get_user_facing_error_message(error)))
-            }
-            SendReferralInviteEmailsResult::Unknown => Err(anyhow!(
-                "unknown error while sending referral invite emails"
-            )),
-        }
-    }
 }

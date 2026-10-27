@@ -1,20 +1,14 @@
 use chrono::{DateTime, Local};
-use warpui::{Entity, ModelContext};
+use warpui::Entity;
 
 use crate::code::editor::line::EditorLineLocation;
 use crate::code_review::comments::{
-    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin, LineDiffContent,
+    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, LineDiffContent,
 };
 
 #[derive(Debug, Clone)]
 pub enum PendingCommentEvent {
     NewPendingComment(EditorLineLocation),
-    ReopenPendingComment {
-        id: CommentId,
-        line: EditorLineLocation,
-        comment_text: String,
-        origin: CommentOrigin,
-    },
 }
 
 pub enum PendingComment {

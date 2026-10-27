@@ -33,7 +33,6 @@ use warp_core::r#async::debounce;
 use warp_core::features::FeatureFlag;
 use warp_core::ui::appearance::Appearance;
 use warp_core::ui::icons::Icon;
-use warp_editor::content::buffer::InitialBufferState;
 use warp_editor::content::text::IndentUnit;
 use warp_editor::render::model::{Decoration, LineCount};
 use warp_util::content_version::ContentVersion;
@@ -45,8 +44,7 @@ use warp_util::sync::Condition;
 use warpui::elements::{
     Border, ChildAnchor, ChildView, ClippedScrollStateHandle, ConstrainedBox, Container,
     CornerRadius, CrossAxisAlignment, DropShadow, Flex, Hoverable, MainAxisAlignment, MainAxisSize,
-    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius,
-    Rect, Shrinkable, Stack, Text,
+    MouseStateHandle, OffsetPositioning, ParentAnchor, ParentElement, ParentOffsetBounds, Radius, Shrinkable, Stack, Text,
 };
 use warpui::keymap::FixedBinding;
 use warpui::keymap::macros::*;

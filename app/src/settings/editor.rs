@@ -102,12 +102,6 @@ pub enum CodeEditorLineNumberMode {
 }
 
 impl CodeEditorLineNumberMode {
-    pub fn dropdown_item_label(&self) -> &'static str {
-        match self {
-            Self::Absolute => "Absolute",
-            Self::Relative => "Relative",
-        }
-    }
 }
 
 #[derive(Clone, Copy, Default, Debug, Serialize, Deserialize, PartialEq)]

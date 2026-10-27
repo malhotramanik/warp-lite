@@ -10,16 +10,14 @@ pub use cloud_object_models::{
     CloudAmbientAgentEnvironmentModel, GithubRepo,
 };
 use cloud_objects::cloud_object::Owner;
-use warpui::{AppContext, Entity, SingletonEntity as _, ViewContext};
 
-use crate::auth::AuthStateProvider;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
     CloudObject, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType, Revision,
 };
 use crate::server::sync_queue::QueueItem;
-use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
+use crate::workspaces::user_workspaces::TeamScope;
 
 /// Oz web app page for viewing and creating cloud environments.
 #[cfg(feature = "tui")]
@@ -75,26 +73,7 @@ impl JsonModel for AmbientAgentEnvironment {
     }
 }
 
-pub fn owner_for_new_environment<T: Entity>(ctx: &ViewContext<T>) -> Option<Owner> {
-    if let Some(team_uid) = UserWorkspaces::as_ref(ctx)
-        .team_for_view(ctx)
-        .map(|team| team.uid)
-    {
-        Some(Owner::Team { team_uid })
-    } else {
-        let user_id = AuthStateProvider::as_ref(ctx).get().user_id()?;
-        Some(Owner::User { user_uid: user_id })
-    }
-}
 
-/// Resolves the current owner for creating new personal environments.
-///
-/// Returns `Owner::User` with the current user's ID. Returns `None` if the user
-/// is not logged in.
-pub fn owner_for_new_personal_environment(ctx: &AppContext) -> Option<Owner> {
-    let user_id = AuthStateProvider::as_ref(ctx).get().user_id()?;
-    Some(Owner::User { user_uid: user_id })
-}
 
 pub(crate) fn environment_matches_scope(
     environment: &CloudAmbientAgentEnvironment,

@@ -15,47 +15,6 @@ use warpui::{AppContext, SingletonEntity};
 
 pub use self::settings::EditorSettings;
 
-pub const SUPPORTED_EDITORS: &[Editor] = &[
-    Editor::VSCode,
-    Editor::VSCodeInsiders,
-    Editor::Atom,
-    Editor::CLion,
-    Editor::CLionCE,
-    Editor::RustRoverPreview,
-    Editor::RustRover,
-    Editor::IntelliJ,
-    Editor::IntelliJCE,
-    Editor::PyCharm,
-    Editor::PyCharmCE,
-    Editor::WebStorm,
-    Editor::PhpStorm,
-    Editor::RubyMine,
-    #[cfg(not(target_os = "macos"))]
-    // On Linux, all versions of sublime use the same app-ids, so
-    // we only have one entry
-    Editor::Sublime,
-    #[cfg(target_os = "macos")]
-    Editor::Sublime2,
-    #[cfg(target_os = "macos")]
-    Editor::Sublime3,
-    #[cfg(target_os = "macos")]
-    Editor::Sublime4,
-    #[cfg(any(target_os = "macos", any(target_os = "linux", target_os = "freebsd")))]
-    // Zed is available on macos and linux
-    Editor::Zed,
-    #[cfg(any(target_os = "macos", any(target_os = "linux", target_os = "freebsd")))]
-    // Zed Preview is available on macos and linux
-    Editor::ZedPreview,
-    Editor::GoLand,
-    Editor::Rider,
-    Editor::DataSpell,
-    Editor::DataGrip,
-    Editor::AndroidStudio,
-    #[cfg(any(target_os = "macos", windows))]
-    // Cursor *can* run on linux, but does not have a .desktop file
-    Editor::Cursor,
-    Editor::Windsurf,
-];
 
 #[derive(
     Debug,

@@ -73,21 +73,18 @@ pub enum GutterElementType {
 /// editor or a lens element into a section of the buffer.
 pub enum InnerEditor<V: EditorView> {
     FullEditor(RichTextElement<V>),
-    Lens(RichTextElementLens<V>),
 }
 
 impl<V: EditorView> InnerEditor<V> {
     fn blocks(&self) -> Option<&[Box<dyn RenderableBlock>]> {
         match self {
             InnerEditor::FullEditor(element) => element.blocks(),
-            InnerEditor::Lens(element) => element.blocks(),
         }
     }
 
     fn model(&self) -> &ModelHandle<RenderState> {
         match self {
             InnerEditor::FullEditor(element) => &element.model,
-            InnerEditor::Lens(element) => &element.model,
         }
     }
 }
@@ -101,21 +98,18 @@ impl<V: EditorView> Element for InnerEditor<V> {
     ) -> Vector2F {
         match self {
             InnerEditor::FullEditor(element) => element.layout(constraint, ctx, app),
-            InnerEditor::Lens(element) => element.layout(constraint, ctx, app),
         }
     }
 
     fn after_layout(&mut self, ctx: &mut AfterLayoutContext, app: &AppContext) {
         match self {
             InnerEditor::FullEditor(element) => element.after_layout(ctx, app),
-            InnerEditor::Lens(element) => element.after_layout(ctx, app),
         }
     }
 
     fn paint(&mut self, origin: Vector2F, ctx: &mut PaintContext, app: &AppContext) {
         match self {
             InnerEditor::FullEditor(element) => element.paint(origin, ctx, app),
-            InnerEditor::Lens(element) => element.paint(origin, ctx, app),
         };
     }
 
@@ -135,7 +129,6 @@ impl<V: EditorView> Element for InnerEditor<V> {
     ) -> bool {
         match self {
             InnerEditor::FullEditor(element) => element.dispatch_event(event, ctx, app),
-            InnerEditor::Lens(element) => element.dispatch_event(event, ctx, app),
         }
     }
 }
@@ -612,9 +605,6 @@ impl<V: EditorView> EditorWrapper<V> {
             // For lens element, we need to use use the content offset - scroll top instead of the render model's viewport
             // offset since we are only rendering a section of the editor.
             let offset = match &self.editor {
-                InnerEditor::Lens(element) => (block.viewport_item().content_offset.as_f32()
-                    - element.starting_renderable_block_offset().unwrap_or(0.))
-                .into_pixels(),
                 InnerEditor::FullEditor(_) => block.viewport_item().viewport_offset,
             };
             let diff_hunk = self.diff_status.diff_hunk(line_count, appearance);
@@ -1381,10 +1371,6 @@ impl<V: EditorView> Element for EditorWrapper<V> {
             let model = self.model().as_ref(app);
             let content = model.content();
             let y_adjustment = match &self.editor {
-                InnerEditor::Lens(element) => element
-                    .starting_renderable_block_offset()
-                    .unwrap_or(0.)
-                    .into_pixels(),
                 InnerEditor::FullEditor(_) => model.viewport().scroll_top(),
             };
             for decoration in model.decorations().line_decoration_ranges() {
@@ -1670,7 +1656,6 @@ impl<V: EditorView> NewScrollableElement for EditorWrapper<V> {
         // TODO: Support scrolling in editor lens.
         match &self.editor {
             InnerEditor::FullEditor(element) => element.scroll_data(axis, app),
-            InnerEditor::Lens(_) => None,
         }
     }
 

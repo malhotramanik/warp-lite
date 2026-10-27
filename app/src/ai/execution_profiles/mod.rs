@@ -3,11 +3,10 @@ pub use cloud_object_models::{
     CloudAIExecutionProfileModel, ComputerUsePermission,
     RunAgentsPermission, WriteToPtyPermission,
 };
-use markdown_parser::{FormattedTextFragment, FormattedTextInline};
 use warp_core::features::FeatureFlag;
 use warpui::{AppContext, SingletonEntity};
 
-use super::llms::{LLMContextWindow, LLMInfo, LLMPreferences, LLMProvider};
+use super::llms::{LLMInfo, LLMPreferences, LLMProvider};
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
@@ -16,18 +15,6 @@ use crate::cloud_object::{
 use crate::server::sync_queue::QueueItem;
 use crate::settings::AISettings;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
-/// This threshold currently only applies to GPT 5.4 and GPT 5.5 models
-pub const LONG_CONTEXT_WARNING_THRESHOLD: u32 = 272_000;
-pub(crate) const LONG_CONTEXT_PRICING_WARNING_URL: &str =
-    "https://developers.openai.com/api/docs/pricing";
-pub(crate) fn long_context_pricing_warning_title() -> FormattedTextInline {
-    vec![
-        FormattedTextFragment::plain_text(
-            "OpenAI automatically applies long-context pricing when context exceeds 272,000 tokens. ",
-        ),
-        FormattedTextFragment::hyperlink("Learn more", LONG_CONTEXT_PRICING_WARNING_URL),
-    ]
-}
 
 mod config;
 pub mod editor;
@@ -138,34 +125,12 @@ fn create_default_from_legacy_settings_with_profile(
 }
 
 pub trait AIExecutionProfileAppExt {
-    fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow>;
 
-    fn context_window_display_value(&self, app: &AppContext) -> Option<u32>;
     fn context_window_limit_for_request(&self, app: &AppContext) -> Option<u32>;
-    fn should_show_long_context_pricing_warning(
-        &self,
-        context_window_limit: Option<u32>,
-        app: &AppContext,
-    ) -> bool;
 }
 
 impl AIExecutionProfileAppExt for AIExecutionProfile {
-    fn configurable_context_window(&self, app: &AppContext) -> Option<LLMContextWindow> {
-        let llm = effective_base_model(self, app);
-        if has_configurable_context_window(
-            llm,
-            FeatureFlag::GPTConfigurableContextWindow.is_enabled(),
-        ) {
-            Some(llm.context_window.clone())
-        } else {
-            None
-        }
-    }
 
-    fn context_window_display_value(&self, app: &AppContext) -> Option<u32> {
-        let cw = self.configurable_context_window(app)?;
-        Some(self.context_window_limit.unwrap_or(cw.default_max))
-    }
     fn context_window_limit_for_request(&self, app: &AppContext) -> Option<u32> {
         let llm = effective_base_model(self, app);
         if !has_configurable_context_window(
@@ -179,22 +144,6 @@ impl AIExecutionProfileAppExt for AIExecutionProfile {
             .map(|limit| limit.clamp(llm.context_window.min, llm.context_window.max))
     }
 
-    fn should_show_long_context_pricing_warning(
-        &self,
-        context_window_limit: Option<u32>,
-        app: &AppContext,
-    ) -> bool {
-        let llm = effective_base_model(self, app);
-        should_show_long_context_pricing_warning(
-            llm,
-            Some(
-                context_window_limit
-                    .or(self.context_window_limit)
-                    .unwrap_or(llm.context_window.default_max),
-            ),
-            FeatureFlag::GPTConfigurableContextWindow.is_enabled(),
-        )
-    }
 }
 
 pub(crate) fn has_configurable_context_window(
@@ -206,17 +155,6 @@ pub(crate) fn has_configurable_context_window(
         && (llm.provider != LLMProvider::OpenAI || gpt_configurable_context_window_enabled)
 }
 
-pub(crate) fn should_show_long_context_pricing_warning(
-    llm: &LLMInfo,
-    selected_limit: Option<u32>,
-    gpt_configurable_context_window_enabled: bool,
-) -> bool {
-    llm.provider == LLMProvider::OpenAI
-        && has_configurable_context_window(llm, gpt_configurable_context_window_enabled)
-        && selected_limit
-            .map(|limit| limit.clamp(llm.context_window.min, llm.context_window.max))
-            .is_some_and(|limit| limit > LONG_CONTEXT_WARNING_THRESHOLD)
-}
 
 impl StringModel for AIExecutionProfile {
     type CloudObjectType = CloudAIExecutionProfile;

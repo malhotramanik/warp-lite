@@ -22,7 +22,6 @@ use warp_editor::content::text::IndentUnit;
 use warp_editor::content::version::BufferVersion;
 use warp_editor::model::{CoreEditorModel, PlainTextEditorModel};
 use warp_editor::multiline::AnyMultilineString;
-use warp_editor::render::element::lens_element::RichTextElementLens;
 use warp_editor::render::element::{
     DisplayOptions, DisplayStateHandle, RichTextElement, VerticalExpansionBehavior,
 };
@@ -30,7 +29,7 @@ use warp_editor::render::model::{
     AutoScrollMode, BlockSpacing, CODE_EDITOR_HIDDEN_SECTION_EXPANSION_LINES, Decoration,
     ExpansionType, LineCount, ParagraphStyles, RichTextStyles,
 };
-use warp_editor::search::{MATCH_FILL, SELECTED_MATCH_FILL, SearchEvent, Searcher};
+use warp_editor::search::{SearchEvent, Searcher};
 use warp_util::content_version::ContentVersion;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::elements::new_scrollable::{
@@ -73,7 +72,7 @@ use crate::code::{
     NoopCommentEditorProvider, NoopFindReferencesCardProvider, ShowCommentEditorProvider,
     ShowFindReferencesCardProvider,
 };
-use crate::code_review::comments::{CommentId, CommentOrigin};
+use crate::code_review::comments::CommentId;
 use crate::editor::InteractionState;
 use crate::features::FeatureFlag;
 use crate::notebooks::editor::rich_text_styles;

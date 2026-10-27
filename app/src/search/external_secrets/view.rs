@@ -51,11 +51,7 @@ pub enum ExternalSecretsMenuAction {
 }
 
 pub enum ExternalSecretsMenuEvent {
-    ItemSelected {
-        payload: Box<ExternalSecretSearchItemAction>,
-    },
     Close,
-    Open,
 }
 
 impl ExternalSecretsMenu {

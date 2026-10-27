@@ -282,7 +282,6 @@ use crate::suggestions::ignored_suggestions_model::{
     IgnoredSuggestionsModel, IgnoredSuggestionsModelEvent, SuggestionType,
 };
 use crate::terminal::CLIAgent;
-use crate::terminal::buy_credits_banner::{BuyCreditsBanner, BuyCreditsBannerEvent};
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::cli_agent_sessions::plugin_manager::PluginModalKind;
 use crate::terminal::cli_agent_sessions::{
@@ -1860,7 +1859,6 @@ pub struct Input {
     /// Weak handle to this input view for drop target data
     weak_view_handle: WeakViewHandle<Input>,
 
-    buy_credits_banner: ViewHandle<BuyCreditsBanner>,
     agent_status_view: ViewHandle<BlocklistAIStatusBar>,
     /// Optional queued-prompts panel rendered between `agent_status_view` and the input editor.
     /// Constructed in [`Input::new`] when [`FeatureFlag::QueueSlashCommand`] is enabled.
@@ -4030,26 +4028,6 @@ impl Input {
             ctx.notify();
         });
 
-        let buy_credits_banner = ctx.add_typed_action_view(BuyCreditsBanner::new);
-        ctx.subscribe_to_view(&buy_credits_banner, |me, _, event, ctx| match event {
-            BuyCreditsBannerEvent::OpenBillingAndUsage => {
-                ctx.emit(Event::OpenSettings(SettingsSection::BillingAndUsage));
-            }
-            BuyCreditsBannerEvent::RefocusInput => {
-                ctx.focus(&me.editor);
-            }
-            BuyCreditsBannerEvent::OpenAutoReloadModal { purchased_credits } => {
-                ctx.emit(Event::OpenAutoReloadModal {
-                    purchased_credits: *purchased_credits,
-                });
-            }
-            BuyCreditsBannerEvent::ShowAutoReloadError { error_message } => {
-                ctx.emit(Event::ShowToast {
-                    message: error_message.to_string(),
-                    flavor: ToastFlavor::Error,
-                });
-            }
-        });
 
         let agent_status_view = ctx.add_typed_action_view(|ctx| {
             BlocklistAIStatusBar::new(
@@ -4186,7 +4164,6 @@ impl Input {
             cached_agent_mode_hint_text: None,
             is_editor_empty_on_last_edit: is_editor_empty,
             weak_view_handle: ctx.handle(),
-            buy_credits_banner,
             agent_status_view,
             queued_prompts_panel,
             agent_view_controller,
@@ -4743,10 +4720,6 @@ impl Input {
         );
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn handoff_entry_point(&self, ctx: &AppContext) -> HandoffEntryPoint {
-        self.handoff_compose_state.as_ref(ctx).entry_point()
-    }
 
     #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
     pub(crate) fn exit_cloud_handoff_compose_and_clear_prompt(
@@ -6805,9 +6778,6 @@ impl Input {
         &self.editor
     }
 
-    pub(crate) fn ai_context_model(&self) -> &ModelHandle<BlocklistAIContextModel> {
-        &self.ai_context_model
-    }
 
     pub fn buffer_text(&self, ctx: &AppContext) -> String {
         self.editor.as_ref(ctx).buffer_text(ctx)
@@ -17160,13 +17130,6 @@ impl View for Input {
             ctx.set.insert(flags::OPEN_INLINE_CONVERSATION_MENU);
         }
 
-        if self
-            .buy_credits_banner
-            .as_ref(app)
-            .is_denomination_dropdown_open(app)
-        {
-            ctx.set.insert("BuyCreditsBannerOpen");
-        }
 
         if self.is_editing_queued_prompt(app) {
             ctx.set.insert(QUEUED_PROMPT_INLINE_EDITOR_OPEN_CONTEXT);
