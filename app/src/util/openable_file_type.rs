@@ -220,30 +220,10 @@ pub fn resolve_file_target_with_editor_choice(
     default_layout: EditorLayout,
     layout: Option<EditorLayout>,
 ) -> FileTarget {
-    let is_openable_in_warp = is_file_openable_in_warp(path);
-    let is_markdown = matches!(is_openable_in_warp, Some(OpenableFileType::Markdown));
-    let layout = layout.unwrap_or(default_layout);
-    let is_openable_in_warp = is_openable_in_warp.is_some();
-
-    // 0. Jupyter notebooks render in Warp's notebook viewer unconditionally
-    // when the feature flag is enabled (not gated on `prefer_markdown_viewer`
-    // or `editor_choice`, since rendering-instead-of-JSON is the whole point).
-    if is_openable_in_warp
-        && FeatureFlag::JupyterNotebookRendering.is_enabled()
-        && is_jupyter_notebook_file(path)
-    {
-        return FileTarget::MarkdownViewer(layout);
-    }
-
-    // 1. Markdown Viewer (only if user preference specified)
-    if is_markdown && prefer_markdown_viewer {
-        return FileTarget::MarkdownViewer(layout);
-    }
-
-    // 2. Warp Code Editor (Explicit user preference)
-    if is_openable_in_warp && matches!(editor_choice, EditorChoice::Warp) {
-        return FileTarget::CodeEditor(layout);
-    }
+    // warp-lite: Warp's built-in Markdown viewer and code editor are removed, so
+    // files always open in $EDITOR, the chosen external editor, or the system default.
+    let _ = (prefer_markdown_viewer, default_layout, layout);
+    let is_openable_in_warp = is_file_openable_in_warp(path).is_some();
 
     // 3. Env Editor
     if matches!(editor_choice, EditorChoice::EnvEditor) {
@@ -258,8 +238,8 @@ pub fn resolve_file_target_with_editor_choice(
     // 5. External Editor or System Default (for text files)
     match editor_choice {
         EditorChoice::ExternalEditor(editor) => FileTarget::ExternalEditor(editor),
-        EditorChoice::SystemDefault => FileTarget::SystemDefault,
-        EditorChoice::Warp | EditorChoice::EnvEditor => unreachable!("Already matched above"),
+        EditorChoice::SystemDefault | EditorChoice::Warp => FileTarget::SystemDefault,
+        EditorChoice::EnvEditor => unreachable!("Already matched above"),
     }
 }
 

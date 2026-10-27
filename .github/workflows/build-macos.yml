@@ -37,17 +37,17 @@ jobs:
 
       - name: Fix rpath and ad-hoc sign
         run: |
-          APP=target/release/bundle/osx/WarpOss.app
+          APP=target/release/bundle/osx/WarpLite.app
           script/macos/add_framework_rpath "$APP/Contents/MacOS/warp-oss"
           codesign --force --deep --sign - "$APP"
 
       - name: Report size
         run: |
-          du -sh target/release/bundle/osx/WarpOss.app
-          ls -lh target/release/bundle/osx/WarpOss.app/Contents/MacOS/warp-oss
+          du -sh target/release/bundle/osx/WarpLite.app
+          ls -lh target/release/bundle/osx/WarpLite.app/Contents/MacOS/warp-oss
 
       - name: Zip app
-        run: ditto -c -k --keepParent target/release/bundle/osx/WarpOss.app WarpLite-macos-arm64.zip
+        run: ditto -c -k --keepParent target/release/bundle/osx/WarpLite.app WarpLite-macos-arm64.zip
 
       - uses: actions/upload-artifact@v4
         with:

@@ -19092,14 +19092,10 @@ impl TerminalView {
         self.paste(true, ctx);
     }
 
-    /// Tell the pane group to open a file within Warp.
+    /// warp-lite: Warp's built-in viewers are removed, so "open in Warp" opens the
+    /// file with the system default application instead.
     fn open_file_in_warp(&mut self, path: PathBuf, ctx: &mut ViewContext<Self>) {
-        if let Some(session) = self
-            .active_block_session_id()
-            .and_then(|session_id| self.sessions.as_ref(ctx).get(session_id))
-        {
-            ctx.emit(Event::OpenFileInWarp { path, session })
-        }
+        ctx.open_file_path(&path);
     }
 
     fn open_code_diff(&self, view: ViewHandle<CodeDiffView>, ctx: &mut ViewContext<Self>) {

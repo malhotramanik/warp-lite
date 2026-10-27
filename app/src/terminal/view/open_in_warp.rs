@@ -47,6 +47,11 @@ impl TerminalView {
         block_completed: &UserBlockCompleted,
         ctx: &mut ViewContext<TerminalView>,
     ) {
+        // warp-lite: Warp's built-in viewers are removed, so never suggest them.
+        if true {
+            let _ = (block_completed, ctx);
+            return;
+        }
         if let Some(active_block_metadata) = self.active_block_metadata.as_ref() {
             let Some(session) = active_block_metadata
                 .session_id()
