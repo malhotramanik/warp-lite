@@ -23,7 +23,6 @@ use super::menus::Menus;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
 use crate::cloud_object::breadcrumbs::ContainingObject;
 use crate::cloud_object::model::persistence::CloudModel;
-use crate::cloud_object::CloudObjectEventEntrypoint;
 use crate::drive::items::WarpDriveItemId;
 use crate::drive::sharing::ContentEditability;
 use crate::editor::EditorView;
@@ -32,10 +31,9 @@ use crate::env_vars::active_env_var_collection_data::{
     SavingStatus, TrashStatus,
 };
 use crate::env_vars::{
-    CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
+    EnvVar, EnvVarCollection,
     EnvVarCollectionType, EnvVarValue,
 };
-use crate::external_secrets::SecretManager;
 use crate::menu::MenuItem;
 use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
@@ -291,7 +289,6 @@ pub struct EnvVarCollectionView {
 #[derive(Debug, Clone, PartialEq)]
 pub enum EnvVarCollectionEvent {
     Pane(PaneEvent),
-    UpdatedEnvVarCollection(SyncId),
     ViewInWarpDrive(WarpDriveItemId),
     Invoke(EnvVarCollectionType),
 }
@@ -313,11 +310,7 @@ pub enum EnvVarCollectionAction {
     Trash,
     Export,
     // Secret button related actions
-    SelectSecretManager(SecretManager),
-    DisplayCommandDialog,
     // Rendered secret button related actions
-    ClearSecret,
-    EditCommand,
     // Menu-related actions
     DisplaySecretMenu(VariableRowIndex),
     DisplayPaneMenu(Vector2F),
@@ -470,11 +463,6 @@ impl EnvVarCollectionView {
                     });
                 }
             }
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                ctx.emit(EnvVarCollectionEvent::Invoke(EnvVarCollectionType::Cloud(
-                    Box::new(env_var_collection.as_ref().clone()),
-                )))
-            }
             ActiveEnvVarCollection::None => log::warn!("No env var to invoke"),
         }
     }
@@ -556,30 +544,6 @@ impl EnvVarCollectionView {
                         ctx,
                     );
                 }),
-            // If the EVC hasn't been committed yet, create the EVC through update
-            // manager, and update the active EVC
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                if let Some(client_id) = env_var_collection.id.into_client() {
-                    UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                        update_manager.create_env_var_collection(
-                            client_id,
-                            env_var_collection.permissions.owner,
-                            env_var_collection.metadata.folder_id,
-                            CloudEnvVarCollectionModel::new(new_env_var_collection),
-                            CloudObjectEventEntrypoint::Unknown,
-                            true,
-                            ctx,
-                        );
-                    });
-
-                    self.active_env_var_collection_data.update(ctx, |data, _| {
-                        data.active_env_var_collection =
-                            ActiveEnvVarCollection::CommittedEnvVarCollection(SyncId::ClientId(
-                                client_id,
-                            ))
-                    });
-                }
-            }
             ActiveEnvVarCollection::None => {
                 report_error!("Tried to save EVC, but none were active")
             }
@@ -1133,16 +1097,6 @@ impl TypedActionView for EnvVarCollectionView {
             EnvVarCollectionAction::Duplicate => self.duplicate_env_var_collection(ctx),
             EnvVarCollectionAction::Trash => self.trash_env_var_collection(ctx),
             EnvVarCollectionAction::Export => self.export_env_var_collection(ctx),
-            EnvVarCollectionAction::SelectSecretManager(secret_manager) => {
-                self.fetch_secret(secret_manager.clone(), ctx)
-            }
-            EnvVarCollectionAction::DisplayCommandDialog => self.display_command_dialog(None, ctx),
-            EnvVarCollectionAction::ClearSecret => {
-                self.clear_secret(ctx);
-            }
-            EnvVarCollectionAction::EditCommand => {
-                self.display_command_dialog(self.pending_variable_row_index.clone(), ctx);
-            }
             EnvVarCollectionAction::DisplaySecretMenu(VariableRowIndex(index)) => {
                 self.display_secret_menu(*index)
             }

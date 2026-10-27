@@ -465,11 +465,6 @@ pub struct SecondaryAction {
 
 /// Source for the [`Session`] and working directory to use when opening Markdown files as notebooks.
 pub enum SessionSource {
-    /// Use the specific target session and directory.
-    Target {
-        session: Arc<Session>,
-        base_directory: PathBuf,
-    },
     /// Use the window's active session and working directory.
     Active(WindowId),
 }
@@ -477,14 +472,12 @@ pub enum SessionSource {
 impl SessionSource {
     fn session(&self, ctx: &AppContext) -> Option<Arc<Session>> {
         match self {
-            SessionSource::Target { session, .. } => Some(session.clone()),
             SessionSource::Active(window_id) => ActiveSession::as_ref(ctx).session(*window_id),
         }
     }
 
     fn base_directory<'a>(&'a self, ctx: &'a AppContext) -> Option<&'a Path> {
         match self {
-            SessionSource::Target { base_directory, .. } => Some(base_directory.as_path()),
             SessionSource::Active(window_id) => {
                 ActiveSession::as_ref(ctx).path_if_local(*window_id)
             }

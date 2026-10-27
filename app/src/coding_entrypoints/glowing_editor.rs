@@ -41,8 +41,6 @@ impl GlowingEditor {
 }
 
 pub enum GlowingEditorEvent {
-    Submit(String),
-    Cancel,
 }
 
 impl Entity for GlowingEditor {

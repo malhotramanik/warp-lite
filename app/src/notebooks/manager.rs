@@ -11,7 +11,6 @@ use warpui::{
 
 use super::CloudNotebook;
 use super::notebook::NotebookView;
-use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
 use crate::pane_group::{ PaneContent};
 use crate::server::cloud_objects::update_manager::{
@@ -64,11 +63,6 @@ pub enum NotebookRawTextStatus {
 #[derive(Debug, Clone)]
 pub enum NotebookSource {
     Existing(SyncId),
-    New {
-        title: Option<String>,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-    },
 }
 
 impl NotebookManager {
@@ -136,7 +130,6 @@ impl NotebookManager {
                 let pane_data = self.panes_by_hashed_id.get(&notebook_id.uid())?;
                 Some((pane_data.window_id, pane_data.locator))
             }
-            NotebookSource::New { .. } => None,
         }
     }
 

@@ -868,7 +868,6 @@ impl EnvironmentsPageView {
 pub enum EnvironmentsPageAction {
     OpenEditPage(SyncId),
     RetryFetchGithubRepos,
-    OpenUrl(String),
     StartGithubAuth,
     CopyEnvId(SyncId, String),
     OpenCreatePage,
@@ -892,9 +891,6 @@ impl TypedActionView for EnvironmentsPageView {
                 self.environment_form.update(ctx, |form, ctx| {
                     form.fetch_github_repos(ctx);
                 });
-            }
-            EnvironmentsPageAction::OpenUrl(url) => {
-                ctx.open_url(url);
             }
             EnvironmentsPageAction::StartGithubAuth => {
                 self.environment_form.update(ctx, |form, ctx| {

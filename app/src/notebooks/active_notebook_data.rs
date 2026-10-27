@@ -6,7 +6,6 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{CloudViewModel, Editor};
 use crate::cloud_object::{CloudObject, Owner, Space};
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
-use crate::notebooks::CloudNotebook;
 use crate::server::ids::SyncId;
 
 #[derive(Default, Clone)]
@@ -18,7 +17,6 @@ pub enum ActiveNotebook {
     CommittedNotebook(SyncId),
     // A notebook that has been created and displayed in the view, but is not yet
     // committed to CloudModel
-    NewNotebook(Box<CloudNotebook>),
 }
 
 #[derive(PartialEq, Eq, Default, Clone, Copy, Debug)]
@@ -35,7 +33,6 @@ pub enum Mode {
 pub enum SavingStatus {
     #[default]
     Saved,
-    Saving,
 }
 
 /// Data displayed in the status bar that is also relevant for workflows and notebooks.
@@ -74,7 +71,6 @@ impl ActiveNotebookData {
         match &self.active_notebook {
             ActiveNotebook::None => None,
             ActiveNotebook::CommittedNotebook(id) => Some(*id),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.id),
         }
     }
 
@@ -84,7 +80,6 @@ impl ActiveNotebookData {
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(ctx)
                 .get_notebook(id)
                 .and_then(|n| n.model().ai_document_id),
-            ActiveNotebook::NewNotebook(notebook) => notebook.model().ai_document_id,
         }
     }
 
@@ -105,7 +100,6 @@ impl ActiveNotebookData {
         let cloud_notebook = match &self.active_notebook {
             ActiveNotebook::None => None,
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(ctx).get_notebook(id),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.as_ref()),
         };
 
         cloud_notebook.map(|notebook| notebook.containing_objects_path(ctx))
@@ -118,7 +112,6 @@ impl ActiveNotebookData {
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(app)
                 .get_notebook(id)
                 .map(|notebook| notebook.space(app)),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.space(app)),
         }
     }
 
@@ -129,7 +122,6 @@ impl ActiveNotebookData {
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(app)
                 .get_notebook(id)
                 .map(|notebook| notebook.permissions.owner),
-            ActiveNotebook::NewNotebook(notebook) => Some(notebook.permissions.owner),
         }
     }
 
@@ -165,7 +157,7 @@ impl ActiveNotebookData {
     /// Checks if this notebook is trashed or deleted.
     pub fn trash_status(&self, ctx: &AppContext) -> TrashStatus {
         match &self.active_notebook {
-            ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => TrashStatus::Active,
+            ActiveNotebook::None  => TrashStatus::Active,
             ActiveNotebook::CommittedNotebook(id) => {
                 let cloud_model = CloudModel::as_ref(ctx);
                 match cloud_model.get_notebook(id) {
@@ -188,7 +180,7 @@ impl ActiveNotebookData {
             ActiveNotebook::CommittedNotebook(object_id) => {
                 CloudViewModel::as_ref(app).access_level(&object_id.uid(), app)
             }
-            ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => SharingAccessLevel::Full,
+            ActiveNotebook::None  => SharingAccessLevel::Full,
         }
     }
 
@@ -198,26 +190,15 @@ impl ActiveNotebookData {
             ActiveNotebook::CommittedNotebook(object_id) => {
                 CloudViewModel::as_ref(app).object_editability(&object_id.uid(), app)
             }
-            ActiveNotebook::None | ActiveNotebook::NewNotebook(_) => ContentEditability::Editable,
+            ActiveNotebook::None  => ContentEditability::Editable,
         }
     }
 }
 
 pub enum ActiveNotebookDataEvent {
-    /// Another user stole the baton for the current object.
-    ModeChangedFromServer,
-    /// The editing baton for the current object was successfully grabbed server-side.
-    SwitchedToEditMode,
-    /// An edit to the current object was rejected.
-    EditRejected,
     /// The notebook's breadcrumbs were updated.
     BreadcrumbsChanged,
-    /// This notebook was created on the server.
-    CreatedOnServer,
-    /// This notebook was trashed or untrashed (used for refreshing pane overflow items)
-    TrashStatusChanged,
     // This notebook was moved to a shared space.
-    MovedToSpace,
 }
 
 /// Whether or not a notebook is trashed.

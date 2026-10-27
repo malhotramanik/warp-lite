@@ -261,20 +261,6 @@ pub fn skip_tips_and_write_to_user_defaults(
     });
 }
 
-/// Updates the model to reflect welcome tips are skipped, writes to user defaults, and sends telemetry.
-pub fn complete_tips_and_write_to_user_defaults(
-    tips_completed: &mut TipsCompleted,
-    ctx: &mut AppContext,
-) {
-    tips_completed.skipped_or_completed = true;
-    GeneralSettings::handle(ctx).update(ctx, |general_settings, ctx| {
-        report_if_error!(
-            general_settings
-                .welcome_tips_skipped_or_completed
-                .set_value(true, ctx)
-        );
-    });
-}
 
 impl TipsCompleted {
     pub fn new(features_used: HashSet<Tip>, skipped_or_completed: bool) -> Self {

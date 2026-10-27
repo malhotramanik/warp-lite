@@ -225,19 +225,6 @@ where
         items
     }
 
-    /// Close the context menu. If `focus_parent` is true, the parent view (either the editor that
-    /// triggered the context menu or the notebook view) will be focused.
-    pub fn close_context_menu(&mut self, focus_parent: bool, ctx: &mut ViewContext<V>) {
-        if focus_parent {
-            match &self.source {
-                Some(MenuSource::RichTextEditor { editor, .. }) => ctx.focus(editor),
-                Some(MenuSource::TextEditor { editor, .. }) => ctx.focus(editor),
-                None => ctx.focus_self(),
-            }
-        }
-        self.source = None;
-        ctx.notify();
-    }
 
     #[cfg(test)]
     /// List out the context menu items by name.
@@ -259,9 +246,6 @@ where
     pub fn handle_action(&mut self, action: &ContextMenuAction, ctx: &mut ViewContext<V>) {
         match action {
             ContextMenuAction::Open(source) => self.show_context_menu(source.clone(), ctx),
-            ContextMenuAction::Close { via_select_item } => {
-                self.close_context_menu(!*via_select_item, ctx)
-            }
             ContextMenuAction::CopySelectedText => match &self.source {
                 Some(MenuSource::RichTextEditor { editor, .. }) => {
                     editor.update(ctx, |editor, ctx| editor.copy(ActionEntrypoint::Menu, ctx))
@@ -344,7 +328,6 @@ pub fn show_text_editor_context_menu<A>(
 #[derive(Debug, Clone)]
 pub enum ContextMenuAction {
     Open(MenuSource),
-    Close { via_select_item: bool },
     CopySelectedText,
     CutSelectedText,
     Paste,

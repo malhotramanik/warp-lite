@@ -186,7 +186,6 @@ pub enum CloudModeV2SlashCommandAction {
     },
     HoverIdx(usize),
     ToggleSection(Section),
-    Dismiss,
 }
 
 pub struct CloudModeV2SlashCommandView {
@@ -399,13 +398,6 @@ impl CloudModeV2SlashCommandView {
         }
     }
 
-    pub fn dismiss(&mut self, ctx: &mut ViewContext<Self>) {
-        if self.section_filter.is_some() {
-            self.set_section_filter(None, ctx);
-            return;
-        }
-        ctx.emit(SlashCommandsEvent::Close(CloseReason::ManualDismissal));
-    }
 
 
     fn current_query_text(&self, app: &AppContext) -> String {
@@ -1111,9 +1103,6 @@ impl TypedActionView for CloudModeV2SlashCommandView {
             }
             CloudModeV2SlashCommandAction::ToggleSection(section) => {
                 self.toggle_section(*section, ctx);
-            }
-            CloudModeV2SlashCommandAction::Dismiss => {
-                self.dismiss(ctx);
             }
         }
     }

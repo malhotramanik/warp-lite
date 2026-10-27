@@ -17,7 +17,7 @@ use super::{
 use crate::appearance::Appearance;
 use crate::resource_center::main_page::ActionTarget;
 use crate::resource_center::{
-    FeatureItem, FeatureSectionData, Tip, TipsCompleted, complete_tips_and_write_to_user_defaults,
+    FeatureItem, FeatureSectionData, Tip, TipsCompleted, 
     skip_tips_and_write_to_user_defaults,
 };
 use crate::send_telemetry_from_ctx;
@@ -143,23 +143,7 @@ impl FeatureSectionView {
         ctx.notify();
     }
 
-    // Turns gamification off without rendering completed modal
-    pub fn skip_gamified_section(&mut self, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::ResourceCenterTipsSkipped, ctx);
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            skip_tips_and_write_to_user_defaults(tips_completed, ctx);
-            ctx.notify();
-        });
-    }
 
-    // Turns gamification off and renders completed modal
-    pub fn complete_gamified_section(&mut self, ctx: &mut ViewContext<Self>) {
-        send_telemetry_from_ctx!(TelemetryEvent::ResourceCenterTipsCompleted, ctx);
-        self.tips_completed.update(ctx, |tips_completed, ctx| {
-            complete_tips_and_write_to_user_defaults(tips_completed, ctx);
-            ctx.notify();
-        });
-    }
 
     pub fn set_action_target(
         &mut self,
@@ -361,23 +345,6 @@ impl TypedActionView for FeatureSectionView {
             }
             SectionAction::ToggleExpanded => {
                 self.toggle_expanded(ctx);
-            }
-            SectionAction::CloseResourceCenter => {
-                self.toggle_expanded(ctx);
-                ctx.emit(FeatureSectionEvent::CloseResourceCenter);
-                ctx.notify();
-            }
-            SectionAction::CompleteGamified => {
-                self.complete_gamified_section(ctx);
-                self.toggle_expanded(ctx);
-            }
-            SectionAction::SkipTips => {
-                self.skip_gamified_section(ctx);
-                self.toggle_expanded(ctx);
-            }
-            SectionAction::OpenSection(section_name) => {
-                ctx.emit(FeatureSectionEvent::ExpandSection(*section_name));
-                ctx.notify();
             }
             _ => {}
         }

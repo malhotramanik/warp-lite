@@ -56,17 +56,8 @@ pub struct LocalShell {
 }
 
 impl LocalShell {
-    pub fn get_shell_type(&self) -> ShellType {
-        self.shell_type
-    }
 
-    pub fn get_shell_path(&self) -> &PathBuf {
-        &self.shell_path
-    }
 
-    pub fn get_path_env_var(&self) -> &Option<String> {
-        &self.path_env_var
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -136,12 +127,6 @@ impl LocalShellState {
         })
     }
 
-    pub fn local_shell_info(&self) -> Option<&LocalShell> {
-        match self {
-            LocalShellState::Loaded(shell_state) => Some(shell_state),
-            LocalShellState::NotLoaded => None,
-        }
-    }
 
     /// Returns a future that will yield the PATH from an interactive login shell.
     /// This lazily triggers the capture on first call and caches the result.

@@ -40,7 +40,6 @@ pub struct ShareSessionModal {
 
 #[derive(Debug)]
 pub enum ShareSessionModalAction {
-    Cancel,
 }
 
 pub enum ShareSessionModalEvent {
@@ -210,9 +209,8 @@ impl View for ShareSessionModal {
 impl TypedActionView for ShareSessionModal {
     type Action = ShareSessionModalAction;
 
-    fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
-        match action {
-            ShareSessionModalAction::Cancel => self.close(ctx),
+    fn handle_action(&mut self, action: &Self::Action, _ctx: &mut ViewContext<Self>) {
+        match *action {
         }
     }
 }

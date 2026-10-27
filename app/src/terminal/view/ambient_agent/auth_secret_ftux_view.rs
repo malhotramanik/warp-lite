@@ -62,7 +62,6 @@ const CHECKBOX_SIZE: f32 = 14.;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum AuthSecretFtuxAction {
-    Skip,
     Cancel,
     Continue,
     /// Cancel an in-progress creation form and return to the dropdown.
@@ -1059,7 +1058,6 @@ impl TypedActionView for AuthSecretFtuxView {
 
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
-            AuthSecretFtuxAction::Skip => self.handle_skip(ctx),
             AuthSecretFtuxAction::Cancel => self.handle_cancel(ctx),
             AuthSecretFtuxAction::Continue => self.handle_continue(ctx),
             AuthSecretFtuxAction::Back => self.clear_creation_state(ctx),

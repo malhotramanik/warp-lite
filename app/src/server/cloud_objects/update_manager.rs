@@ -57,7 +57,7 @@ use crate::cloud_object::{
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::drive_helpers::{
-    is_feature_gated_anonymous_user_past_env_var_limit,
+    
     is_feature_gated_anonymous_user_past_notebook_limit,
     is_feature_gated_anonymous_user_past_workflow_limit,
 };
@@ -150,8 +150,6 @@ pub enum UpdateManagerEvent {
 
 /// An enum for choosing the behavior of the fetch_single_cloud_object function.
 pub enum FetchSingleObjectOption {
-    /// Perform the normal upsert behavior.
-    None,
     /// Perform the normal upsert behavior, but additionally force overwrite the
     /// in-memory object to whatever the server object is.
     ForceOverwrite,
@@ -3419,44 +3417,6 @@ impl UpdateManager {
         );
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub fn create_env_var_collection(
-        &mut self,
-        client_id: ClientId,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        model: CloudEnvVarCollectionModel,
-        entrypoint: CloudObjectEventEntrypoint,
-        force_expand: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let count = CloudModel::handle(ctx).read(ctx, |model, ctx| {
-            model
-                .active_non_welcome_env_var_collections_in_space(Space::Personal, ctx)
-                .count()
-        });
-        if AuthStateProvider::handle(ctx).read(ctx, |auth_state_provider, _ctx| {
-            is_feature_gated_anonymous_user_past_env_var_limit(auth_state_provider.get(), count + 1)
-        }) {
-            AuthManager::handle(ctx).update(ctx, |auth_manager: &mut AuthManager, ctx| {
-                auth_manager.anonymous_user_hit_drive_object_limit(ctx);
-            });
-            return;
-        };
-
-        self.create_object(
-            model,
-            owner,
-            client_id,
-            entrypoint,
-            force_expand,
-            initial_folder_id,
-            // When adding the initiated_by parameter to this function call, InitiatedBy::User was set as a default value.
-            // This can be changed to InitiatedBy::System if this action was automatically kicked off by the system and we do not want a user facing toast.
-            InitiatedBy::User,
-            ctx,
-        );
-    }
 
     #[allow(clippy::too_many_arguments)]
     pub fn create_folder(

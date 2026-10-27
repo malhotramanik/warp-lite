@@ -81,7 +81,6 @@ use crate::ui_components::icons::{self, Icon};
 use crate::uri::web_intent_parser::open_url_on_desktop;
 use crate::util::bindings::{self, CustomAction};
 use crate::view_components::DismissibleToast;
-use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{cmd_or_ctrl_shift, safe_info, send_telemetry_from_ctx};
@@ -232,11 +231,6 @@ pub struct NotebookView {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum NotebookEvent {
-    RunWorkflow {
-        workflow: Arc<WorkflowType>,
-        source: WorkflowSource,
-    },
-    EditWorkflow(SyncId),
     ViewInWarpDrive(WarpDriveItemId),
     Pane(PaneEvent),
     MoveToSpace {
@@ -261,7 +255,6 @@ impl From<PaneEvent> for NotebookEvent {
 pub enum NotebookAction {
     Focus,
     ToggleMode,
-    Close,
     IncreaseFontSize,
     DecreaseFontSize,
     ResetFontSize,
@@ -446,33 +439,6 @@ impl NotebookView {
                 .update(ctx, move |update_manager, ctx| {
                     update_manager.update_notebook_data(content, id, ctx)
                 }),
-            // If the notebook hasn't been committed yet, create the notebook through update
-            // manager, and update the active notebook
-            ActiveNotebook::NewNotebook(notebook) => {
-                if let Some(client_id) = notebook.id.into_client() {
-                    UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                        update_manager.create_notebook(
-                            client_id,
-                            notebook.permissions.owner,
-                            notebook.metadata.folder_id,
-                            CloudNotebookModel {
-                                title: notebook.model().title.clone(),
-                                data: content.to_string(),
-                                ai_document_id: notebook.model().ai_document_id,
-                                conversation_id: notebook.model().conversation_id.clone(),
-                            },
-                            CloudObjectEventEntrypoint::Unknown,
-                            true,
-                            ctx,
-                        );
-                    });
-
-                    self.active_notebook_data.update(ctx, |data, _| {
-                        data.active_notebook =
-                            ActiveNotebook::CommittedNotebook(SyncId::ClientId(client_id))
-                    });
-                }
-            }
             ActiveNotebook::None => {
                 report_error!("Tried to save notebook, but none were active")
             }
@@ -831,7 +797,6 @@ impl NotebookView {
             ActiveNotebook::CommittedNotebook(id) => CloudModel::as_ref(ctx)
                 .get_notebook(&id)
                 .and_then(|n| n.model().ai_document_id),
-            ActiveNotebook::NewNotebook(notebook) => notebook.model().ai_document_id,
             ActiveNotebook::None => None,
         };
 
@@ -1173,32 +1138,6 @@ impl NotebookView {
                 .update(ctx, |update_manager, ctx| {
                     update_manager.update_notebook_title(title.clone(), id, ctx)
                 }),
-            // If the notebook hasn't been committed yet, create the notebook through update
-            // manager, and update the active notebook
-            ActiveNotebook::NewNotebook(notebook) => {
-                if let Some(client_id) = notebook.id.into_client() {
-                    UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                        update_manager.create_notebook(
-                            client_id,
-                            notebook.permissions.owner,
-                            notebook.metadata.folder_id,
-                            CloudNotebookModel {
-                                title: title.to_string(),
-                                data: notebook.model().data.to_owned(),
-                                ai_document_id: notebook.model().ai_document_id,
-                                conversation_id: notebook.model().conversation_id.clone(),
-                            },
-                            CloudObjectEventEntrypoint::Unknown,
-                            true,
-                            ctx,
-                        );
-                    });
-                    self.active_notebook_data.update(ctx, |data, _| {
-                        data.active_notebook =
-                            ActiveNotebook::CommittedNotebook(SyncId::ClientId(client_id))
-                    });
-                }
-            }
             ActiveNotebook::None => {
                 report_error!("Tried to save notebook, but none were active")
             }
@@ -1669,7 +1608,6 @@ impl TypedActionView for NotebookView {
         match action {
             NotebookAction::Focus => ctx.focus_self(),
             NotebookAction::ToggleMode => self.toggle_mode(ctx),
-            NotebookAction::Close => ctx.emit(NotebookEvent::Pane(PaneEvent::Close)),
             NotebookAction::ConflictResolutionBannerRefreshClicked => {
                 self.conflict_dialog_refresh_button_clicked(ctx)
             }

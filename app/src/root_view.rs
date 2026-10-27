@@ -1529,10 +1529,6 @@ pub enum NewWorkspaceSource {
     FromCloudConversationId {
         conversation_id: ServerConversationToken,
     },
-    AgentSession {
-        options: Box<NewTerminalOptions>,
-        initial_query: Option<String>,
-    },
     /// Starts the workspace with the Cloud Agent setup tab.
     AmbientAgent,
     /// Opens a new window pre-scoped to a specific team, chosen via the title-bar team switcher.
@@ -1602,7 +1598,6 @@ impl NewWorkspaceSource {
             | Self::Session { .. }
             | Self::SharedSessionAsViewer { .. }
             | Self::FromCloudConversationId { .. }
-            | Self::AgentSession { .. }
             | Self::AmbientAgent => None,
             Self::TeamSwitched { team_uid } => return Some(*team_uid),
             Self::Restored {

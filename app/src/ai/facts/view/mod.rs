@@ -62,8 +62,6 @@ pub enum AIFactViewEvent {
 
 #[derive(Debug, Clone)]
 pub enum AIFactViewAction {
-    AddRule,
-    UpdatePage(AIFactPage),
 }
 
 pub struct AIFactView {
@@ -281,15 +279,8 @@ impl View for AIFactView {
 impl TypedActionView for AIFactView {
     type Action = AIFactViewAction;
 
-    fn handle_action(&mut self, action: &AIFactViewAction, ctx: &mut ViewContext<Self>) {
-        match action {
-            AIFactViewAction::AddRule => {
-                self.rule_editor_view.update(ctx, |rule_editor_view, ctx| {
-                    rule_editor_view.set_ai_rule(None, ctx);
-                });
-                self.update_page(AIFactPage::RuleEditor { sync_id: None }, ctx);
-            }
-            AIFactViewAction::UpdatePage(page) => self.update_page(*page, ctx),
+    fn handle_action(&mut self, action: &AIFactViewAction, _ctx: &mut ViewContext<Self>) {
+        match *action {
         }
     }
 }

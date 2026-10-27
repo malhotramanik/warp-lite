@@ -59,16 +59,6 @@ pub(crate) fn is_feature_gated_anonymous_user_past_workflow_limit(
     )
 }
 
-pub(crate) fn is_feature_gated_anonymous_user_past_env_var_limit(
-    auth_state: &AuthState,
-    num_objects: usize,
-) -> bool {
-    is_feature_gated_anonymous_user_past_limit(
-        auth_state,
-        num_objects,
-        AnonymousUserObjectLimit::EnvVarCollection,
-    )
-}
 
 fn has_feature_gated_anonymous_user_reached_limit(
     ctx: &mut AppContext,

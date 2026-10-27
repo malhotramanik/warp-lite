@@ -24,19 +24,10 @@ pub enum MarkdownDisplayMode {
 
 #[derive(Debug, Clone)]
 pub enum FileNotebookAction {
-    Focus,
-    Close,
     FocusTerminalInput,
     ReloadFile,
-    #[cfg(feature = "local_fs")]
-    CopyFilePath,
-    #[cfg(feature = "local_fs")]
-    OpenInEditor,
-    #[cfg(feature = "local_fs")]
-    OpenAsCode,
     ContextMenu(ContextMenuAction),
     ToggleMarkdownDisplayMode(MarkdownDisplayMode),
-    ToggleMaximized,
 }
 
 impl From<ContextMenuAction> for FileNotebookAction {

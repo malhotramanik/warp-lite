@@ -39,7 +39,6 @@ impl From<&SessionType> for GuidedModalSessionType {
         match value {
             SessionType::Terminal => Self::Terminal,
             SessionType::Oz => Self::Oz,
-            SessionType::CliAgent(_) => Self::CliAgent,
         }
     }
 }

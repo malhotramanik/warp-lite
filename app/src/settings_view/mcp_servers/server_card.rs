@@ -147,7 +147,6 @@ pub struct ServerCardOptions {
 #[derive(PartialEq, Clone, Copy)]
 pub enum ServerCardStatus {
     AvailableToSave,
-    SavedToDrive,
     Installed,
     StartingServer,
     Authenticating,
@@ -189,23 +188,6 @@ impl From<ServerCardStatus> for ServerCardOptions {
                 status_line: None,
                 background: Background::Transparent,
                 full_card_clickable: true,
-            },
-            ServerCardStatus::SavedToDrive => ServerCardOptions {
-                show_view_logs_icon_button: false,
-                show_log_out_icon_button: false,
-                show_share_icon_button: false,
-                show_edit_config_icon_button: true,
-                show_update_available_icon_button: false,
-                show_view_logs_text_button: false,
-                show_edit_config_text_button: false,
-                show_setup_text_button: true,
-                show_add_icon: false,
-
-                server_running_switch_state: None,
-                status_indicator: None,
-                status_line: None,
-                background: Background::Filled,
-                full_card_clickable: false,
             },
             ServerCardStatus::Installed => ServerCardOptions {
                 show_view_logs_icon_button: true,

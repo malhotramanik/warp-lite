@@ -104,7 +104,6 @@ pub struct ResourceCenterView {
 
 #[derive(Debug, Clone)]
 pub enum ResourceCenterAction {
-    Close,
     NavigatePage(ResourceCenterPage),
     FooterItemClick(ResourceCenterFooterItem),
 }
@@ -479,7 +478,7 @@ impl TypedActionView for ResourceCenterView {
     fn handle_action(&mut self, action: &ResourceCenterAction, ctx: &mut ViewContext<Self>) {
         use ResourceCenterAction::*;
         match action {
-            Close => self.close(ctx),
+            _Close => self.close(ctx),
             NavigatePage(new_page) => self.set_current_page(*new_page, ctx),
             FooterItemClick(item) => self.footer_item_click_action(item, ctx),
         }

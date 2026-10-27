@@ -74,15 +74,6 @@ pub enum AuthManagerEvent {
     LoginOverrideDetected(AuthRedirectPayload),
     /// Failed to mint a new custom token for an anonymous user.
     MintCustomTokenFailed(MintCustomTokenError),
-    /// Received a device authorization code as part of the device auth flow.
-    ReceivedDeviceAuthorizationCode {
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        verification_url: String,
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        verification_url_complete: Option<String>,
-        #[cfg_attr(target_family = "wasm", allow(unused))]
-        user_code: String,
-    },
 }
 
 pub type LoginGatedFeature = &'static str;

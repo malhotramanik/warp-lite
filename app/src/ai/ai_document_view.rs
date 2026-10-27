@@ -4,7 +4,6 @@ use warpui::{
     AppContext, id,
 };
 
-use crate::ai::document::ai_document_model::AIDocumentVersion;
 
 pub fn init(app: &mut AppContext) {
     app.register_editable_bindings([EditableBinding::new(
@@ -32,17 +31,7 @@ use crate::code::view::{SAVE_FILE_BINDING_DESCRIPTION, SAVE_FILE_BINDING_NAME};
 #[derive(Debug, Clone, PartialEq)]
 pub enum AIDocumentAction {
     Close,
-    SelectVersion(AIDocumentVersion),
-    Export,
-    CopyAsMarkdown,
-    OpenVersionMenu,
-    CreateWarpDriveNotebook,
-    RevertToDocumentVersion,
     SendUpdatedPlan,
-    CopyLink(String),
-    CopyPlanId,
-    ShowInWarpDrive,
-    AttachToActiveSession,
 }
 
 

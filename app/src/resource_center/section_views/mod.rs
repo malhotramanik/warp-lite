@@ -55,10 +55,6 @@ pub enum SectionAction {
     OpenUrl(String),
     ToggleExpanded,
     Click(TipAction),
-    CloseResourceCenter,
-    CompleteGamified,
-    SkipTips,
-    OpenSection(FeatureSection),
 }
 
 pub trait SectionView {

@@ -50,8 +50,6 @@ pub struct AcceptAutosuggestionKeybinding {
 }
 
 pub enum AcceptAutosuggestionKeybindingEvent {
-    SetAcceptAutosuggestionKeybinding {},
-    OpenSettingsForCustomKeybinding,
 }
 
 impl Entity for AcceptAutosuggestionKeybinding {

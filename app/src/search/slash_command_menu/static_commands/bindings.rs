@@ -4,7 +4,6 @@ use super::StaticCommand;
 
 pub enum DefaultSlashCommandBinding {
     None,
-    Single(&'static str),
     PerPlatform(PerPlatformKeystroke),
 }
 

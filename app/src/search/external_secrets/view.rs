@@ -17,7 +17,6 @@ use warpui::{
 
 use crate::appearance::Appearance;
 use crate::external_secrets::ExternalSecret;
-use crate::search::external_secrets::external_secret_data_source::ExternalSecretDataSource;
 use crate::search::external_secrets::searcher::{
     ExternalSecretSearchItemAction, ExternalSecretSearchMixer,
 };
@@ -50,10 +49,6 @@ pub struct ExternalSecretsMenu {
 
 #[derive(Clone, Debug)]
 pub enum ExternalSecretsMenuAction {
-    ResultClicked {
-        result_index: usize,
-        result_action: Box<ExternalSecretSearchItemAction>,
-    },
     Close,
 }
 
@@ -67,37 +62,12 @@ pub enum ExternalSecretsMenuEvent {
 
 impl ExternalSecretsMenu {
 
-    pub fn setup(&mut self, secrets: Vec<ExternalSecret>, ctx: &mut ViewContext<Self>) {
-        self.mixer.update(ctx, |mixer, ctx| {
-            mixer.reset(ctx);
-
-            mixer.add_sync_source(ExternalSecretDataSource::new(secrets), HashSet::new());
-            ctx.notify();
-        });
-
-        self.search_bar.update(ctx, |search_bar, ctx| {
-            search_bar.reset(None, None, SearchResultOrdering::TopDown, ctx);
-            ctx.notify();
-        });
-
-        ctx.emit(ExternalSecretsMenuEvent::Open);
-    }
 
     pub fn close(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(ExternalSecretsMenuEvent::Close);
     }
 
 
-    fn handle_result_selected(
-        &mut self,
-        result_action: ExternalSecretSearchItemAction,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        ctx.emit(ExternalSecretsMenuEvent::ItemSelected {
-            payload: Box::new(result_action),
-        });
-        self.close(ctx);
-    }
 
     fn render_no_results(&self, appearance: &Appearance) -> Box<dyn Element> {
         // There are no results to display, so notify the user of that fact.
@@ -278,9 +248,6 @@ impl TypedActionView for ExternalSecretsMenu {
     fn handle_action(&mut self, action: &Self::Action, ctx: &mut ViewContext<Self>) {
         match action {
             ExternalSecretsMenuAction::Close => self.close(ctx),
-            ExternalSecretsMenuAction::ResultClicked { result_action, .. } => {
-                self.handle_result_selected(*result_action.clone(), ctx)
-            }
         }
     }
 }

@@ -3,8 +3,7 @@ use warpui::{Entity, SingletonEntity};
 use crate::cloud_object::model::view::CloudViewModel;
 use crate::cloud_object::{CloudObject, Revision, Space};
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
-use crate::env_vars::CloudEnvVarCollection;
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::SyncId;
 use crate::{AppContext, CloudModel};
 
 #[derive(Default, Clone)]
@@ -16,7 +15,6 @@ pub enum ActiveEnvVarCollection {
     CommittedEnvVarCollection(SyncId),
     // An EnvVarCollection that has been created and displayed in the view, but is not yet
     // committed to CloudModel
-    NewEnvVarCollection(Box<CloudEnvVarCollection>),
 }
 
 #[derive(Default, PartialEq, Debug)]
@@ -24,7 +22,6 @@ pub enum SavingStatus {
     #[default]
     Saved,
     Unsaved,
-    New,
 }
 
 #[derive(Default)]
@@ -45,9 +42,6 @@ impl ActiveEnvVarCollectionData {
         match &self.active_env_var_collection {
             ActiveEnvVarCollection::None => None,
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => Some(*id),
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.id)
-            }
         }
     }
 
@@ -57,7 +51,7 @@ impl ActiveEnvVarCollectionData {
             ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
                 CloudViewModel::as_ref(app).access_level(&sync_id.uid(), app)
             }
-            ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
+            ActiveEnvVarCollection::None  => {
                 SharingAccessLevel::Full
             }
         }
@@ -68,7 +62,7 @@ impl ActiveEnvVarCollectionData {
             ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
                 CloudViewModel::as_ref(app).object_editability(&sync_id.uid(), app)
             }
-            ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
+            ActiveEnvVarCollection::None  => {
                 ContentEditability::Editable
             }
         }
@@ -80,9 +74,6 @@ impl ActiveEnvVarCollectionData {
             ActiveEnvVarCollection::None => None,
             ActiveEnvVarCollection::CommittedEnvVarCollection(sync_id) => {
                 CloudViewModel::as_ref(app).object_space(&sync_id.uid(), app)
-            }
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.space(app))
             }
         }
     }
@@ -103,7 +94,7 @@ impl ActiveEnvVarCollectionData {
 
     pub fn trash_status(&self, ctx: &AppContext) -> TrashStatus {
         match &self.active_env_var_collection {
-            ActiveEnvVarCollection::None | ActiveEnvVarCollection::NewEnvVarCollection(_) => {
+            ActiveEnvVarCollection::None  => {
                 TrashStatus::Active
             }
             ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
@@ -131,13 +122,6 @@ pub enum TrashStatus {
 }
 
 pub enum ActiveEnvVarCollectionDataEvent {
-    /// The EVC's breadcrumbs were updated.
-    BreadcrumbsChanged,
-    /// The EVC was synced to the server for the first time.
-    CreatedOnServer(ServerId),
-    /// The EVC was trashed or untrashed
-    /// (used for refreshing the pane overflow items)
-    TrashStatusChanged,
 }
 
 impl Entity for ActiveEnvVarCollectionData {

@@ -57,7 +57,6 @@ pub struct ResourceCenterMainView {
 
 #[derive(Debug, Clone)]
 pub enum ResourceCenterMainAction {
-    Close,
     SkipTips,
 }
 
@@ -480,7 +479,7 @@ impl TypedActionView for ResourceCenterMainView {
     fn handle_action(&mut self, action: &ResourceCenterMainAction, ctx: &mut ViewContext<Self>) {
         use ResourceCenterMainAction::*;
         match action {
-            Close => {
+            _Close => {
                 ctx.notify();
                 ctx.emit(ResourceCenterMainEvent::Close);
             }

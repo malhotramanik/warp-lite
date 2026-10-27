@@ -18,7 +18,7 @@ use super::env_var_collection::{
 };
 use crate::drive::sharing::ContentEditability;
 use crate::env_vars::EnvVarValue;
-use crate::external_secrets::{ExternalSecretManager, SecretManager};
+use crate::external_secrets::{ExternalSecretManager};
 use crate::ui_components::icons::Icon;
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use crate::{
@@ -29,75 +29,7 @@ use crate::{
 
 impl EnvVarCollectionView {
 
-    pub(super) fn clear_secret(&mut self, ctx: &mut ViewContext<Self>) {
-        if let Some(VariableRowIndex(index)) = self.pending_variable_row_index.take() {
-            self.variable_rows[index].value = EnvVarValue::Constant(String::new());
-        }
 
-        ctx.notify();
-    }
-
-    #[cfg_attr(target_family = "wasm", allow(unused_variables))]
-    pub(super) fn fetch_secret(
-        &mut self,
-        secret_manager: SecretManager,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
-        {
-            let window_id = ctx.window_id();
-            let local_shell = LocalShellState::as_ref(ctx);
-            let secret_manager_clone = secret_manager.clone();
-
-            let Some(local_shell_state) = local_shell.local_shell_info() else {
-                return;
-            };
-
-            let shell_type = local_shell_state.get_shell_type();
-            let shell_path = local_shell_state.get_shell_path().clone();
-            let path_env_var = local_shell_state.get_path_env_var().clone();
-
-            self.secrets_dialog.update(ctx, |_, dialog_ctx| {
-                let _ = dialog_ctx.spawn(
-                    async move {
-                        secret_manager
-                            .verify_installed_and_fetch_secrets(
-                                shell_type,
-                                shell_path,
-                                path_env_var,
-                            )
-                            .await
-                    },
-                    move |view, result, dialog_ctx| match result {
-                        Ok(secrets) => {
-                            view.setup(secrets, dialog_ctx);
-                        }
-                        Err(e) => {
-                            let error_message_and_command =
-                                secret_manager_clone.get_toast_message_and_link(e);
-
-                            let mut toast =
-                                DismissibleToast::error(error_message_and_command.message);
-
-                            if let (Some(link), Some(link_message)) = (
-                                error_message_and_command.link,
-                                error_message_and_command.link_message,
-                            ) {
-                                toast = toast.with_link(
-                                    ToastLink::new(link_message)
-                                        .with_onclick_action(WorkspaceAction::OpenLink(link)),
-                                );
-                            }
-
-                            ToastStack::handle(dialog_ctx).update(dialog_ctx, |toast_stack, ctx| {
-                                toast_stack.add_persistent_toast(toast, window_id, ctx);
-                            })
-                        }
-                    },
-                );
-            });
-        }
-    }
 
     pub(super) fn render_secret_or_command_button(
         &self,

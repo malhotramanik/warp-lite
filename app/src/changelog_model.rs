@@ -225,7 +225,6 @@ pub enum Event {
     ChangelogRequestFailed {
         request_type: ChangelogRequestType,
     },
-    ImageRequestComplete,
 }
 
 #[derive(Debug)]

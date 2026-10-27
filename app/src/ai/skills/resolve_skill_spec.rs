@@ -98,12 +98,6 @@ pub enum ResolveSkillError {
     },
     #[error("Failed to parse skill file {path}: {message}")]
     ParseFailed { path: PathBuf, message: String },
-    #[error("Failed to clone repository '{org}/{repo}': {message}")]
-    CloneFailed {
-        org: String,
-        repo: String,
-        message: String,
-    },
 }
 
 /// Resolve a `SkillSpec` (from the `--skill` CLI arg) into a concrete SKILL.md file.

@@ -152,9 +152,6 @@ pub enum CloudPreferencesSyncerEvent {
     /// Emitted when the local preferences are updated to match values from cloud upon initial load.
     InitialLoadCompleted,
 
-    /// Event variant indicating there's a new value for the preference with
-    /// a specific storage key
-    Updated { key: String, value: String },
 }
 
 /// Whether to force the cloud to match the local settings or not.

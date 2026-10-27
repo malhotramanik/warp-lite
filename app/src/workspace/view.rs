@@ -4175,22 +4175,6 @@ impl Workspace {
             NewWorkspaceSource::FromCloudConversationId { conversation_id } => {
                 self.open_cloud_conversation_from_server_token(conversation_id, ctx);
             }
-            NewWorkspaceSource::AgentSession {
-                options,
-                initial_query,
-            } => {
-                self.add_tab_with_pane_layout(
-                    PanesLayout::SingleTerminal(options),
-                    Arc::new(HashMap::new()),
-                    None,
-                    ctx,
-                );
-                // Enter agent mode with the environment creation query.
-                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-                    pane_group.start_agent_mode_in_new_pane(initial_query.as_deref(), None, ctx);
-                });
-                self.check_and_trigger_onboarding(ctx);
-            }
             NewWorkspaceSource::AmbientAgent => {
                 self.add_tab_with_pane_layout(
                     PanesLayout::AmbientAgent,
@@ -4306,7 +4290,6 @@ impl Workspace {
             NewWorkspaceSource::Empty { .. }
             | NewWorkspaceSource::FromTemplate { .. }
             | NewWorkspaceSource::Session { .. }
-            | NewWorkspaceSource::AgentSession { .. }
             | NewWorkspaceSource::AmbientAgent
             | NewWorkspaceSource::TeamSwitched { .. }
              => should_default_open,
@@ -14530,7 +14513,6 @@ impl Workspace {
             ChangelogEvent::ChangelogRequestFailed {
                 request_type: ChangelogRequestType::WindowLaunch,
             } => false,
-            ChangelogEvent::ImageRequestComplete => false,
         } && show_changelog_setting;
 
         match (

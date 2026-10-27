@@ -40,7 +40,6 @@ pub fn init(app: &mut AppContext) {
 pub enum ProjectButtonsAction {
     OpenRepository,
     CreateProject,
-    CloneRepository,
 }
 
 

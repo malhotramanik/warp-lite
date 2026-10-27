@@ -1,7 +1,5 @@
 use std::sync::Arc;
 use std::sync::mpsc::SyncSender;
-#[cfg(not(target_family = "wasm"))]
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use futures::channel::oneshot::{self, Receiver};
@@ -41,8 +39,6 @@ pub enum TeamUpdateManagerEvent {
 #[derive(Clone, Copy)]
 pub(crate) enum WorkspaceMetadataRetryPolicy {
     OutOfBand,
-    #[cfg(not(target_family = "wasm"))]
-    TimeBudget(Duration),
 }
 
 /// TeamUpdateManager is a singleton model responsible for communicating with the server and local
@@ -206,10 +202,6 @@ impl TeamUpdateManager {
                         WorkspaceMetadataRetryPolicy::OutOfBand => {
                             Timer::after(delay).await;
                         }
-                        #[cfg(not(target_family = "wasm"))]
-                        WorkspaceMetadataRetryPolicy::TimeBudget(_) => {
-                            tokio::time::sleep(delay).await
-                        }
                     }
                 },
                 |_| match retry_policy {
@@ -221,20 +213,10 @@ impl TeamUpdateManager {
                         retry_option.advance();
                         Some(delay)
                     }
-                    #[cfg(not(target_family = "wasm"))]
-                    WorkspaceMetadataRetryPolicy::TimeBudget(_) => {
-                        Some(duration_with_jitter(Duration::from_secs(1), 0.5))
-                    }
                 },
             );
             let response = match retry_policy {
                 WorkspaceMetadataRetryPolicy::OutOfBand => refresh.await,
-                #[cfg(not(target_family = "wasm"))]
-                WorkspaceMetadataRetryPolicy::TimeBudget(timeout) => {
-                    tokio::time::timeout(timeout, refresh)
-                        .await
-                        .map_err(|_| anyhow::anyhow!("Timed out refreshing team metadata"))?
-                }
             };
 
             foreground

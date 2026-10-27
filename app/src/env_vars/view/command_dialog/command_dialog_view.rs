@@ -54,15 +54,6 @@ impl EnvVarCommandDialog {
 
 
 
-    pub fn load(&mut self, secret_command: &EnvVarSecretCommand, ctx: &mut ViewContext<Self>) {
-        self.name_editor.update(ctx, |buffer, ctx| {
-            buffer.set_buffer_text(&secret_command.name, ctx)
-        });
-
-        self.command_editor.update(ctx, |buffer, ctx| {
-            buffer.set_buffer_text(&secret_command.command, ctx)
-        });
-    }
 
     fn save_command_and_close(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.emit(EnvVarCommandDialogEvent::SaveCommand(EnvVarSecretCommand {

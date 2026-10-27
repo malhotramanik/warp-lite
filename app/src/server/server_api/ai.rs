@@ -597,19 +597,11 @@ pub struct TaskListFilter {
 /// Artifact type filter values accepted by the public API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArtifactType {
-    Plan,
-    PullRequest,
-    Screenshot,
-    File,
 }
 
 impl ArtifactType {
     pub fn as_query_param(&self) -> &'static str {
-        match self {
-            ArtifactType::Plan => "PLAN",
-            ArtifactType::PullRequest => "PULL_REQUEST",
-            ArtifactType::Screenshot => "SCREENSHOT",
-            ArtifactType::File => "FILE",
+        match *self {
         }
     }
 }
@@ -617,19 +609,11 @@ impl ArtifactType {
 /// Sort-by values accepted by the public API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunSortBy {
-    UpdatedAt,
-    CreatedAt,
-    Title,
-    Agent,
 }
 
 impl RunSortBy {
     pub fn as_query_param(&self) -> &'static str {
-        match self {
-            RunSortBy::UpdatedAt => "updated_at",
-            RunSortBy::CreatedAt => "created_at",
-            RunSortBy::Title => "title",
-            RunSortBy::Agent => "agent",
+        match *self {
         }
     }
 }
@@ -637,15 +621,11 @@ impl RunSortBy {
 /// Sort-order values accepted by the public API.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunSortOrder {
-    Asc,
-    Desc,
 }
 
 impl RunSortOrder {
     pub fn as_query_param(&self) -> &'static str {
-        match self {
-            RunSortOrder::Asc => "asc",
-            RunSortOrder::Desc => "desc",
+        match *self {
         }
     }
 }

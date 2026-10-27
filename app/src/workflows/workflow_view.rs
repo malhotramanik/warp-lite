@@ -218,7 +218,6 @@ pub enum WorkflowAction {
     CopyContent,
     Close,
     CloseUnsavedDialog,
-    CloseEnumDialog,
     ForceClose,
     Save,
     Cancel,
@@ -234,7 +233,6 @@ pub enum WorkflowAction {
 pub enum WorkflowViewEvent {
     Pane(PaneEvent),
     CreatedWorkflow(SyncId),
-    UpdatedWorkflow(SyncId),
     ViewInWarpDrive(WarpDriveItemId),
     OpenDriveObjectShareDialog {
         cloud_object_type_and_id: CloudObjectTypeAndId,
@@ -3070,7 +3068,6 @@ impl TypedActionView for WorkflowView {
             }
             WorkflowAction::Trash => self.trash_object(ctx),
             WorkflowAction::Untrash => self.untrash_object(ctx),
-            WorkflowAction::CloseEnumDialog => self.hide_enum_creation_dialog(ctx),
         }
     }
 }

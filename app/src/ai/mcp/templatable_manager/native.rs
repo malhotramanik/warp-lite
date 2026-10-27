@@ -370,7 +370,7 @@ impl TemplatableMCPServerManager {
                 | AuthManagerEvent::AttemptedLoginGatedFeature { .. }
                 | AuthManagerEvent::LoginOverrideDetected(_)
                 | AuthManagerEvent::MintCustomTokenFailed(_)
-                | AuthManagerEvent::ReceivedDeviceAuthorizationCode { .. } => {}
+                 => {}
             });
 
             let server_api_provider = ServerApiProvider::handle(ctx);

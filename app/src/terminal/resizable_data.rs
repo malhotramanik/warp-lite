@@ -17,8 +17,6 @@ pub enum ModalType {
     UniversalSearchWidth,
     WarpAIWidth,
     VoltronWidth,
-    WarpDriveIndexWidth,
-    SettingsPanelWidth,
     LeftPanelWidth,
     RightPanelWidth,
 }
@@ -89,8 +87,6 @@ impl ModalSizes {
             ModalType::UniversalSearchWidth => self.universal_search_width.clone(),
             ModalType::WarpAIWidth => self.warp_ai_width.clone(),
             ModalType::VoltronWidth => self.voltron_width.clone(),
-            ModalType::WarpDriveIndexWidth => self.warp_drive_index_width.clone(),
-            ModalType::SettingsPanelWidth => self.settings_panel_width.clone(),
             ModalType::LeftPanelWidth => self.left_panel_width.clone(),
             ModalType::RightPanelWidth => self.right_panel_width.clone(),
         }

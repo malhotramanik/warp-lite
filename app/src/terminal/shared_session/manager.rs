@@ -245,8 +245,6 @@ impl Manager {
 }
 
 pub enum ManagerEvent {
-    /// There was an attempt to share a session.
-    ShareAttempted,
     /// A shared session was started.
     StartedShare {
         session_id: SessionId,

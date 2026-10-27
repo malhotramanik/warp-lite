@@ -2340,7 +2340,6 @@ pub fn init(app: &mut AppContext) {
 
             binding = match slash_command_bindings::default_binding_for_command(command.name) {
                 DefaultSlashCommandBinding::None => binding,
-                DefaultSlashCommandBinding::Single(keys) => binding.with_key_binding(keys),
                 DefaultSlashCommandBinding::PerPlatform(keys) => binding
                     .with_mac_key_binding(keys.mac)
                     .with_linux_or_windows_key_binding(keys.linux_and_windows),

@@ -10,7 +10,6 @@ use super::tab_config::{
 };
 use crate::app_state::{BranchSnapshot, LeafContents, LeafSnapshot, PaneNodeSnapshot};
 use crate::launch_configs::launch_config::SplitDirection;
-use crate::terminal::cli_agent::CLIAgent;
 use crate::themes::theme::AnsiColorIdentifier;
 use crate::ui_components::icons::Icon;
 
@@ -22,7 +21,6 @@ use crate::ui_components::icons::Icon;
 pub enum SessionType {
     Terminal,
     Oz,
-    CliAgent(CLIAgent),
 }
 
 impl SessionType {
@@ -31,7 +29,6 @@ impl SessionType {
     fn command_prefix(&self) -> Option<&'static str> {
         match self {
             SessionType::Terminal | SessionType::Oz => None,
-            SessionType::CliAgent(agent) => Some(agent.command_prefix()),
         }
     }
 
@@ -40,7 +37,6 @@ impl SessionType {
         match self {
             SessionType::Terminal => Icon::Terminal,
             SessionType::Oz => Icon::Agent,
-            SessionType::CliAgent(agent) => agent.icon().unwrap_or(Icon::Terminal),
         }
     }
 
@@ -49,10 +45,6 @@ impl SessionType {
         match self {
             SessionType::Terminal => "Terminal",
             SessionType::Oz => "Warp Agent",
-            SessionType::CliAgent(CLIAgent::Claude) => "Claude",
-            SessionType::CliAgent(CLIAgent::Codex) => "Codex",
-            SessionType::CliAgent(CLIAgent::Gemini) => "Gemini",
-            SessionType::CliAgent(agent) => agent.display_name(),
         }
     }
 }
@@ -144,7 +136,7 @@ pub fn build_tab_config(
 
     let pane_type = match session_type {
         SessionType::Oz => TabConfigPaneType::Agent,
-        SessionType::Terminal | SessionType::CliAgent(_) => TabConfigPaneType::Terminal,
+        SessionType::Terminal  => TabConfigPaneType::Terminal,
     };
 
     TabConfig {

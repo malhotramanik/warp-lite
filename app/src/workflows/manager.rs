@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 
-use super::workflow::Workflow;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::Owner;
 use crate::pane_group::{PaneContent};
@@ -18,7 +17,6 @@ pub struct WorkflowManager {
 
 #[derive(Debug, Clone)]
 pub enum WorkflowOpenSource {
-    Existing(SyncId),
     New {
         title: Option<String>,
 
@@ -30,11 +28,6 @@ pub enum WorkflowOpenSource {
         owner: Owner,
         initial_folder_id: Option<SyncId>,
         is_for_agent_mode: bool,
-    },
-    NewFromWorkflow {
-        workflow: Box<Workflow>,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
     },
 }
 

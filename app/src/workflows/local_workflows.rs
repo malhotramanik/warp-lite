@@ -21,7 +21,6 @@ pub fn workflows_dir(base_dir: impl AsRef<Path>) -> PathBuf {
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum UseCache {
-    Yes,
     No,
 }
 
