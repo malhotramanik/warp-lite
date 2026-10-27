@@ -1,17 +1,11 @@
-use warpui::{Entity, ModelContext, SingletonEntity};
+use warpui::{Entity, SingletonEntity};
 
-use super::CloudEnvVarCollectionModel;
-use crate::cloud_object::breadcrumbs::ContainingObject;
-use crate::cloud_object::model::persistence::CloudModelEvent;
 use crate::cloud_object::model::view::CloudViewModel;
-use crate::cloud_object::{CloudObject, Owner, Revision, Space};
+use crate::cloud_object::{CloudObject, Revision, Space};
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
 use crate::env_vars::CloudEnvVarCollection;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManagerEvent,
-};
-use crate::server::ids::{ClientId, ServerId, SyncId};
-use crate::{AppContext, CloudModel, UpdateManager};
+use crate::server::ids::{ServerId, SyncId};
+use crate::{AppContext, CloudModel};
 
 #[derive(Default, Clone)]
 pub enum ActiveEnvVarCollection {
@@ -41,148 +35,11 @@ pub struct ActiveEnvVarCollectionData {
 }
 
 impl ActiveEnvVarCollectionData {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let update_manager = UpdateManager::handle(ctx);
 
-        ctx.subscribe_to_model(&update_manager, |me, _, event, ctx| {
-            me.handle_update_manager_event(event, ctx);
-        });
 
-        let cloud_model = CloudModel::handle(ctx);
 
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
-        });
 
-        Self {
-            ..Default::default()
-        }
-    }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        if let CloudModelEvent::ObjectMoved { type_and_id, .. } = event
-            && let Some(env_var_collection_id) = type_and_id.as_generic_string_object_id()
-            && self.is_active_env_var_collection(env_var_collection_id)
-        {
-            ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged)
-        }
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        event: &UpdateManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let cloud_model = CloudModel::as_ref(ctx);
-
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        match (&result.operation, &result.success_type) {
-            (ObjectOperation::Create { .. }, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    let env_var_collection_id = SyncId::ServerId(server_id);
-
-                    if let Some(env_var_collection) =
-                        cloud_model.get_env_var_collection(&env_var_collection_id)
-                    {
-                        self.saving_status = SavingStatus::Saved;
-                        self.active_env_var_collection =
-                            ActiveEnvVarCollection::CommittedEnvVarCollection(
-                                env_var_collection_id,
-                            );
-                        self.revision_ts
-                            .clone_from(&env_var_collection.metadata.revision);
-                        ctx.emit(ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id));
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::Update, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id() {
-                    // If we match on a non-None client id or a non-None server id then
-                    // update the data
-                    if (current_id.into_client().is_some()
-                        && current_id.into_client() == result.client_id)
-                        || (current_id.into_server().is_some()
-                            && current_id.into_server() == result.server_id)
-                    {
-                        let server_id = result.server_id.expect("Expect server id on success");
-                        let env_var_collection_id = SyncId::ServerId(server_id);
-                        if let Some(env_var_collection) =
-                            cloud_model.get_env_var_collection(&env_var_collection_id)
-                        {
-                            self.saving_status = SavingStatus::Saved;
-                            self.active_env_var_collection =
-                                ActiveEnvVarCollection::CommittedEnvVarCollection(
-                                    env_var_collection_id,
-                                );
-
-                            self.revision_ts
-                                .clone_from(&env_var_collection.metadata.revision);
-
-                            ctx.notify();
-                        }
-                    }
-                }
-            }
-            (ObjectOperation::Trash, OperationSuccessType::Success)
-            | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                    && cloud_model
-                        .get_env_var_collection(&SyncId::ServerId(server_id))
-                        .is_some()
-                {
-                    ctx.emit(ActiveEnvVarCollectionDataEvent::TrashStatusChanged);
-                }
-            }
-            _ => {}
-        }
-    }
-
-    pub fn reset(&mut self) {
-        self.active_env_var_collection = ActiveEnvVarCollection::None;
-    }
-
-    pub fn open_new(
-        &mut self,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.reset();
-
-        let new_id = ClientId::default();
-
-        // Set the active env var collection to be an uncommitted collection
-        self.active_env_var_collection = ActiveEnvVarCollection::NewEnvVarCollection(Box::new(
-            CloudEnvVarCollection::new_local(
-                CloudEnvVarCollectionModel::default(),
-                owner,
-                initial_folder_id,
-                new_id,
-            ),
-        ));
-
-        ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged);
-        ctx.notify();
-    }
-
-    pub fn open_existing(&mut self, env_var_collection_id: SyncId, ctx: &mut ModelContext<Self>) {
-        self.reset();
-        self.saving_status = SavingStatus::Saved;
-        self.active_env_var_collection =
-            ActiveEnvVarCollection::CommittedEnvVarCollection(env_var_collection_id);
-
-        ctx.emit(ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged);
-        ctx.notify();
-    }
 
     pub fn id(&self) -> Option<SyncId> {
         match &self.active_env_var_collection {
@@ -242,24 +99,7 @@ impl ActiveEnvVarCollectionData {
         )
     }
 
-    pub fn is_active_env_var_collection(&self, env_var_collection_id: SyncId) -> bool {
-        self.id() == Some(env_var_collection_id)
-    }
 
-    pub fn breadcrumbs(&self, ctx: &AppContext) -> Option<Vec<ContainingObject>> {
-        let cloud_env_var_collection = match &self.active_env_var_collection {
-            ActiveEnvVarCollection::None => None,
-            ActiveEnvVarCollection::CommittedEnvVarCollection(id) => {
-                CloudModel::as_ref(ctx).get_env_var_collection(id)
-            }
-            ActiveEnvVarCollection::NewEnvVarCollection(env_var_collection) => {
-                Some(env_var_collection.as_ref())
-            }
-        };
-
-        cloud_env_var_collection
-            .map(|env_var_collection| env_var_collection.containing_objects_path(ctx))
-    }
 
     pub fn trash_status(&self, ctx: &AppContext) -> TrashStatus {
         match &self.active_env_var_collection {

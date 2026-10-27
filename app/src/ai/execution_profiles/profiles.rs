@@ -899,72 +899,6 @@ impl AIExecutionProfilesModel {
         Some(profile_id)
     }
 
-    pub fn delete_profile(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self.settings_migration_state == SettingsMigrationState::PendingLegacyImport {
-            if profile_id == &self.default_profile_state.id() {
-                log::warn!("Attempted to delete default profile (id: {profile_id})");
-                return;
-            }
-            let mut profiles = self.pending_legacy_profiles(ctx);
-            if profiles.remove(profile_id).is_none() {
-                return;
-            }
-            if !self.activate_pending_settings_collection(profiles, ctx) {
-                return;
-            }
-            self.active_profiles_per_session
-                .retain(|_, active_profile_id| active_profile_id != profile_id);
-            send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileDeleted, ctx);
-            return;
-        }
-        if self.settings_are_authoritative() {
-            if profile_id.is_default() {
-                log::warn!("Attempted to delete default profile (id: {profile_id})");
-                return;
-            }
-            let mut profiles = AISettings::as_ref(ctx).execution_profiles.value().clone();
-            if profiles.remove(profile_id).is_none() {
-                return;
-            }
-            if let Err(error) = AISettings::handle(ctx).update(ctx, |settings, ctx| {
-                settings.execution_profiles.set_value(profiles, ctx)
-            }) {
-                report_error!(error.context("Failed to delete execution profile from settings"));
-                return;
-            }
-            self.active_profiles_per_session
-                .retain(|_, active_profile_id| active_profile_id != profile_id);
-            send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileDeleted, ctx);
-            return;
-        }
-
-        let id = self.default_profile_state.id();
-        if id == *profile_id {
-            log::warn!("Attempted to delete default profile (id: {profile_id})");
-            return;
-        }
-
-        let Some(sync_id) = self.profile_id_to_sync_id.get(profile_id).cloned() else {
-            return;
-        };
-
-        self.active_profiles_per_session
-            .retain(|_, active_profile_id| active_profile_id != profile_id);
-
-        self.profile_id_to_sync_id.remove(profile_id);
-
-        let update_manager = UpdateManager::handle(ctx);
-        update_manager.update(ctx, |update_manager, ctx| {
-            update_manager.delete_ai_execution_profile(sync_id, ctx);
-        });
-
-        send_telemetry_from_ctx!(TelemetryEvent::AIExecutionProfileDeleted, ctx);
-        ctx.emit(AIExecutionProfilesModelEvent::ProfileDeleted);
-    }
 
     // On logout, we need to clear any existing profile state.
     pub fn reset(&mut self, settings_profiles_are_explicit: bool) {
@@ -1534,38 +1468,6 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn set_computer_use(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        permission: &super::ComputerUsePermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let current_value = self
-            .get_profile_by_id(profile_id, ctx)
-            .map(|p| p.data().computer_use);
-
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.computer_use != *permission {
-                    profile.computer_use = *permission;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        if current_value != Some(*permission) {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::AIExecutionProfileSettingUpdated {
-                    setting_type: "computer_use".to_string(),
-                    setting_value: format!("{permission:?}"),
-                },
-                ctx
-            );
-        }
-    }
 
     pub fn set_ask_user_question(
         &mut self,
@@ -1600,119 +1502,9 @@ impl AIExecutionProfilesModel {
         }
     }
 
-    pub fn set_run_agents(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        permission: super::RunAgentsPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let current_value = self
-            .get_profile_by_id(&profile_id.clone(), ctx)
-            .map(|p| p.data().run_agents);
 
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.run_agents != permission {
-                    profile.run_agents = permission;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
 
-        if current_value != Some(permission) {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::AIExecutionProfileSettingUpdated {
-                    setting_type: "run_agents".to_string(),
-                    setting_value: format!("{permission:?}"),
-                },
-                ctx
-            );
-        }
-    }
 
-    pub fn set_web_search_enabled(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.web_search_enabled != enabled {
-                    profile.web_search_enabled = enabled;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "web_search_enabled".to_string(),
-                setting_value: format!("{enabled}"),
-            },
-            ctx
-        );
-    }
-
-    pub fn set_autosync_plans_to_warp_drive(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.autosync_plans_to_warp_drive != enabled {
-                    profile.autosync_plans_to_warp_drive = enabled;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "plan_auto_sync".to_string(),
-                setting_value: format!("{enabled}"),
-            },
-            ctx
-        );
-    }
-
-    pub fn set_profile_name(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        name: &str,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.name != name {
-                    profile.name = name.to_string();
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "name".to_string(),
-                setting_value: name.to_string(),
-            },
-            ctx
-        );
-    }
 
     pub fn add_to_command_allowlist(
         &mut self,

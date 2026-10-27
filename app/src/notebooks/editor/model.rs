@@ -281,10 +281,6 @@ impl NotebooksEditorModel {
             });
     }
 
-    /// Set the window this editor model is associated with. Should be called when the pane attaches.
-    pub fn set_window_id(&mut self, window_id: WindowId, _ctx: &mut ModelContext<Self>) {
-        self.rte_window_id = Some(window_id);
-    }
 
     /// Get the context for the session and working directory associated with this editor, if any.
     /// Used to generate clickable file path links.
@@ -338,9 +334,6 @@ impl NotebooksEditorModel {
         <Self as RichTextEditorModel>::reset_with_markdown(self, markdown, ctx);
     }
 
-    pub fn reset_with_ipynb(&mut self, ipynb: &str, ctx: &mut ModelContext<Self>) {
-        <Self as RichTextEditorModel>::reset_with_ipynb(self, ipynb, ctx);
-    }
 
     pub fn update_to_new_markdown(&mut self, markdown: &str, ctx: &mut ModelContext<Self>) {
         <Self as RichTextEditorModel>::update_to_new_markdown(self, markdown, ctx);
@@ -1584,13 +1577,6 @@ impl NotebooksEditorModel {
         had_command_selection
     }
 
-    /// Returns true if any of the subviews store on any of the NotebookCommand models are focused
-    /// (such as the dropdown view for picking different block types)
-    pub fn any_notebook_command_submodel_focused(&self, ctx: &AppContext) -> bool {
-        self.child_models
-            .models::<NotebookCommand>(ctx)
-            .any(|command| command.is_dropdown_focused(ctx))
-    }
 
     /// The currently-selected command blocks and their starting offsets.
     fn selected_commands<'a>(
@@ -2165,13 +2151,6 @@ impl ChildModels {
         )
     }
 
-    /// Iterate over all child models of the given type.
-    pub fn models<'a, T: Entity>(
-        &'a self,
-        ctx: &'a AppContext,
-    ) -> impl Iterator<Item = &'a T> + 'a {
-        self.model_handles().map(|handle| handle.as_ref(ctx))
-    }
 
     /// Iterates over all child model handles of the given type.
     pub fn model_handles<T: Entity>(&self) -> impl Iterator<Item = ModelHandle<T>> + '_ {

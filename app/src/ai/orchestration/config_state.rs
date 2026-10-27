@@ -257,27 +257,6 @@ impl OrchestrationConfigState {
         }
     }
 
-    /// Converts to a native `OrchestrationConfig` for storage / match.
-    pub fn to_orchestration_config(&self) -> OrchestrationConfig {
-        let execution_mode = match &self.execution_mode {
-            RunAgentsExecutionMode::Local => OrchestrationExecutionMode::Local,
-            RunAgentsExecutionMode::Remote {
-                environment_id,
-                worker_host,
-                runner_id,
-                ..
-            } => OrchestrationExecutionMode::Remote {
-                environment_id: environment_id.clone(),
-                worker_host: worker_host.clone(),
-                runner_id: runner_id.clone(),
-            },
-        };
-        OrchestrationConfig {
-            model_id: self.model_id.clone(),
-            harness_type: self.harness_type.clone(),
-            execution_mode,
-        }
-    }
 }
 
 #[cfg(test)]

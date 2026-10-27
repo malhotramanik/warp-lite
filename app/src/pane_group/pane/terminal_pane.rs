@@ -43,8 +43,7 @@ use crate::ai::blocklist::{
 use crate::ai::conversation_utils;
 use crate::ai::llms::LLMPreferences;
 use crate::ai::orchestration::{RemoteChildLaunchConfig, prepare_remote_child_launch};
-use crate::app_state::{AmbientAgentPaneSnapshot, LeafContents, TerminalPaneSnapshot};
-use crate::code::buffer_location::LocalOrRemotePath;
+use crate::app_state::{ LeafContents, TerminalPaneSnapshot};
 #[cfg(feature = "local_fs")]
 use crate::pane_group::CodeSource;
 use crate::pane_group::Event::OpenConversationHistory;

@@ -1449,9 +1449,6 @@ impl RichTextEditorView {
         self.model.as_ref(ctx).markdown(ctx)
     }
 
-    pub fn markdown_unescaped(&self, ctx: &AppContext) -> String {
-        self.model.as_ref(ctx).markdown_unescaped(ctx)
-    }
 
     pub fn interaction_state(&self, app: &AppContext) -> InteractionState {
         self.model.as_ref(app).interaction_state(app)
@@ -1641,11 +1638,6 @@ impl RichTextEditorView {
         }
     }
 
-    pub fn system_clear_buffer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.clear_buffer(ctx);
-        });
-    }
 
     pub fn reset_with_markdown(&mut self, markdown: &str, ctx: &mut ViewContext<Self>) {
         self.model.update(ctx, |model, ctx| {
@@ -1653,11 +1645,6 @@ impl RichTextEditorView {
         });
     }
 
-    pub fn reset_with_ipynb(&mut self, ipynb: &str, ctx: &mut ViewContext<Self>) {
-        self.model.update(ctx, |model, ctx| {
-            model.reset_with_ipynb(ipynb, ctx);
-        });
-    }
 
     /// Open the link editor modal. If `require_existing` is `true`, there *must* be an existing
     /// link to edit at the cursor (for example, we're opening a link from the tooltip). Otherwise,

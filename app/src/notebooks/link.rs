@@ -331,10 +331,6 @@ impl NotebookLinks {
         })
     }
 
-    pub fn set_session_source(&mut self, source: SessionSource, ctx: &mut ModelContext<Self>) {
-        self.session_source = source;
-        ctx.emit(LinkEvent::RefreshLinks);
-    }
 
     /// Listen for session changes that might invalidate resolved links.
     fn handle_active_session_change(

@@ -9,7 +9,6 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_env_var_limit;
 use crate::drive::export::ExportManager;
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
-use crate::external_secrets::SecretManager;
 use crate::menu::{Event as MenuEvent, Menu, MenuItem, MenuItemFields};
 use crate::pane_group::PaneEvent;
 use crate::server::cloud_objects::update_manager::UpdateManager;
@@ -29,99 +28,6 @@ pub struct Menus {
 }
 
 impl EnvVarCollectionView {
-    pub(super) fn initialize_menus(ctx: &mut ViewContext<Self>) -> Menus {
-        let command_item = Self::item(
-            "Command",
-            EnvVarCollectionAction::DisplayCommandDialog,
-            None,
-            Some(Icon::Terminal),
-        );
-
-        let one_password_item = Self::item(
-            "1Password",
-            EnvVarCollectionAction::SelectSecretManager(SecretManager::OnePassword),
-            None,
-            Some(Icon::OnePassword),
-        );
-
-        let lastpass_item = Self::item(
-            "LastPass",
-            EnvVarCollectionAction::SelectSecretManager(SecretManager::LastPass),
-            None,
-            Some(Icon::LastPass),
-        );
-
-        let edit_item = Self::item(
-            "Edit",
-            EnvVarCollectionAction::EditCommand,
-            None,
-            Some(Icon::Terminal),
-        );
-
-        let clear_secret_item = Self::item(
-            "Clear secret",
-            EnvVarCollectionAction::ClearSecret,
-            None,
-            Some(Icon::Trash),
-        );
-
-        let separator = MenuItem::Separator;
-
-        let secret_menu = Self::menu(
-            vec![
-                command_item.clone(),
-                one_password_item.clone(),
-                lastpass_item.clone(),
-            ],
-            None,
-            ctx,
-        );
-
-        let rendered_secret_menu = Self::menu(
-            vec![
-                command_item.clone(),
-                one_password_item.clone(),
-                lastpass_item.clone(),
-                separator.clone(),
-                clear_secret_item.clone(),
-            ],
-            None,
-            ctx,
-        );
-
-        let rendered_command_menu = Self::menu(
-            vec![
-                edit_item,
-                one_password_item,
-                lastpass_item,
-                separator,
-                clear_secret_item,
-            ],
-            None,
-            ctx,
-        );
-
-        ctx.subscribe_to_view(&secret_menu, |me, _, event, ctx| {
-            me.handle_secret_menu_event(event, ctx);
-        });
-
-        ctx.subscribe_to_view(&rendered_secret_menu, |me, _, event, ctx| {
-            me.handle_rendered_secret_menu_event(event, ctx);
-        });
-
-        ctx.subscribe_to_view(&rendered_command_menu, |me, _, event, ctx| {
-            me.handle_rendered_command_menu_event(event, ctx);
-        });
-
-        let pane_context_menu = Self::menu(Vec::new(), Some(PANE_MENU_WIDTH), ctx);
-
-        Menus {
-            secret_menu,
-            rendered_secret_menu,
-            rendered_command_menu,
-            pane_context_menu,
-        }
-    }
 
     pub(super) fn initialize_pane_context_menu(
         &self,
@@ -240,37 +146,8 @@ impl EnvVarCollectionView {
         }
     }
 
-    fn handle_secret_menu_event(&mut self, event: &MenuEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            MenuEvent::Close { via_select_item: _ } => self.reset_secret_menu(ctx),
-            MenuEvent::ItemSelected => self.reset_secret_menu(ctx),
-            MenuEvent::ItemHovered => {}
-        }
-    }
 
-    fn handle_rendered_secret_menu_event(
-        &mut self,
-        event: &MenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            MenuEvent::Close { via_select_item: _ } => self.reset_rendered_secret_menu(ctx),
-            MenuEvent::ItemSelected => self.reset_rendered_secret_menu(ctx),
-            MenuEvent::ItemHovered => {}
-        }
-    }
 
-    fn handle_rendered_command_menu_event(
-        &mut self,
-        event: &MenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            MenuEvent::Close { via_select_item: _ } => self.reset_rendered_command_menu(ctx),
-            MenuEvent::ItemSelected => self.reset_rendered_command_menu(ctx),
-            MenuEvent::ItemHovered => {}
-        }
-    }
 
     fn handle_pane_context_menu_event(&mut self, event: &MenuEvent, ctx: &mut ViewContext<Self>) {
         match event {
@@ -285,35 +162,8 @@ impl EnvVarCollectionView {
         }
     }
 
-    fn reset_secret_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.variable_rows.iter_mut().for_each(|row| {
-            row.secret_menu_is_focused = false;
-        });
-        self.menus
-            .secret_menu
-            .update(ctx, |menu, ctx| menu.reset_selection(ctx));
-        ctx.notify()
-    }
 
-    fn reset_rendered_secret_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.variable_rows.iter_mut().for_each(|row| {
-            row.rendered_secret_menu_is_focused = false;
-        });
-        self.menus
-            .rendered_secret_menu
-            .update(ctx, |menu, ctx| menu.reset_selection(ctx));
-        ctx.notify()
-    }
 
-    fn reset_rendered_command_menu(&mut self, ctx: &mut ViewContext<Self>) {
-        self.variable_rows.iter_mut().for_each(|row| {
-            row.rendered_command_menu_is_focused = false;
-        });
-        self.menus
-            .rendered_command_menu
-            .update(ctx, |menu, ctx| menu.reset_selection(ctx));
-        ctx.notify()
-    }
 
     fn menu(
         items: Vec<MenuItem<EnvVarCollectionAction>>,

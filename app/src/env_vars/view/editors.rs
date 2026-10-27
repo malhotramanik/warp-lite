@@ -8,7 +8,7 @@ use warpui::{AppContext, Element, ViewContext, ViewHandle};
 
 use crate::Appearance;
 use crate::editor::{
-    EditOrigin, EditorOptions, EditorView, Event as EditorEvent, InteractionState,
+    EditOrigin, EditorOptions, EditorView, Event as EditorEvent,
     PropagateAndNoOpNavigationKeys, SingleLineEditorOptions, TextOptions,
 };
 use crate::env_vars::EnvVarValue;
@@ -84,65 +84,7 @@ impl EnvVarCollectionView {
         })
     }
 
-    pub(super) fn handle_title_editor_event(
-        &mut self,
-        event: &EditorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            EditorEvent::Navigate(NavigationKey::ShiftTab) => {
-                if self.variable_rows.is_empty() {
-                    ctx.focus(&self.description_editor);
-                } else if let Some(variable_row) = self.variable_rows.last() {
-                    ctx.focus(&variable_row.variable_description_editor);
-                }
-            }
-            EditorEvent::Navigate(NavigationKey::Tab) => {
-                ctx.focus(&self.description_editor);
-            }
-            EditorEvent::ClearParentSelections => {
-                self.clear_parent_selections(self.title_editor.clone(), ctx)
-            }
-            EditorEvent::Edited(EditOrigin::UserInitiated)
-            | EditorEvent::Edited(EditOrigin::UserTyped) => {
-                self.set_saving_status(SavingStatus::Unsaved, ctx);
 
-                let current_text = self.title_editor.as_ref(ctx).buffer_text(ctx);
-                self.update_title_validation(&current_text, ctx);
-            }
-            _ => {}
-        }
-    }
-
-    pub(super) fn handle_description_editor_event(
-        &mut self,
-        event: &EditorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            EditorEvent::Navigate(NavigationKey::ShiftTab) => {
-                ctx.focus(&self.title_editor);
-            }
-            EditorEvent::Navigate(NavigationKey::Tab) => {
-                if self.variable_rows.is_empty() {
-                    ctx.focus(&self.title_editor);
-                } else if let Some(variable_row) = self.variable_rows.first() {
-                    ctx.focus(&variable_row.variable_name_editor);
-                }
-            }
-            EditorEvent::ClearParentSelections => {
-                self.clear_parent_selections(self.description_editor.clone(), ctx)
-            }
-            EditorEvent::Edited(EditOrigin::UserInitiated)
-            | EditorEvent::Edited(EditOrigin::UserTyped) => {
-                self.set_saving_status(SavingStatus::Unsaved, ctx);
-
-                let current_text = self.description_editor.as_ref(ctx).buffer_text(ctx);
-                self.update_description_validation(&current_text, ctx);
-            }
-            _ => {}
-        }
-    }
 
     pub(super) fn handle_variable_event(
         &mut self,
@@ -472,44 +414,4 @@ impl EnvVarCollectionView {
         .finish()
     }
 
-    /// Sync all editors with the user's access level. If the env var collection is view-only, all
-    /// editors are set to selection-only mode. Otherwise, all are enabled.
-    pub(super) fn update_editor_interactivity(&mut self, ctx: &mut ViewContext<Self>) {
-        let editability = self
-            .active_env_var_collection_data
-            .as_ref(ctx)
-            .editability(ctx);
-        let interaction_state = if editability.can_edit() {
-            InteractionState::Editable
-        } else {
-            InteractionState::Selectable
-        };
-
-        // Update metadata editors.
-        self.title_editor.update(ctx, |editor, ctx| {
-            editor.set_interaction_state(interaction_state, ctx)
-        });
-        self.description_editor.update(ctx, |editor, ctx| {
-            editor.set_interaction_state(interaction_state, ctx)
-        });
-
-        // Update individual variable editors.
-        for variable_row in self.variable_rows.iter() {
-            variable_row
-                .variable_name_editor
-                .update(ctx, |editor, ctx| {
-                    editor.set_interaction_state(interaction_state, ctx)
-                });
-            variable_row
-                .variable_description_editor
-                .update(ctx, |editor, ctx| {
-                    editor.set_interaction_state(interaction_state, ctx)
-                });
-            variable_row
-                .variable_value_editor
-                .update(ctx, |editor, ctx| {
-                    editor.set_interaction_state(interaction_state, ctx)
-                });
-        }
-    }
 }

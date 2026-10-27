@@ -1,7 +1,6 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Context;
 use async_channel::Sender;
 use futures_util::stream::AbortHandle;
 use lazy_static::lazy_static;
@@ -9,7 +8,6 @@ use regex::Regex;
 use settings::Setting as _;
 use url::Url;
 use warp_core::context_flag::ContextFlag;
-use warp_editor::editor::NavigationKey;
 use warp_editor::model::{CoreEditorModel, RichTextEditorModel};
 use warp_errors::{report_error, report_if_error};
 use warpui::accessibility::{AccessibilityContent, WarpA11yRole};
@@ -26,50 +24,46 @@ use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
 use warpui::{
     AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
-    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId,
+    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle,
 };
 
 use self::details_bar::DetailsBar;
 use super::active_notebook_data::{
-    ActiveNotebook, ActiveNotebookData, ActiveNotebookDataEvent, Mode, SavingStatus, TrashStatus,
+    ActiveNotebook, ActiveNotebookData, Mode, TrashStatus,
 };
 use super::context_menu::{
     ContextMenuAction, ContextMenuState, show_rich_editor_context_menu,
     show_text_editor_context_menu,
 };
-use super::editor::NotebookWorkflow;
-use super::editor::view::{EditorViewEvent, RichTextEditorConfig, RichTextEditorView};
-use super::link::{NotebookLinks, SessionSource};
+use super::editor::view::RichTextEditorView;
+use super::link::NotebookLinks;
 use super::manager::NotebookManager;
 use super::telemetry::NotebookTelemetryAction;
 use super::{CloudNotebookModel, NotebookId, NotebookLocation, styles};
 use crate::ai::blocklist::secret_redaction::find_secrets_in_text;
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::appearance::Appearance;
-use crate::cloud_object::grab_edit_access_modal::{GrabEditAccessModal, GrabEditAccessModalEvent};
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent, UpdateSource};
+use crate::cloud_object::grab_edit_access_modal::GrabEditAccessModal;
+use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::model::view::{Editor, EditorState};
-use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, ObjectType, Owner, Space};
+use crate::cloud_object::{CloudObject, CloudObjectEventEntrypoint, ObjectType, Space};
 use crate::drive::drive_helpers::has_feature_gated_anonymous_user_reached_notebook_limit;
 use crate::drive::export::ExportManager;
 use crate::drive::items::WarpDriveItemId;
 use crate::drive::sharing::ShareableObject;
 use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectSettings};
 use crate::editor::{
-    EditOrigin, EditorView, Event as EditorEvent, InteractionState, PropagateAndNoOpNavigationKeys,
-    SingleLineEditorOptions, TextColors, TextOptions,
+    EditorView, InteractionState,
 };
 use crate::features::FeatureFlag;
 use crate::menu::{MenuItem, MenuItemFields};
-use crate::network::{NetworkStatus, NetworkStatusEvent};
+use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebook;
-use crate::notebooks::editor::model::NotebooksEditorModel;
-use crate::notebooks::editor::rich_text_styles;
 use crate::pane_group::focus_state::{PaneFocusHandle, PaneGroupFocusEvent};
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
-use crate::server::cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager};
-use crate::server::ids::{ClientId, ServerId, SyncId};
+use crate::server::cloud_objects::update_manager::UpdateManager;
+use crate::server::ids::{ClientId, SyncId};
 use crate::server::telemetry::{
     CloudObjectTelemetryMetadata, NotebookActionEvent, NotebookTelemetryMetadata,
     SharingDialogSource, TelemetryCloudObjectType, TelemetryEvent,
@@ -78,16 +72,15 @@ use crate::settings::app_installation_detection::{
     UserAppInstallDetectionSettings, UserAppInstallStatus,
 };
 use crate::settings::{
-    FontSettings, FontSettingsChangedEvent, NotebookFontSize, decrease_notebook_font_size,
+    FontSettings, NotebookFontSize, decrease_notebook_font_size,
     increase_notebook_font_size,
 };
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
-use crate::throttle::throttle;
 use crate::ui_components::icons::{self, Icon};
 #[cfg(target_family = "wasm")]
 use crate::uri::web_intent_parser::open_url_on_desktop;
 use crate::util::bindings::{self, CustomAction};
-use crate::view_components::{DismissibleToast, ToastType};
+use crate::view_components::DismissibleToast;
 use crate::workflows::{WorkflowSource, WorkflowType};
 use crate::workspace::ToastStack;
 use crate::workspaces::user_workspaces::UserWorkspaces;
@@ -108,10 +101,6 @@ const REFRESH_BUTTON_TEXT: &str = "Refresh";
 
 const FEATURE_NOT_AVAILABLE_MESSAGE: &str = "This notebook could not be saved to the server because the feature is temporarily unavailable. The changes are saved locally. Please retry later.";
 
-/// The frequency at which we check for modifications and save the notebook to the server. This
-/// lets us trade off how quickly edits appear on other clients with the load on the server for RTC
-/// object updates.
-const SAVE_PERIOD: Duration = Duration::from_secs(2);
 
 /// The minimum size of an edit delta (in terms of the change in byte length of the serialized
 /// Markdown) for it to be considered "meaningful". We're likely going to tune this over time:
@@ -312,122 +301,6 @@ enum FocusedComponent {
 }
 
 impl NotebookView {
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        ctx.subscribe_to_model(&Appearance::handle(ctx), |me, _, _, ctx| {
-            me.handle_appearance_change(ctx)
-        });
-
-        ctx.subscribe_to_model(&FontSettings::handle(ctx), |me, _, event, ctx| {
-            if matches!(
-                event,
-                FontSettingsChangedEvent::NotebookFontSize { .. }
-                    | FontSettingsChangedEvent::MatchNotebookToMonospaceFontSize { .. }
-            ) {
-                me.handle_appearance_change(ctx)
-            }
-        });
-
-        ctx.subscribe_to_model(
-            &NetworkStatus::handle(ctx),
-            Self::handle_network_status_event,
-        );
-
-        let active_notebook_data = ctx.add_model(ActiveNotebookData::new);
-        ctx.subscribe_to_model(&active_notebook_data, Self::handle_active_notebook_event);
-        ctx.observe(&active_notebook_data, Self::handle_active_notebook_change);
-
-        let window_id = ctx.window_id();
-        let links = ctx.add_model(|ctx| NotebookLinks::new(SessionSource::Active(window_id), ctx));
-
-        let title = ctx.add_typed_action_view(|ctx| {
-            let appearance = Appearance::as_ref(ctx);
-            let font_settings = FontSettings::as_ref(ctx);
-
-            let options = SingleLineEditorOptions {
-                text: TextOptions {
-                    font_family_override: Some(appearance.ui_font_family()),
-                    font_size_override: Some(styles::title_font_size(font_settings)),
-                    font_properties_override: Some(styles::TITLE_FONT_PROPERTIES),
-                    text_colors_override: Some(title_text_colors(appearance)),
-                },
-                propagate_and_no_op_vertical_navigation_keys:
-                    PropagateAndNoOpNavigationKeys::Always,
-                ..Default::default()
-            };
-            let mut editor = EditorView::single_line(options, ctx);
-            editor.set_placeholder_text("Untitled", ctx);
-            editor
-        });
-        ctx.subscribe_to_view(&title, |notebook, _, event, ctx| {
-            notebook.handle_title_editor_event(event, ctx);
-        });
-
-        let view_position_id = format!("notebook_view_{}", ctx.view_id());
-        let input = ctx.add_typed_action_view(|ctx| {
-            let editor_model = ctx.add_model(|ctx| {
-                let styles = rich_text_styles(Appearance::as_ref(ctx), FontSettings::as_ref(ctx));
-                NotebooksEditorModel::new(styles, window_id, ctx)
-            });
-            let editor = RichTextEditorView::new(
-                view_position_id.clone(),
-                editor_model,
-                links.clone(),
-                RichTextEditorConfig {
-                    max_width: Some(styles::notebook_editor_max_width()),
-                    ..Default::default()
-                },
-                ctx,
-            );
-            ctx.focus_self();
-            editor
-        });
-        ctx.subscribe_to_view(&input, |notebook, _, event, ctx| {
-            notebook.handle_input_editor_event(event, ctx);
-        });
-
-        let grab_edit_access_modal = ctx.add_typed_action_view(|_| GrabEditAccessModal::new());
-        ctx.subscribe_to_view(&grab_edit_access_modal, |notebook, _, event, ctx| {
-            notebook.handle_grab_edit_access_modal_event(event, ctx);
-        });
-
-        let user_workspaces = UserWorkspaces::handle(ctx);
-        ctx.observe(&user_workspaces, Self::on_user_workspaces_update);
-
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |notebook, _handle, event, ctx| {
-            notebook.handle_cloud_model_event(event, ctx);
-        });
-
-        let (save_tx, save_rx) = async_channel::unbounded();
-        ctx.spawn_stream_local(throttle(SAVE_PERIOD, save_rx), Self::handle_save, |_, _| {});
-
-        let title_str = Self::title_from_editor(&title, ctx);
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new(title_str));
-
-        let context_menu = ContextMenuState::new(ctx);
-
-        Self {
-            details_bar: DetailsBar::new(),
-            title,
-            input,
-            grab_edit_access_modal,
-            focused: false,
-            last_focused_component: FocusedComponent::Input,
-            active_notebook_data,
-            links,
-            context_menu,
-            button_mouse_states: Default::default(),
-            pane_configuration,
-            focus_handle: None,
-            send_edit_telemetry: false,
-            last_content_length: 0,
-            edit_telemetry_handle: None,
-            content_is_dirty: false,
-            title_is_dirty: false,
-            save_tx,
-            view_position_id,
-        }
-    }
 
     /// Restore focus to the notebook view, by focusing its editor.
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {
@@ -505,27 +378,8 @@ impl NotebookView {
         }
     }
 
-    pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
-        &self.pane_configuration
-    }
 
-    /// Model for resolving and opening links relative to this notebook.
-    pub fn links(&self) -> ModelHandle<NotebookLinks> {
-        self.links.clone()
-    }
 
-    pub fn selected_text(&self, ctx: &AppContext) -> Option<String> {
-        let selected_text = self
-            .input
-            .as_ref(ctx)
-            .model()
-            .as_ref(ctx)
-            .selected_text(ctx);
-        if selected_text.is_empty() {
-            return None;
-        }
-        Some(selected_text)
-    }
 
     #[cfg(test)]
     pub fn context_menu(&mut self) -> &mut ContextMenuState<Self> {
@@ -542,240 +396,14 @@ impl NotebookView {
         self.title.clone()
     }
 
-    fn on_user_workspaces_update(
-        &mut self,
-        _user_workspaces: ModelHandle<UserWorkspaces>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // TODO Update the notebook after receiving the event from UserWorkspaces model"
-        // Update the notebook view if it's a team notebook (assuming there are non-team
-        // notebooks?) and there's been changes to it
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-        ctx.notify();
-    }
 
-    /// Handle an event from this notebook's [`ActiveNotebookData`] model.
-    fn handle_active_notebook_event(
-        &mut self,
-        _handle: ModelHandle<ActiveNotebookData>,
-        event: &ActiveNotebookDataEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ActiveNotebookDataEvent::ModeChangedFromServer => {
-                log::info!("Edit mode stolen");
-                self.switch_to_view(ctx);
-            }
-            ActiveNotebookDataEvent::SwitchedToEditMode => {
-                log::info!("Edit mode confirmed from server");
-                self.set_editor_interaction_state(InteractionState::Editable, ctx);
-            }
-            ActiveNotebookDataEvent::EditRejected => {
-                log::info!("Edit rejected, switching to view mode");
-                self.switch_to_view(ctx);
-            }
-            ActiveNotebookDataEvent::BreadcrumbsChanged => {
-                self.update_breadcrumbs(ctx);
-            }
-            ActiveNotebookDataEvent::CreatedOnServer => {
-                ctx.emit(NotebookEvent::Pane(PaneEvent::AppStateChanged));
-                if let Some(id) = self
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .id()
-                    .and_then(SyncId::into_server)
-                {
-                    self.pane_configuration.update(ctx, |pane_config, ctx| {
-                        pane_config
-                            .set_shareable_object(Some(ShareableObject::WarpDriveObject(id)), ctx);
-                    })
-                }
-            }
-            ActiveNotebookDataEvent::TrashStatusChanged | ActiveNotebookDataEvent::MovedToSpace => {
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.refresh_pane_header_overflow_menu_items(ctx)
-                });
-            }
-        }
-        ctx.notify();
-    }
 
-    /// Handle a change to the [`ActiveNotebookData`] model for this notebook.
-    fn handle_active_notebook_change(
-        &mut self,
-        _handle: ModelHandle<ActiveNotebookData>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Refresh the overflow menu to show actions that only apply to synced notebooks.
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-        ctx.notify();
-    }
 
-    fn handle_appearance_change(&mut self, ctx: &mut ViewContext<Self>) {
-        let appearance = Appearance::as_ref(ctx);
-        let font_settings = FontSettings::as_ref(ctx);
-        let new_font_size = styles::title_font_size(font_settings);
-        let new_text_colors = title_text_colors(appearance);
-        self.title.update(ctx, move |title_editor, ctx| {
-            title_editor.set_font_size(new_font_size, ctx);
-            title_editor.set_text_colors(new_text_colors, ctx);
-        });
-    }
 
-    /// Handle any events emitted from the title editor view.
-    fn handle_title_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            EditorEvent::Activate => {
-                self.last_focused_component = FocusedComponent::Title;
-                ctx.emit(NotebookEvent::Pane(PaneEvent::FocusSelf));
-            }
-            EditorEvent::Edited(edit_origin) => {
-                // We only want to queue up a request to edit the title on the server
-                // if this was a user-initiated request. We don't want to do this for
-                // system edits because that could end up in an infinite loop (e.g.
-                // open notebook -> system edit -> update server -> receive update -> system update -> ...).
-                if matches!(
-                    edit_origin,
-                    EditOrigin::UserTyped | EditOrigin::UserInitiated
-                ) {
-                    self.enqueue_title_update();
-                }
 
-                let title = self.title(ctx);
-                self.pane_configuration
-                    .update(ctx, |pane_configuration, ctx| {
-                        pane_configuration.set_title(title, ctx)
-                    });
-            }
-            EditorEvent::Enter
-            | EditorEvent::CmdEnter
-            | EditorEvent::Navigate(NavigationKey::Tab) => {
-                self.grab_edit_access_or_display_access_dialog(ctx);
-            }
-            EditorEvent::Blurred => {
-                self.title.update(ctx, move |title_editor, ctx| {
-                    title_editor.clear_selections(ctx);
-                    ctx.notify();
-                });
-            }
-            _ => (),
-        }
-    }
 
-    /// Handle an event from the [`GrabEditAccessModal`]. This lets users steal edit access from
-    /// other users.
-    fn handle_grab_edit_access_modal_event(
-        &mut self,
-        event: &GrabEditAccessModalEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            GrabEditAccessModalEvent::Close => {
-                self.active_notebook_data
-                    .update(ctx, |active_notebook_data, ctx| {
-                        active_notebook_data.show_grab_edit_access_modal = false;
-                        ctx.notify();
-                    });
-            }
-            GrabEditAccessModalEvent::GrabEditAccess => {
-                self.active_notebook_data
-                    .update(ctx, |active_notebook_data, ctx| {
-                        active_notebook_data.show_grab_edit_access_modal = false;
-                        ctx.notify();
-                    });
-                log::info!("Explicitly grabbing edit access, stealing from active editor");
-                self.grab_edit_access(false, ctx);
-                self.send_telemetry_action(NotebookTelemetryAction::GrabEditingBaton, ctx);
-            }
-        }
-        ctx.notify();
-    }
 
-    /// Reload an updated notebook.
-    fn handle_notebook_updated(&mut self, notebook: &CloudNotebook, ctx: &mut ViewContext<Self>) {
-        self.set_title(&notebook.model().title, ctx);
-        self.input.update(ctx, |input_editor, ctx| {
-            input_editor.system_clear_buffer(ctx);
-            input_editor.reset_with_markdown(notebook.model().data.as_str(), ctx);
-        });
-        ctx.notify();
-    }
 
-    /// Given a cloud object ID, check if it's the ID of the active notebook.
-    ///
-    /// This is a helper for handling [`CloudModelEvent`]s, which should be ignored if they're not
-    /// for the active notebook.
-    fn as_active_notebook_id(
-        &self,
-        id: &CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<SyncId> {
-        id.as_notebook_id().filter(|id| {
-            self.active_notebook_data
-                .as_ref(ctx)
-                .is_active_notebook(*id)
-        })
-    }
-
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            CloudModelEvent::ObjectUpdated {
-                type_and_id,
-                source: UpdateSource::Server,
-            } => {
-                if let Some(updated_notebook) = self
-                    .as_active_notebook_id(type_and_id, ctx)
-                    .and_then(|notebook_id| CloudModel::as_ref(ctx).get_notebook(&notebook_id))
-                    .cloned()
-                {
-                    self.handle_notebook_updated(&updated_notebook, ctx);
-                }
-            }
-            CloudModelEvent::ObjectTrashed { .. } | CloudModelEvent::ObjectDeleted { .. } => {
-                // Check is_trashed rather than the event ID, since this notebook could have been
-                // indirectly trashed.
-                if !self
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .trash_status(ctx)
-                    .is_editable()
-                {
-                    self.give_up_edit_access_and_start_viewing(ctx)
-                }
-            }
-            CloudModelEvent::ObjectUntrashed { .. } => {
-                // Re-render if this notebook was potentially untrashed. See the ObjectTrashed case
-                // for why we can't rely on the event ID.
-                if self
-                    .active_notebook_data
-                    .as_ref(ctx)
-                    .trash_status(ctx)
-                    .is_editable()
-                {
-                    ctx.notify();
-                }
-            }
-            CloudModelEvent::ObjectMoved { type_and_id, .. } => {
-                if self.as_active_notebook_id(type_and_id, ctx).is_some()
-                    && let Some(space) = self.active_notebook_data.as_ref(ctx).space(ctx)
-                {
-                    self.input
-                        .update(ctx, |editor, ctx| editor.set_space(space, ctx));
-                }
-            }
-            CloudModelEvent::ObjectCreated { type_and_id, .. } => {
-                if self.as_active_notebook_id(type_and_id, ctx).is_some() {
-                    // Re-render to update the status bar.
-                    ctx.notify();
-                }
-            }
-            _ => (),
-        }
-    }
 
     /// The current Markdown content of this notebook.
     pub fn content(&self, ctx: &AppContext) -> String {
@@ -924,86 +552,8 @@ impl NotebookView {
         }
     }
 
-    /// Enqueue a save of the notebook's content.
-    fn enqueue_content_update(&mut self, ctx: &mut ViewContext<Self>) {
-        self.content_is_dirty = true;
-        report_if_error!(
-            self.save_tx
-                .try_send(NotebookUpdateRequestDebounceArg {})
-                .context("Error enqueuing content save")
-        );
-        self.active_notebook_data.update(ctx, |data, ctx| {
-            // Mark the notebook as saving as soon as there are changes to be saved. It won't be
-            // marked as Saved until we get a response from the server.
-            data.saving_status = SavingStatus::Saving;
-            ctx.notify();
-        });
-        ctx.notify();
-    }
 
-    /// Enqueue a save of the notebook's title.
-    fn enqueue_title_update(&mut self) {
-        self.title_is_dirty = true;
-        report_if_error!(
-            self.save_tx
-                .try_send(NotebookUpdateRequestDebounceArg {})
-                .context("Error enqueuing title save")
-        );
-    }
 
-    fn handle_input_editor_event(&mut self, event: &EditorViewEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            EditorViewEvent::Edited => {
-                self.enqueue_content_update(ctx);
-            }
-            EditorViewEvent::Focused => {
-                self.last_focused_component = FocusedComponent::Input;
-                ctx.emit(NotebookEvent::Pane(PaneEvent::FocusSelf));
-            }
-            EditorViewEvent::Navigate(NavigationKey::ShiftTab) => {
-                // Focus the title editor, but do not give up the baton.
-                ctx.focus(&self.title);
-            }
-            EditorViewEvent::Navigate(_) => (),
-            EditorViewEvent::RunWorkflow(workflow) => self.run_notebook_workflow(workflow, ctx),
-            EditorViewEvent::EditWorkflow(workflow_id) => {
-                ctx.emit(NotebookEvent::EditWorkflow(*workflow_id))
-            }
-            EditorViewEvent::OpenedBlockInsertionMenu(source) => self.send_telemetry_action(
-                NotebookTelemetryAction::OpenBlockInsertionMenu { source: *source },
-                ctx,
-            ),
-            EditorViewEvent::OpenedEmbeddedObjectSearch => {
-                self.send_telemetry_action(NotebookTelemetryAction::OpenEmbeddedObjectSearch, ctx)
-            }
-            EditorViewEvent::OpenedFindBar => {
-                self.send_telemetry_action(NotebookTelemetryAction::OpenFindBar, ctx)
-            }
-            EditorViewEvent::InsertedEmbeddedObject(info) => self
-                .send_telemetry_action(NotebookTelemetryAction::InsertEmbeddedObject(*info), ctx),
-            EditorViewEvent::CopiedBlock { block, entrypoint } => self.send_telemetry_action(
-                NotebookTelemetryAction::CopyBlock {
-                    block: *block,
-                    entrypoint: *entrypoint,
-                },
-                ctx,
-            ),
-            EditorViewEvent::NavigatedCommands => {
-                self.send_telemetry_action(NotebookTelemetryAction::CommandKeyboardNavigation, ctx)
-            }
-            EditorViewEvent::ChangedSelectionMode(mode) => self.send_telemetry_action(
-                NotebookTelemetryAction::ChangeSelectionMode { mode: *mode },
-                ctx,
-            ),
-            EditorViewEvent::OpenFile { .. } => {
-                // We don't support opening files from the notebook view.
-                // File paths rely on a Session to be present, and this is only set from the AI document view today.
-            }
-            EditorViewEvent::CmdEnter
-            | EditorViewEvent::EscapePressed
-            | EditorViewEvent::TextSelectionChanged => (),
-        }
-    }
 
     fn switch_to_view(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(handle) = self.edit_telemetry_handle.take() {
@@ -1017,12 +567,6 @@ impl NotebookView {
         ctx.notify();
     }
 
-    pub fn is_plan(&self, ctx: &AppContext) -> bool {
-        self.active_notebook_data
-            .as_ref(ctx)
-            .ai_document_id(ctx)
-            .is_some()
-    }
 
     fn mode<C: ModelAsRef>(&self, ctx: &C) -> Mode {
         self.active_notebook_data.as_ref(ctx).mode
@@ -1477,103 +1021,12 @@ impl NotebookView {
         menu_items
     }
 
-    fn handle_network_status_event(
-        &mut self,
-        _handle: ModelHandle<NetworkStatus>,
-        event: &NetworkStatusEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let NetworkStatusEvent::NetworkStatusChanged { new_status: _ } = event;
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-    }
 
     fn is_online(&self, app: &AppContext) -> bool {
         NetworkStatus::as_ref(app).is_online()
     }
 
-    /// Takes a given `notebook_id`, and tries to load it into view after initial load completes.
-    /// If the notebook still does not exist in memory after initial load, displaces an error message in
-    /// the given window.
-    ///
-    /// Used for code paths such as link opening, where we are often trying to open notebooks before
-    /// the initial response from the server has completed.
-    pub fn wait_for_initial_load_then_load(
-        &mut self,
-        notebook_id: SyncId,
-        settings: &OpenWarpDriveObjectSettings,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let initial_load_complete = UpdateManager::as_ref(ctx).initial_load_complete();
-        // TODO @ianhodge CLD-2002: it could be nice to have a loading screen here while we wait for the load
-        let settings = settings.clone();
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            let notebook = CloudModel::as_ref(ctx).get_notebook(&notebook_id).cloned();
-            let fetch_needed = notebook.is_none()
-                || settings
-                    .focused_folder_id
-                    .map(SyncId::ServerId)
-                    .map(|folder_id| CloudModel::as_ref(ctx).get_folder(&folder_id).is_none())
-                    .unwrap_or(false);
-            if fetch_needed {
-                if let Some(server_id) = notebook_id.into_server() {
-                    me.fetch_and_load_notebook(server_id, &settings, window_id, ctx);
-                } else {
-                    log::warn!("Tried to load notebook without server id {notebook_id:?}");
-                }
-            } else if let Some(notebook) = notebook {
-                me.load(notebook, &settings, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
-                        window_id,
-                        ctx,
-                    );
-                });
-                log::warn!("Tried to open unknown notebook {notebook_id:?}");
-            }
-        });
-    }
 
-    fn fetch_and_load_notebook(
-        &mut self,
-        notebook_id: ServerId,
-        settings: &OpenWarpDriveObjectSettings,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // If we have a parent folder we are trying to load as a part of this notebook, fetch that instead
-        let id_to_fetch = settings.focused_folder_id.unwrap_or(notebook_id);
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &id_to_fetch,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        let settings = settings.clone();
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(notebook) = CloudModel::as_ref(ctx)
-                .get_notebook(&SyncId::ServerId(notebook_id))
-                .cloned()
-            {
-                me.load(notebook, &settings, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
-                        window_id,
-                        ctx,
-                    );
-                });
-                log::warn!("Tried to open unknown notebook {notebook_id:?} after fetching");
-            }
-        });
-    }
 
     /// Takes a `CloudNotebook` and loads it into the view.
     ///
@@ -1684,36 +1137,6 @@ impl NotebookView {
         baton_future
     }
 
-    /// Reset this view to show a new, empty notebook.
-    pub fn open_new_notebook(
-        &mut self,
-        title: Option<String>,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.active_notebook_data.update(ctx, |data, ctx| {
-            data.open_new(owner, initial_folder_id, ctx);
-        });
-        self.input.update(ctx, |input_editor, ctx| {
-            input_editor.system_clear_buffer(ctx);
-            let space = UserWorkspaces::as_ref(ctx).owner_to_space(owner, ctx);
-            input_editor.set_space(space, ctx);
-        });
-
-        if let Some(title) = title {
-            self.set_title(&title, ctx);
-            self.update_title_in_server(ctx);
-        } else {
-            self.title.update(ctx, |title_editor, ctx| {
-                title_editor.system_clear_buffer(true, ctx);
-            });
-        }
-
-        self.update_breadcrumbs(ctx);
-
-        self.switch_to_edit(ctx);
-    }
 
     /// Updates the notebook title on the server with the current contents of the title editor.
     pub fn update_title_in_server(&mut self, ctx: &mut ViewContext<Self>) {
@@ -1808,33 +1231,6 @@ impl NotebookView {
         }
     }
 
-    fn run_notebook_workflow(&self, workflow: &NotebookWorkflow, ctx: &mut ViewContext<Self>) {
-        // If the notebook workflow was anonymous, synthesize metadata for it.
-        let workflow_type =
-            workflow.named_workflow(|| Some(format!("Command from {}", self.title(ctx))));
-
-        let notebook_id = self.server_id(ctx);
-        let source = workflow.source.unwrap_or_else(|| {
-            let owner = self.active_notebook_data.as_ref(ctx).owner(ctx);
-            let team_uid = match owner {
-                Some(Owner::Team { team_uid }) => Some(team_uid),
-                _ => None,
-            };
-            WorkflowSource::Notebook {
-                notebook_id,
-                team_uid,
-                location: owner
-                    .map(Into::into)
-                    .unwrap_or(NotebookLocation::PersonalCloud),
-            }
-        });
-
-        ctx.emit(NotebookEvent::RunWorkflow {
-            workflow: workflow_type,
-            source,
-        });
-        ctx.notify();
-    }
 
     fn conflict_dialog_refresh_button_clicked(&mut self, ctx: &mut ViewContext<Self>) {
         let Some(id) = self.notebook_id(ctx) else {
@@ -2265,13 +1661,6 @@ impl View for NotebookView {
     }
 }
 
-/// Colors to use for the title editor.
-fn title_text_colors(appearance: &Appearance) -> TextColors {
-    TextColors {
-        default_color: styles::title_text_fill(appearance),
-        ..TextColors::from_appearance(appearance)
-    }
-}
 
 impl TypedActionView for NotebookView {
     type Action = NotebookAction;

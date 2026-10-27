@@ -51,8 +51,6 @@ use warpui::{
 };
 
 use self::telemetry::SettingsTelemetryEvent;
-use crate::ai::custom_model_routers::CustomModelRouter;
-use crate::ai::execution_profiles::ExecutionProfileId;
 use crate::appearance::Appearance;
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
@@ -1938,7 +1936,7 @@ impl SettingsView {
     fn handle_knowledge_page_event(
         &mut self,
         event: &KnowledgePageEvent,
-        ctx: &mut ViewContext<Self>,
+        _ctx: &mut ViewContext<Self>,
     ) {
         let _ = event;
     }

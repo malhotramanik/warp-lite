@@ -18,10 +18,7 @@ use super::env_var_collection::{
 };
 use crate::drive::sharing::ContentEditability;
 use crate::env_vars::EnvVarValue;
-use crate::env_vars::active_env_var_collection_data::SavingStatus;
 use crate::external_secrets::{ExternalSecretManager, SecretManager};
-use crate::search::external_secrets::searcher::ExternalSecretSearchItemAction;
-use crate::search::external_secrets::view::ExternalSecretsMenuEvent;
 use crate::ui_components::icons::Icon;
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use crate::{
@@ -31,35 +28,6 @@ use crate::{
 };
 
 impl EnvVarCollectionView {
-    pub(super) fn handle_external_secrets_dialog_event(
-        &mut self,
-        event: &ExternalSecretsMenuEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ExternalSecretsMenuEvent::ItemSelected { payload } => {
-                let ExternalSecretSearchItemAction::AcceptSecret(secret) = payload.as_ref();
-                let row_index = self.pending_variable_row_index.take();
-                if let Some(VariableRowIndex(index)) = row_index {
-                    self.variable_rows[index].value = EnvVarValue::Secret(secret.clone());
-                }
-
-                self.set_saving_status(SavingStatus::Unsaved, ctx)
-            }
-            ExternalSecretsMenuEvent::Close => {
-                self.dialog_open_states.secrets_dialog_open = false;
-                self.update_open_modal_state(ctx);
-                ctx.focus_self();
-                ctx.notify();
-            }
-            ExternalSecretsMenuEvent::Open => {
-                self.dialog_open_states.secrets_dialog_open = true;
-                ctx.focus(&self.secrets_dialog);
-                self.update_open_modal_state(ctx);
-                ctx.notify();
-            }
-        }
-    }
 
     pub(super) fn clear_secret(&mut self, ctx: &mut ViewContext<Self>) {
         if let Some(VariableRowIndex(index)) = self.pending_variable_row_index.take() {

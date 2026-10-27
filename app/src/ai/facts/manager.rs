@@ -1,10 +1,9 @@
 use std::collections::HashMap;
 
-use warpui::{Entity, EntityId, ModelContext, SingletonEntity, ViewHandle, WindowId};
+use warpui::{Entity, SingletonEntity, ViewHandle, WindowId};
 
 use crate::PaneViewLocator;
 use crate::ai::facts::AIFactView;
-use crate::pane_group::{ PaneContent};
 
 /// Singleton model to manage state of AI fact panes across multiple windows
 /// (where only one AI fact pane can exist per window). Specifically:
@@ -25,13 +24,6 @@ impl AIFactManager {
         Self::default()
     }
 
-    pub fn ai_fact_view(&self, window_id: WindowId) -> ViewHandle<AIFactView> {
-        self.panes
-            .get(&window_id)
-            .expect("Window should have corresponding AI fact view")
-            .view
-            .clone()
-    }
 
     pub fn register_view(&mut self, window_id: WindowId, view: ViewHandle<AIFactView>) {
         if let Some(data) = self.panes.get_mut(&window_id) {
@@ -47,16 +39,8 @@ impl AIFactManager {
         }
     }
 
-    pub fn find_pane(&self, window_id: WindowId) -> Option<PaneViewLocator> {
-        self.panes.get(&window_id).and_then(|data| data.locator)
-    }
 
 
-    pub fn deregister_pane(&mut self, window_id: &WindowId, _ctx: &mut ModelContext<Self>) {
-        if let Some(data) = self.panes.get_mut(window_id) {
-            data.locator = None;
-        }
-    }
 }
 
 impl Entity for AIFactManager {

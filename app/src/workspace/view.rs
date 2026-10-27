@@ -213,8 +213,6 @@ use crate::ai::cloud_agent_settings::{AuthSecretPreference, CloudAgentSettings};
 use crate::ai::conversation_details_panel::ConversationDetailsPanel;
 use crate::ai::conversation_utils;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentModel};
-use crate::ai::execution_profiles::ExecutionProfileId;
-use crate::ai::execution_profiles::editor::ExecutionProfileEditorManager;
 use crate::ai::execution_profiles::profiles::AIExecutionProfilesModel;
 use crate::ai::facts::view::AIFactPage;
 use crate::ai::facts::{AIFactManager, AIFactView, AIFactViewEvent};
@@ -226,9 +224,9 @@ use crate::ai_assistant::execution_context::execution_context_for_session;
 use crate::ai_assistant::panel::{AIAssistantPanelEvent, AIAssistantPanelView};
 use crate::ai_assistant::{AI_ASSISTANT_FEATURE_NAME, AI_ASSISTANT_LOGO_COLOR, AskAIType};
 use crate::app_state::{
-    LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, NotebookPaneSnapshot,
+    LeafContents, LeafSnapshot, LeftPanelDisplayedTab, LeftPanelSnapshot, 
     PaneNodeSnapshot, PaneUuid, RightPanelSnapshot, SettingsPaneSnapshot, TabGroupSnapshot,
-    TabSnapshot, TerminalPaneSnapshot, WindowSnapshot, WorkflowPaneSnapshot,
+    TabSnapshot, TerminalPaneSnapshot, WindowSnapshot, 
 };
 use crate::appearance::{Appearance, AppearanceManager};
 use crate::auth::AuthStateProvider;
@@ -272,14 +270,13 @@ use crate::drive::settings::{WarpDriveSettings, WarpDriveSettingsChangedEvent};
 use crate::drive::workflows::arguments::ArgumentsState;
 use crate::drive::workflows::modal::{WorkflowModal, WorkflowModalEvent};
 use crate::drive::{
-    CloudObjectTypeAndId, DriveObjectType, DrivePanel, DrivePanelEvent, OpenWarpDriveObjectSettings,
+    CloudObjectTypeAndId, DriveObjectType, DrivePanel, DrivePanelEvent,
 };
 use crate::editor::{
     EditorView, Event as EditorEvent, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
     TextOptions,
 };
 use crate::env_vars::CloudEnvVarCollection;
-use crate::env_vars::manager::{EnvVarCollectionManager, EnvVarCollectionSource};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::launch_configs::launch_config::WindowTemplate;
 use crate::launch_configs::save_modal::{LaunchConfigModalEvent, LaunchConfigSaveModal};
@@ -290,7 +287,6 @@ use crate::menu::{
 use crate::modal::{Modal, ModalEvent, ModalViewState};
 use crate::network::{NetworkStatus, NetworkStatusEvent};
 use crate::notebooks::CloudNotebook;
-use crate::notebooks::manager::{NotebookManager, NotebookSource};
 use crate::notification::NotificationContext;
 use crate::palette::PaletteMode;
 use crate::pane_group::pane::ActionOrigin;
@@ -349,7 +345,6 @@ use crate::settings::{
     PrivacySettings, SelectionSettings, Settings, SshSettings, ThemeSettings, active_theme_kind,
     respect_system_theme,
 };
-use crate::settings_view::environments_page::EnvironmentsPage;
 use crate::settings_view::handoff_environment_creation_modal::{
     HandoffEnvironmentCreationModal, HandoffEnvironmentCreationModalEvent,
 };
@@ -482,11 +477,10 @@ use crate::view_components::{
 #[cfg(target_family = "wasm")]
 use crate::wasm_nux_dialog::WasmNUXDialog;
 use crate::window_settings::{WindowSettings, WindowSettingsChangedEvent, ZoomLevel};
-use crate::workflows::manager::{WorkflowManager, WorkflowOpenSource};
+use crate::workflows::manager::WorkflowOpenSource;
 use crate::workflows::workflow::Workflow;
 use crate::workflows::{
     AIWorkflowOrigin, CloudWorkflow, WorkflowSelectionSource, WorkflowSource, WorkflowType,
-    WorkflowViewMode,
 };
 use crate::workspace::action::CommandSearchOptions;
 use crate::workspace::bonus_grant_notification_model::BonusGrantNotificationEvent;
@@ -708,8 +702,6 @@ const KEYBINDINGS_TO_CACHE: [&str; 4] = [
     TOGGLE_COMMAND_PALETTE_KEYBINDING_NAME,
 ];
 
-const WORKFLOW_AND_ENV_VAR_SPLIT_RATIO: f32 = 0.56;
-const NOTEBOOK_SMART_SPLIT_RATIO: f32 = 0.42;
 
 #[cfg(target_family = "wasm")]
 const MOBILE_OVERLAY_PANEL_WIDTH_RATIO: f32 = 0.9;
@@ -4421,7 +4413,7 @@ impl Workspace {
             // placeholder along with Warp Drive.
             true
         };
-        let initial_tab = self.active_tab_pane_group().clone();
+        let _initial_tab = self.active_tab_pane_group().clone();
 
         if open_warp_drive {
             // We open Warp Drive automatically in two cases:
@@ -6556,8 +6548,8 @@ impl Workspace {
         }
 
         match target {
-            FileTarget::MarkdownViewer(layout) => {
-                let session = self.get_active_session(ctx);
+            FileTarget::MarkdownViewer(_layout) => {
+                let _session = self.get_active_session(ctx);
 
             }
             FileTarget::EnvEditor => {
@@ -6669,7 +6661,7 @@ impl Workspace {
                             // Honor a notebook-viewer target (e.g. a remote
                             // Jupyter notebook) instead of always opening remote
                             // files as raw code in the editor.
-                            if let FileTarget::MarkdownViewer(layout) = target {
+                            if let FileTarget::MarkdownViewer(_layout) = target {
                             } else {
                                 self.open_code(
                                     code_source,
@@ -8413,7 +8405,7 @@ impl Workspace {
             return;
         };
 
-        let sync_id = object.sync_id();
+        let _sync_id = object.sync_id();
         match object.object_type() {
             _ => {}
         }
@@ -15733,7 +15725,7 @@ impl Workspace {
             }
             pane_group::Event::OpenAIFactCollection { sync_id } => {
                 // Entrypoint from AI blocklist
-                let page = if sync_id.is_some() {
+                let _page = if sync_id.is_some() {
                     AIFactPage::RuleEditor { sync_id: *sync_id }
                 } else {
                     AIFactPage::Rules
@@ -23863,7 +23855,7 @@ impl TypedActionView for Workspace {
                 }
             }
             CreatePersonalNotebook => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
+                if let Some(_personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
                 }
             }
             CreateTeamNotebook => {
@@ -23884,7 +23876,7 @@ impl TypedActionView for Workspace {
                 }
             }
             CreatePersonalEnvVarCollection => {
-                if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
+                if let Some(_personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
                 }
             }
             CreateTeamEnvVarCollection => {
@@ -23904,7 +23896,7 @@ impl TypedActionView for Workspace {
             }
             CreatePersonalWorkflow => {
                 if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    let source = WorkflowOpenSource::New {
+                    let _source = WorkflowOpenSource::New {
                         title: None,
                         content: None,
                         owner: personal_drive,
@@ -23916,7 +23908,7 @@ impl TypedActionView for Workspace {
             CreateTeamWorkflow => {
                 let team_uid = self.team_uid(ctx);
                 if let Some(team_uid) = team_uid {
-                    let source = WorkflowOpenSource::New {
+                    let _source = WorkflowOpenSource::New {
                         title: None,
                         content: None,
                         owner: Owner::Team { team_uid },
@@ -24715,29 +24707,29 @@ impl TypedActionView for Workspace {
             }
             ToggleAIDocumentPane {
                 document_id,
-                document_version,
+                document_version: _,
             } => {
                 let conversation_id =
                     AIDocumentModel::as_ref(ctx).get_conversation_id_for_document_id(document_id);
 
-                if let Some(conversation_id) = conversation_id {
-                    self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                if let Some(_conversation_id) = conversation_id {
+                    self.active_tab_pane_group().update(ctx, |_pane_group, _ctx| {
                     });
                 }
             }
             HideAIDocumentPanes => {
-                self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                self.active_tab_pane_group().update(ctx, |_pane_group, _ctx| {
                 });
             }
             OpenAIDocumentPane {
                 document_id,
-                document_version,
+                document_version: _,
             } => {
                 let conversation_id =
                     AIDocumentModel::as_ref(ctx).get_conversation_id_for_document_id(document_id);
 
-                if let Some(conversation_id) = conversation_id {
-                    self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
+                if let Some(_conversation_id) = conversation_id {
+                    self.active_tab_pane_group().update(ctx, |_pane_group, _ctx| {
                     });
                 }
             }
@@ -25007,7 +24999,7 @@ impl TypedActionView for Workspace {
             }
             CreatePersonalAIPrompt => {
                 if let Some(personal_drive) = UserWorkspaces::as_ref(ctx).personal_drive(ctx) {
-                    let source = WorkflowOpenSource::New {
+                    let _source = WorkflowOpenSource::New {
                         title: None,
                         content: None,
                         owner: personal_drive,
@@ -25019,7 +25011,7 @@ impl TypedActionView for Workspace {
             CreateTeamAIPrompt => {
                 let team_uid = self.team_uid(ctx);
                 if let Some(team_uid) = team_uid {
-                    let source = WorkflowOpenSource::New {
+                    let _source = WorkflowOpenSource::New {
                         title: None,
                         content: None,
                         owner: Owner::Team { team_uid },

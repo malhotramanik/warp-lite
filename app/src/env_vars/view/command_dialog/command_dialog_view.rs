@@ -1,5 +1,4 @@
 use warp_core::ui::appearance::Appearance;
-use warp_editor::editor::NavigationKey;
 use warpui::elements::{
     Border, ConstrainedBox, Container, CornerRadius, Flex, MouseStateHandle, ParentElement, Radius,
     Shrinkable,
@@ -12,17 +11,13 @@ use warpui::{
 };
 
 use super::EnvVarSecretCommand;
-use crate::editor::{
-    EditorOptions, EditorView, Event, PropagateAndNoOpNavigationKeys, SingleLineEditorOptions,
-    TextOptions,
-};
+use crate::editor::EditorView;
 
 const COMMAND_EDITOR_MIN_LINES: f32 = 6.;
 const SPAN_FONT_SIZE: f32 = 16.;
 const BUTTON_FONT_SIZE: f32 = 14.;
 const CORE_WIDTH: f32 = 400.;
 const CORE_HEIGHT: f32 = 250.;
-const EDITOR_FONT_SIZE: f32 = 14.;
 const CONTAINER_PADDING: f32 = 25.;
 const ELEMENT_SPACING: f32 = 10.;
 const EDITOR_DIVIDE: f32 = 6.;
@@ -30,8 +25,6 @@ const EDITOR_DIVIDE: f32 = 6.;
 const SECRET_SPAN: &str = "Secret command";
 const SAVE_BUTTON_LABEL: &str = "Save";
 const CANCEL_BUTTON_LABEL: &str = "Cancel";
-const NAME_PLACEHOLDER_TEXT: &str = "Name";
-const COMMAND_PLACEHOLDER_TEXT: &str = "Command";
 
 #[derive(Debug, Clone)]
 pub enum EnvVarCommandDialogAction {
@@ -58,92 +51,8 @@ pub struct EnvVarCommandDialog {
 }
 
 impl EnvVarCommandDialog {
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let name_editor = {
-            ctx.add_typed_action_view(|ctx| {
-                let appearance = Appearance::as_ref(ctx);
-                let options = SingleLineEditorOptions {
-                    text: TextOptions::ui_text(Some(EDITOR_FONT_SIZE), appearance),
-                    propagate_and_no_op_vertical_navigation_keys:
-                        PropagateAndNoOpNavigationKeys::Always,
-                    ..Default::default()
-                };
 
-                let mut editor = EditorView::single_line(options, ctx);
-                editor.set_placeholder_text(NAME_PLACEHOLDER_TEXT, ctx);
-                editor
-            })
-        };
 
-        ctx.subscribe_to_view(&name_editor, |me, _, event, ctx| {
-            me.handle_name_editor_event(event, ctx);
-        });
-
-        let command_editor = {
-            ctx.add_typed_action_view(|ctx| {
-                let appearance = Appearance::as_ref(ctx);
-                let options = EditorOptions {
-                    text: TextOptions {
-                        font_size_override: Some(EDITOR_FONT_SIZE),
-                        font_family_override: Some(appearance.monospace_font_family()),
-                        ..Default::default()
-                    },
-                    soft_wrap: true,
-                    autogrow: true,
-                    propagate_and_no_op_vertical_navigation_keys:
-                        PropagateAndNoOpNavigationKeys::Always,
-                    supports_vim_mode: true,
-                    single_line: false,
-                    ..Default::default()
-                };
-
-                let mut editor = EditorView::new(options, ctx);
-                editor.set_placeholder_text(COMMAND_PLACEHOLDER_TEXT, ctx);
-                editor
-            })
-        };
-
-        ctx.subscribe_to_view(&command_editor, |me, _, event, ctx| {
-            me.handle_command_editor_event(event, ctx);
-        });
-
-        Self {
-            mouse_state_handles: Default::default(),
-            name_editor,
-            command_editor,
-        }
-    }
-
-    fn handle_name_editor_event(&mut self, event: &Event, ctx: &mut ViewContext<Self>) {
-        match event {
-            Event::Navigate(NavigationKey::Tab) | Event::Navigate(NavigationKey::ShiftTab) => {
-                ctx.focus(&self.command_editor)
-            }
-            Event::Enter => {
-                if !self.should_disable_save(ctx) {
-                    self.save_command_and_close(ctx)
-                }
-            }
-            Event::Escape => self.close(ctx),
-            _ => {}
-        }
-    }
-
-    fn handle_command_editor_event(&mut self, event: &Event, ctx: &mut ViewContext<Self>) {
-        match event {
-            Event::Navigate(NavigationKey::Tab) | Event::Navigate(NavigationKey::ShiftTab) => {
-                ctx.focus(&self.name_editor)
-            }
-            Event::Enter => {
-                if !self.should_disable_save(ctx) {
-                    self.save_command_and_close(ctx)
-                }
-            }
-            Event::Escape => self.close(ctx),
-            Event::Edited(_) => ctx.notify(),
-            _ => {}
-        }
-    }
 
     pub fn load(&mut self, secret_command: &EnvVarSecretCommand, ctx: &mut ViewContext<Self>) {
         self.name_editor.update(ctx, |buffer, ctx| {

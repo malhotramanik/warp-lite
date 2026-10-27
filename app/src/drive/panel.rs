@@ -26,14 +26,11 @@ use crate::cloud_object::{
     CloudObjectEventEntrypoint, GenericStringObjectFormat, JsonObjectType, Owner, Space,
 };
 use crate::env_vars::CloudEnvVarCollection;
-use crate::env_vars::manager::EnvVarCollectionSource;
 use crate::notebooks::CloudNotebook;
-use crate::notebooks::manager::NotebookSource;
 use crate::server::cloud_objects::update_manager::{InitiatedBy, UpdateManager};
 use crate::server::ids::{ClientId, ServerId, SyncId};
 use crate::server::telemetry::SharingDialogSource;
-use crate::workflows::manager::WorkflowOpenSource;
-use crate::workflows::{CloudWorkflow, WorkflowViewMode};
+use crate::workflows::CloudWorkflow;
 use crate::workspaces::user_workspaces::UserWorkspaces;
 
 pub const MIN_SIDEBAR_WIDTH: f32 = 250.;
@@ -135,7 +132,7 @@ impl DrivePanel {
         match event {
             DriveIndexEvent::CreateNotebook {
                 space,
-                title,
+                title: _,
                 initial_folder_id,
             } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
                 // warp-lite: Warp Drive object panes are removed.
@@ -190,7 +187,7 @@ impl DrivePanel {
             },
             DriveIndexEvent::CreateEnvVarCollection {
                 space,
-                title,
+                title: _,
                 initial_folder_id,
             } => match Self::new_object_owner(*space, initial_folder_id.as_ref(), ctx) {
                 // warp-lite: Warp Drive object panes are removed.
@@ -225,13 +222,13 @@ impl DrivePanel {
             }
             DriveIndexEvent::OpenWorkflowInPane {
                 cloud_object_type_and_id,
-                open_mode,
+                open_mode: _,
             } => {
                 let cloud_model = CloudModel::as_ref(ctx);
                 let object = cloud_model.get_by_uid(&cloud_object_type_and_id.uid());
 
                 let workflow: Option<&CloudWorkflow> = object.and_then(|object| object.into());
-                if let Some(workflow) = workflow {
+                if let Some(_workflow) = workflow {
                 }
             }
             DriveIndexEvent::OpenObject(cloud_object_type_and_id) => {
@@ -250,9 +247,9 @@ impl DrivePanel {
                     env_var_collection.map(|env_var_collection| env_var_collection.id)
                 });
 
-                if let Some(notebook_id) = notebook_id {
-                } else if let Some(workflow) = workflow {
-                } else if let Some(env_var_collection_id) = env_var_collection_id {
+                if let Some(_notebook_id) = notebook_id {
+                } else if let Some(_workflow) = workflow {
+                } else if let Some(_env_var_collection_id) = env_var_collection_id {
                 }
             }
             DriveIndexEvent::DuplicateObject(cloud_object_type_and_id) => {

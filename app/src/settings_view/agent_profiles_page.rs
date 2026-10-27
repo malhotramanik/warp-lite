@@ -35,7 +35,7 @@ use super::ai_shared::{
     render_ai_setting_description, render_ai_setting_label, render_ai_setting_toggle,
     should_show_mcp_servers, styles, update_editor_interaction_state,
 };
-use super::execution_profile_view::{ExecutionProfileView, ExecutionProfileViewEvent};
+use super::execution_profile_view::ExecutionProfileView;
 use super::settings_page::{
     CONTENT_FONT_SIZE, HEADER_PADDING, InputListItem, LocalOnlyIconState, MatchData, PageType,
     SettingsPageMeta, SettingsPageViewHandle, SettingsWidget, ToggleState, build_sub_header,
@@ -53,7 +53,7 @@ use crate::ai::execution_profiles::profiles::{
     AIExecutionProfilesModel, AIExecutionProfilesModelEvent,
 };
 use crate::ai::execution_profiles::{
-    AIExecutionProfile, AIExecutionProfileAppExt, ActionPermission, ExecutionProfileId,
+    AIExecutionProfile, AIExecutionProfileAppExt, ActionPermission,
     WriteToPtyPermission, long_context_pricing_warning_title,
 };
 use crate::ai::llms::{LLMContextWindow, LLMId, LLMPreferences, LLMPreferencesEvent};
@@ -1435,7 +1435,7 @@ impl AgentProfilesPageView {
                 let profile_view = ctx.add_typed_action_view(|ctx| {
                     ExecutionProfileView::new(profile_id.clone(), ctx)
                 });
-                let profile_id_for_event = profile_id.clone();
+                let _profile_id_for_event = profile_id.clone();
 
                 ctx.subscribe_to_view(&profile_view, move |_me, _, _event, _ctx| {});
 

@@ -8,12 +8,11 @@ use warpui::elements::{
 use warpui::fonts::Weight;
 use warpui::ui_components::button::{ButtonVariant, TextAndIcon, TextAndIconAlignment};
 use warpui::ui_components::components::{UiComponent, UiComponentStyles};
-use warpui::{Element, ViewContext};
+use warpui::Element;
 
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
 use crate::env_vars::active_env_var_collection_data::TrashStatus;
 use crate::env_vars::view::env_var_collection::{EnvVarCollectionAction, EnvVarCollectionView};
-use crate::ui_components::breadcrumb::BreadcrumbState;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 use crate::{AppContext, Appearance, SingletonEntity};
@@ -28,15 +27,6 @@ const VARIABLES_LABEL_TEXT: &str = "Variables";
 /// This file contains components that fixed in the view,
 /// i.e. the trash banner, breadcrumbs, and variables section header
 impl EnvVarCollectionView {
-    pub(super) fn update_breadcrumbs(&mut self, ctx: &mut ViewContext<Self>) {
-        self.breadcrumbs = self
-            .active_env_var_collection_data
-            .update(ctx, |data, ctx| {
-                data.breadcrumbs(ctx)
-                    .map(|breadcrumbs| breadcrumbs.into_iter().map(BreadcrumbState::new).collect())
-                    .unwrap_or_default()
-            })
-    }
 
     pub(super) fn render_trash_banner(
         &self,

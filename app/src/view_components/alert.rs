@@ -87,11 +87,6 @@ impl Alert {
         Self
     }
 
-    /// Creates a basic alert without a link.
-    /// Ergonomic constructor to avoid writing `Alert::<()>::new()`.
-    pub fn basic() -> Self {
-        Self::new()
-    }
 
     pub fn render(&self, config: AlertConfig, appearance: &Appearance) -> Box<dyn Element> {
         let content = self.render_simple(&config, appearance);

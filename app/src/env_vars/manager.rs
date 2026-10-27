@@ -1,9 +1,7 @@
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 
-use warpui::{Entity, EntityId, ModelContext, ModelHandle, SingletonEntity, WeakViewHandle};
+use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity, WeakViewHandle};
 
-use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::CloudModel;
 use crate::env_vars::view::env_var_collection::EnvVarCollectionView;
 use crate::pane_group::{ PaneContent};
@@ -11,21 +9,12 @@ use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::SyncId;
-use crate::{PaneViewLocator, WindowId, safe_warn};
+use crate::{PaneViewLocator, WindowId};
 
 pub struct EnvVarCollectionManager {
     panes_by_hashed_id: HashMap<String, EnvVarCollectionPaneData>,
 }
 
-#[derive(Debug, Clone)]
-pub enum EnvVarCollectionSource {
-    Existing(SyncId),
-    New {
-        title: Option<String>,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-    },
-}
 
 /// Manages EnvVarCollection panes
 impl EnvVarCollectionManager {
@@ -40,44 +29,10 @@ impl EnvVarCollectionManager {
         }
     }
 
-    /// If the collection is already open in a pane, finds the location of that pane.
-    pub fn find_pane(
-        &self,
-        source: &EnvVarCollectionSource,
-    ) -> Option<(WindowId, PaneViewLocator)> {
-        match source {
-            EnvVarCollectionSource::Existing(env_var_collection_id) => {
-                let pane_data = self.panes_by_hashed_id.get(&env_var_collection_id.uid())?;
-                Some((pane_data.window_id, pane_data.locator))
-            }
-            EnvVarCollectionSource::New { .. } => None,
-        }
-    }
 
 
 
 
-    pub fn reload_collection(
-        &mut self,
-        source: &EnvVarCollectionSource,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match source {
-            EnvVarCollectionSource::Existing(env_var_collection_id) => {
-                if let Some(pane_data) = self.panes_by_hashed_id.get(&env_var_collection_id.uid()) {
-                    let env_var_collection = CloudModel::as_ref(ctx)
-                        .get_env_var_collection(env_var_collection_id)
-                        .cloned();
-                    if let Some(env_var_collection) = env_var_collection
-                        && let Some(data) = pane_data.handle.upgrade(ctx)
-                    {
-                        data.update(ctx, |view, ctx| view.load(env_var_collection, ctx));
-                    }
-                }
-            }
-            _ => log::warn!("Can only reload existing environment variable collection"),
-        }
-    }
 
     fn handle_update_manager_event(
         &mut self,

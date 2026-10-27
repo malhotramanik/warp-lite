@@ -1,17 +1,13 @@
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use super::{CloudNotebookModel, NotebookId};
 use crate::ai::document::ai_document_model::AIDocumentId;
 use crate::cloud_object::breadcrumbs::ContainingObject;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::model::view::{CloudViewModel, Editor, EditorState};
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::model::view::{CloudViewModel, Editor};
 use crate::cloud_object::{CloudObject, Owner, Space};
 use crate::drive::sharing::{ContentEditability, SharingAccessLevel};
 use crate::notebooks::CloudNotebook;
-use crate::server::cloud_objects::update_manager::{
-    ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
-};
-use crate::server::ids::{ClientId, SyncId};
+use crate::server::ids::SyncId;
 
 #[derive(Default, Clone)]
 pub enum ActiveNotebook {
@@ -56,145 +52,8 @@ pub struct ActiveNotebookData {
 }
 
 impl ActiveNotebookData {
-    pub fn new(ctx: &mut ModelContext<Self>) -> Self {
-        let update_manager = UpdateManager::handle(ctx);
 
-        ctx.subscribe_to_model(&update_manager, |me, _, event, ctx| {
-            me.handle_update_manager_event(event, ctx);
-        });
 
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |me, _, event, ctx| {
-            me.handle_cloud_model_event(event, ctx);
-        });
-
-        Self {
-            ..Default::default()
-        }
-    }
-
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ModelContext<Self>) {
-        match event {
-            CloudModelEvent::NotebookEditorChangedFromServer { notebook_id } => {
-                if self.is_active_notebook(*notebook_id) {
-                    if let Some(new_editor) =
-                        CloudViewModel::as_ref(ctx).object_current_editor(&notebook_id.uid(), ctx)
-                        && self.mode == Mode::Editing
-                        && matches!(new_editor.state, EditorState::OtherUserActive)
-                    {
-                        self.mode = Mode::View;
-                        ctx.emit(ActiveNotebookDataEvent::ModeChangedFromServer);
-                    }
-                    ctx.notify();
-                }
-            }
-            CloudModelEvent::ObjectMoved { type_and_id, .. } => {
-                if let Some(notebook_id) = type_and_id.as_notebook_id() {
-                    // Update breadcrumb when a notebook is moved, whether by the user or a
-                    // teammate.
-                    if self.is_active_notebook(notebook_id) {
-                        ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
-                    }
-                }
-            }
-            _ => (),
-        }
-    }
-
-    fn handle_update_manager_event(
-        &mut self,
-        event: &UpdateManagerEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let UpdateManagerEvent::ObjectOperationComplete { result } = event else {
-            return;
-        };
-
-        match (&result.operation, &result.success_type) {
-            (ObjectOperation::Create { .. }, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id()
-                    && current_id.into_client() == result.client_id
-                {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    let notebook_id: NotebookId = server_id.into();
-                    self.feature_not_available = false;
-                    self.saving_status = SavingStatus::Saved;
-                    self.active_notebook =
-                        ActiveNotebook::CommittedNotebook(SyncId::ServerId(notebook_id.into()));
-                    ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
-                    ctx.emit(ActiveNotebookDataEvent::CreatedOnServer);
-                    ctx.notify();
-                }
-            }
-            (ObjectOperation::Update, OperationSuccessType::Success) => {
-                if let Some(current_id) = self.id() {
-                    let server_id = result.server_id.expect("Expect server id on success");
-                    if current_id.into_server() == Some(server_id) {
-                        self.feature_not_available = false;
-                        self.saving_status = SavingStatus::Saved;
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::Update, OperationSuccessType::Rejection) => {
-                let current_id = self.id();
-                if let Some(id) = current_id {
-                    let server_id = result
-                        .server_id
-                        .expect("Expect server id on update rejection");
-                    if id.into_server() == Some(server_id) {
-                        self.feature_not_available = false;
-                        ctx.emit(ActiveNotebookDataEvent::EditRejected);
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::Update, OperationSuccessType::FeatureNotAvailable) => {
-                let current_id = self.id();
-                if let Some(id) = current_id {
-                    let server_id = result
-                        .server_id
-                        .expect("Expect server id on update failure");
-                    if id.into_server() == Some(server_id) {
-                        self.feature_not_available = true;
-                        ctx.emit(ActiveNotebookDataEvent::EditRejected);
-                        ctx.notify();
-                    }
-                }
-            }
-            (ObjectOperation::TakeEditAccess, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
-                {
-                    self.feature_not_available = false;
-                    self.mode = Mode::Editing;
-                    ctx.emit(ActiveNotebookDataEvent::SwitchedToEditMode);
-                }
-            }
-            (ObjectOperation::Trash, OperationSuccessType::Success)
-            | (ObjectOperation::Untrash, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
-                {
-                    ctx.emit(ActiveNotebookDataEvent::TrashStatusChanged);
-                }
-            }
-            (ObjectOperation::MoveToDrive, OperationSuccessType::Success) => {
-                let current_id = self.id();
-                let server_id = result.server_id.expect("Expect server id on success");
-                if let Some(id) = current_id
-                    && id.into_server() == Some(server_id)
-                {
-                    ctx.emit(ActiveNotebookDataEvent::MovedToSpace);
-                }
-            }
-            _ => {}
-        }
-    }
 
     pub fn reset(&mut self) {
         self.mode = Mode::View;
@@ -204,26 +63,6 @@ impl ActiveNotebookData {
         self.feature_not_available = false;
     }
 
-    pub fn open_new(
-        &mut self,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.reset();
-
-        // create a new client id
-        let new_id = ClientId::default();
-
-        // Set the active notebook to be an uncommitted notebook
-        self.active_notebook = ActiveNotebook::NewNotebook(Box::new(CloudNotebook::new_local(
-            CloudNotebookModel::default(),
-            owner,
-            initial_folder_id,
-            new_id,
-        )));
-        ctx.emit(ActiveNotebookDataEvent::BreadcrumbsChanged);
-    }
 
     pub fn open_existing(&mut self, notebook_id: SyncId, ctx: &mut ModelContext<Self>) {
         self.reset();
@@ -294,9 +133,6 @@ impl ActiveNotebookData {
         }
     }
 
-    pub fn is_active_notebook(&self, notebook_id: SyncId) -> bool {
-        self.id() == Some(notebook_id)
-    }
 
     /// Checks whether or not this notebook has edit conflicts that would
     /// results in the conflict resolution banner being shown. We check both

@@ -2607,16 +2607,6 @@ impl AISettings {
         self.is_any_ai_enabled(app) && !set_by_workspace
     }
 
-    pub(crate) fn is_computer_use_permissions_editable(
-        &self,
-        scope: &impl TeamScope,
-        app: &AppContext,
-    ) -> bool {
-        let set_by_workspace = UserWorkspaces::as_ref(app)
-            .ai_autonomy_settings(scope)
-            .has_override_for_computer_use();
-        self.is_any_ai_enabled(app) && !set_by_workspace
-    }
 
     pub(crate) fn is_read_files_permissions_editable(
         &self,

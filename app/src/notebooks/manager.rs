@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::collections::hash_map::Entry;
 use std::sync::Arc;
 
 use futures_util::stream::AbortHandle;
@@ -7,21 +6,20 @@ use markdown_parser::markdown_parser::parse_markdown_to_raw_text;
 use warp_errors::report_error;
 use warpui::r#async::SpawnedFutureHandle;
 use warpui::{
-    Entity, EntityId, ModelContext, ModelHandle, SingletonEntity, WeakViewHandle, WindowId,
+    Entity, ModelContext, ModelHandle, SingletonEntity, WeakViewHandle, WindowId,
 };
 
 use super::CloudNotebook;
 use super::notebook::NotebookView;
 use crate::cloud_object::Owner;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::drive::OpenWarpDriveObjectSettings;
 use crate::pane_group::{ PaneContent};
 use crate::server::cloud_objects::update_manager::{
     ObjectOperation, OperationSuccessType, UpdateManager, UpdateManagerEvent,
 };
 use crate::server::ids::SyncId;
 use crate::workspace::PaneViewLocator;
-use crate::{safe_debug, safe_warn};
+use crate::safe_debug;
 
 #[cfg(test)]
 #[path = "manager_tests.rs"]

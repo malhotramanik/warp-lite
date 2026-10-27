@@ -350,18 +350,4 @@ impl NotebookWorkflow {
         }
     }
 
-    /// Extract the [`WorkflowType`], assigning a name using the given callback if needed.
-    pub fn named_workflow<F: FnOnce() -> Option<String>>(&self, name: F) -> Arc<WorkflowType> {
-        match &**self.workflow {
-            WorkflowType::Notebook(workflow) if workflow.name().is_empty() => match name() {
-                Some(name) => {
-                    let mut workflow = workflow.clone();
-                    workflow.set_name(name.as_str());
-                    Arc::new(WorkflowType::Notebook(workflow))
-                }
-                None => (*self.workflow).clone(),
-            },
-            _ => (*self.workflow).clone(),
-        }
-    }
 }

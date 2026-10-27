@@ -6,35 +6,20 @@ use warpui::elements::{
 };
 use warpui::platform::Cursor;
 use warpui::ui_components::components::UiComponent as _;
-use warpui::units::{IntoPixels, Pixels};
-use warpui::{Element, fonts};
+use warpui::Element;
 
 use crate::appearance::Appearance;
-use crate::settings::{FontSettings, derived_notebook_font_size};
 use crate::themes::theme::Fill;
 use crate::ui_components::buttons::icon_button;
 use crate::ui_components::icons::Icon;
 
-/// Multiplier of the notebook font size for the title. At the default size, this
-/// is 20px.
-const TITLE_FONT_MULTIPLIER: f32 = 1.4;
 
-const EDITOR_MAX_WIDTH: f32 = 640.;
 
 const TITLE_MARGIN: f32 = 16.;
 const EDITOR_PADDING_LEFT: f32 = 4.;
 const EDITOR_PADDING_TOP: f32 = 4.;
 
-/// Font size for the notebook title.
-pub fn title_font_size(font_settings: &FontSettings) -> f32 {
-    derived_notebook_font_size(font_settings) * TITLE_FONT_MULTIPLIER
-}
 
-/// Font properties for the notebook title.
-pub const TITLE_FONT_PROPERTIES: fonts::Properties = fonts::Properties {
-    style: fonts::Style::Normal,
-    weight: fonts::Weight::Bold,
-};
 
 /// Wraps the title element in spacing. If not `None`, the details element is shown above the title.
 pub fn wrap_title(title: Box<dyn Element>, details: Option<Box<dyn Element>>) -> Box<dyn Element> {
@@ -90,7 +75,3 @@ pub(super) fn block_footer_action_button(
         .with_cursor(Cursor::Arrow)
 }
 
-// Maximum notebook editor width.
-pub fn notebook_editor_max_width() -> Pixels {
-    EDITOR_MAX_WIDTH.into_pixels()
-}

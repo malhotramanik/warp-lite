@@ -99,13 +99,7 @@ impl AIFactView {
         }
     }
 
-    pub fn pane_configuration(&self) -> ModelHandle<PaneConfiguration> {
-        self.pane_configuration.clone()
-    }
 
-    pub fn current_page(&self) -> AIFactPage {
-        self.current_page
-    }
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {
         match self.current_page {

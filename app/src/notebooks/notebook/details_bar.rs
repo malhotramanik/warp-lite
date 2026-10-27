@@ -32,12 +32,6 @@ pub struct DetailsBar {
 }
 
 impl DetailsBar {
-    pub fn new() -> Self {
-        Self {
-            breadcrumbs: Vec::new(),
-            edit_mode_button_mouse_state: Default::default(),
-        }
-    }
 
     /// Update the cached breadcrumbs in the notebook header.
     pub fn update_breadcrumbs(&mut self, notebook_data: &ActiveNotebookData, ctx: &AppContext) {

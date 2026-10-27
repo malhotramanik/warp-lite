@@ -15,35 +15,35 @@ use warpui::presenter::ChildView;
 use warpui::ui_components::components::UiComponent;
 use warpui::{
     AppContext, BlurContext, Element, Entity, FocusContext, ModelAsRef, ModelHandle,
-    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, WindowId, id,
+    SingletonEntity, TypedActionView, View, ViewContext, ViewHandle, id,
 };
 
 use super::command_dialog::EnvVarCommandDialog;
 use super::menus::Menus;
 use crate::ai::blocklist::block::secret_redaction::find_secrets_in_text_with_levels;
 use crate::cloud_object::breadcrumbs::ContainingObject;
-use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
-use crate::cloud_object::{CloudObjectEventEntrypoint, Owner};
+use crate::cloud_object::model::persistence::CloudModel;
+use crate::cloud_object::CloudObjectEventEntrypoint;
 use crate::drive::items::WarpDriveItemId;
-use crate::drive::sharing::{ContentEditability, ShareableObject};
+use crate::drive::sharing::ContentEditability;
 use crate::editor::EditorView;
 use crate::env_vars::active_env_var_collection_data::{
-    ActiveEnvVarCollection, ActiveEnvVarCollectionData, ActiveEnvVarCollectionDataEvent,
+    ActiveEnvVarCollection, ActiveEnvVarCollectionData,
     SavingStatus, TrashStatus,
 };
 use crate::env_vars::{
-    CloudEnvVarCollection, CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
+    CloudEnvVarCollectionModel, EnvVar, EnvVarCollection,
     EnvVarCollectionType, EnvVarValue,
 };
 use crate::external_secrets::SecretManager;
 use crate::menu::MenuItem;
-use crate::network::{NetworkStatus, NetworkStatusEvent};
+use crate::network::NetworkStatus;
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::pane::view;
 use crate::pane_group::{BackingView, PaneConfiguration, PaneEvent};
 use crate::search::external_secrets::view::ExternalSecretsMenu;
-use crate::server::cloud_objects::update_manager::{FetchSingleObjectOption, UpdateManager};
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::cloud_objects::update_manager::UpdateManager;
+use crate::server::ids::SyncId;
 use crate::terminal::model::secrets::SecretLevel;
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::ui_components::breadcrumb::{BreadcrumbState, render_breadcrumbs};
@@ -54,9 +54,8 @@ use crate::ui_components::menu_button::{
 };
 use crate::util::bindings::CustomAction;
 use crate::view_components::alert::AlertConfig;
-use crate::view_components::{Alert, DismissibleToast, ToastType};
-use crate::workspace::ToastStack;
-use crate::{Appearance, CloudObjectTypeAndId, TelemetryEvent, send_telemetry_from_ctx};
+use crate::view_components::{Alert, DismissibleToast};
+use crate::{Appearance, TelemetryEvent, send_telemetry_from_ctx};
 
 // Universal
 pub(super) const CORE_HORIZONATAL_MARGIN: f32 = 24.;
@@ -75,14 +74,10 @@ const VARIABLE_FONT_SIZE: f32 = 13.;
 const DESCRIPTION_EDITOR_CUTOFF: f32 = 30.;
 const DESCRIPTION_BOTTOM_MARGIN: f32 = 12.;
 const DIVIDER_BOTTOM_MARGIN: f32 = 4.;
-const PLACEHOLDER_FONT_SIZE: f32 = 14.;
 const VARIABLE_VALUE_PLACEHOLDER_TEXT: &str = "Value";
 const VARIABLE_DESCRIPTION_PLACEHOLDER_TEXT: &str = "Description";
 const VARIABLE_NAME_PLACEHOLDER_TEXT: &str = "Variable";
 
-// Text input fields
-const TITLE_PLACEHOLDER_TEXT: &str = "Add a title";
-const DESCRIPTION_PLACEHOLDER_TEXT: &str = "Add a description";
 
 // Button spacing
 const BUTTON_CONTAINER_HORIZONTAL_MARGIN: f32 = 36.;
@@ -178,15 +173,7 @@ impl FormValidationState {
         self.title_error.is_some() || self.description_error.is_some()
     }
 
-    /// Sets validation error for the title field
-    pub(super) fn set_title_error(&mut self, error: Option<ValidationError>) {
-        self.title_error = error;
-    }
 
-    /// Sets validation error for the description field
-    pub(super) fn set_description_error(&mut self, error: Option<ValidationError>) {
-        self.description_error = error;
-    }
 
     /// Gets the highest severity error in the form (including both metadata and variable rows)
     pub(super) fn get_highest_severity_error(&self) -> Option<&ValidationError> {
@@ -403,38 +390,7 @@ impl EnvVarCollectionView {
         ctx.notify();
     }
 
-    /// Updates validation state for the title field
-    pub(super) fn update_title_validation(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
-        let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
 
-        let validation_error = if should_validate {
-            Self::validate_field_content(text)
-        } else {
-            None
-        };
-
-        self.form_validation_state.set_title_error(validation_error);
-        ctx.notify();
-    }
-
-    /// Updates validation state for the description field
-    pub(super) fn update_description_validation(
-        &mut self,
-        text: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let should_validate = get_secret_obfuscation_mode(ctx).should_redact_secret();
-
-        let validation_error = if should_validate {
-            Self::validate_field_content(text)
-        } else {
-            None
-        };
-
-        self.form_validation_state
-            .set_description_error(validation_error);
-        ctx.notify();
-    }
 
     /// Finds the row index and editor type for a given editor handle
     pub(super) fn find_editor_info(
@@ -478,251 +434,15 @@ impl EnvVarCollectionView {
             .map(|error| self.render_validation_error(error, appearance))
     }
 
-    pub fn new(ctx: &mut ViewContext<Self>) -> Self {
-        let appearance = Appearance::as_ref(ctx);
-        let ui_font_family = appearance.ui_font_family();
-
-        let cloud_model = CloudModel::handle(ctx);
-        ctx.subscribe_to_model(&cloud_model, |view, _handle, event, ctx| {
-            view.handle_cloud_model_event(event, ctx);
-        });
-
-        let pane_configuration = ctx.add_model(|_ctx| PaneConfiguration::new("Untitled"));
-
-        let active_env_var_collection_data = ctx.add_model(ActiveEnvVarCollectionData::new);
-        ctx.subscribe_to_model(
-            &active_env_var_collection_data,
-            Self::handle_active_env_var_collection_event,
-        );
-        ctx.observe(
-            &active_env_var_collection_data,
-            Self::handle_active_env_var_collection_change,
-        );
-
-        ctx.subscribe_to_model(
-            &NetworkStatus::handle(ctx),
-            Self::handle_network_status_event,
-        );
-
-        let title_editor = Self::create_editor_handle(
-            ctx,
-            Some(PLACEHOLDER_FONT_SIZE),
-            Some(ui_font_family),
-            Some(TITLE_PLACEHOLDER_TEXT),
-            true,
-        );
-        let description_editor = Self::create_editor_handle(
-            ctx,
-            Some(PLACEHOLDER_FONT_SIZE),
-            Some(ui_font_family),
-            Some(DESCRIPTION_PLACEHOLDER_TEXT),
-            false,
-        );
-        ctx.subscribe_to_view(&title_editor, |me, _, event, ctx| {
-            me.handle_title_editor_event(event, ctx);
-        });
-        ctx.subscribe_to_view(&description_editor, |me, _, event, ctx| {
-            me.handle_description_editor_event(event, ctx);
-        });
-
-        let secrets_dialog = ctx.add_typed_action_view(ExternalSecretsMenu::new);
-        let env_var_command_dialog = ctx.add_typed_action_view(EnvVarCommandDialog::new);
-        ctx.subscribe_to_view(&secrets_dialog, |me, _, event, ctx| {
-            me.handle_external_secrets_dialog_event(event, ctx);
-        });
-        ctx.subscribe_to_view(&env_var_command_dialog, |me, _, event, ctx| {
-            me.handle_command_dialog_event(event, ctx)
-        });
-
-        let menus = Self::initialize_menus(ctx);
-
-        let dialog_open_states = DialogOpenStates {
-            secrets_dialog_open: false,
-            env_var_command_dialog_open: false,
-            unsaved_changes_dialog_open: false,
-        };
-
-        let view_position_id = format!("env_var_collection_view_{}", ctx.view_id());
-
-        EnvVarCollectionView {
-            focused: false,
-            pane_configuration,
-            focus_handle: None,
-            active_env_var_collection_data,
-            button_mouse_states: Default::default(),
-            variables_clipped_scroll_state: Default::default(),
-            title_editor,
-            description_editor,
-            variable_rows: Vec::new(),
-            breadcrumbs: Vec::new(),
-            menus,
-            pending_variable_row_index: None,
-            pane_context_menu_offset: None,
-            secrets_dialog,
-            env_var_command_dialog,
-            dialog_open_states,
-            view_position_id,
-            form_validation_state: Default::default(),
-            validation_alert: Alert::basic(),
-        }
-    }
 
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {
         ctx.focus(&self.title_editor);
         ctx.emit(EnvVarCollectionEvent::Pane(PaneEvent::FocusSelf));
     }
 
-    pub fn open_new_env_var_collection(
-        &mut self,
-        owner: Owner,
-        initial_folder_id: Option<SyncId>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.active_env_var_collection_data
-            .update(ctx, |data, ctx| {
-                data.open_new(owner, initial_folder_id, ctx);
-            });
-        self.add_variable_row(ctx);
-        // Setting this to indicate the collection isn't unsaved, and thus
-        // the pane can be closed without the unsaved_command_dialog
-        self.set_saving_status(SavingStatus::New, ctx);
-    }
 
-    pub fn wait_for_initial_load_then_load(
-        &mut self,
-        env_var_collection_id: SyncId,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let initial_load_complete = UpdateManager::handle(ctx).update(ctx, |update_manager, _| {
-            update_manager.initial_load_complete()
-        });
-        ctx.spawn(initial_load_complete, move |me, _, ctx| {
-            let env_var_collection = CloudModel::as_ref(ctx)
-                .get_env_var_collection(&env_var_collection_id)
-                .cloned();
-            if let Some(env_var_collection) = env_var_collection {
-                me.load(env_var_collection, ctx);
-            } else if let Some(server_id) = env_var_collection_id.into_server() {
-                me.fetch_and_load_env_var_collection(server_id, window_id, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(
-                        ToastType::CloudObjectNotFound,
-                        window_id,
-                        ctx,
-                    );
-                });
-                log::warn!("Tried to open unknown env var collection {env_var_collection_id:?}");
-            }
-        });
-    }
 
-    fn fetch_and_load_env_var_collection(
-        &mut self,
-        env_var_collection_id: ServerId,
-        window_id: WindowId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let fetch_cloud_object_rx =
-            UpdateManager::handle(ctx).update(ctx, |update_manager, ctx| {
-                update_manager.fetch_single_cloud_object(
-                    &env_var_collection_id,
-                    FetchSingleObjectOption::None,
-                    ctx,
-                )
-            });
-        ctx.spawn(fetch_cloud_object_rx, move |me, _, ctx| {
-            if let Some(env_var_collection) = CloudModel::as_ref(ctx)
-                .get_env_var_collection(&SyncId::ServerId(env_var_collection_id))
-                .cloned()
-            {
-                me.load(env_var_collection, ctx);
-            } else {
-                ToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                    toast_stack.add_ephemeral_toast_by_type(ToastType::CloudObjectNotFound, window_id, ctx);
-                });
-                log::warn!("Tried to open unknown env var collection {env_var_collection_id:?} after fetching");
-            }
-        });
-    }
 
-    pub fn load(&mut self, env_var_collection: CloudEnvVarCollection, ctx: &mut ViewContext<Self>) {
-        self.active_env_var_collection_data
-            .update(ctx, |data, ctx| {
-                data.open_existing(env_var_collection.id, ctx);
-                data.revision_ts
-                    .clone_from(&env_var_collection.metadata.revision);
-            });
-
-        let collection = &env_var_collection.model().string_model;
-
-        let title = collection.title.clone().unwrap_or_default();
-
-        self.set_pane_title(if title.is_empty() { "Untitled" } else { &title }, ctx);
-        if let Some(server_id) = env_var_collection.id.into_server() {
-            self.pane_configuration.update(ctx, |pane_config, ctx| {
-                pane_config
-                    .set_shareable_object(Some(ShareableObject::WarpDriveObject(server_id)), ctx);
-            });
-        }
-
-        let description = collection.description.clone().unwrap_or_default();
-
-        self.title_editor.update(ctx, |editor, ctx| {
-            editor.system_reset_buffer_text(&title, ctx)
-        });
-
-        self.description_editor.update(ctx, |editor, ctx| {
-            editor.system_reset_buffer_text(&description, ctx)
-        });
-
-        self.update_title_validation(&title, ctx);
-        self.update_description_validation(&description, ctx);
-
-        self.variable_rows = Vec::new();
-
-        collection.vars.iter().enumerate().for_each(|(index, var)| {
-            self.add_variable_row(ctx);
-            self.variable_rows[index]
-                .variable_name_editor
-                .update(ctx, |editor, ctx| {
-                    editor.system_reset_buffer_text(var.name.as_str(), ctx);
-                });
-            self.variable_rows[index]
-                .variable_value_editor
-                .update(ctx, |editor, ctx| {
-                    editor.system_reset_buffer_text(
-                        if let EnvVarValue::Constant(val) = &var.value {
-                            val
-                        } else {
-                            ""
-                        },
-                        ctx,
-                    );
-                });
-            self.variable_rows[index].value = var.value.clone();
-            if let Some(description) = &var.description {
-                self.variable_rows[index]
-                    .variable_description_editor
-                    .update(ctx, |editor, ctx| {
-                        editor.system_reset_buffer_text(description.as_str(), ctx);
-                    });
-            }
-
-            self.update_field_validation(index, EditorType::Name, &var.name, ctx);
-            if let EnvVarValue::Constant(val) = &var.value {
-                self.update_field_validation(index, EditorType::Value, val, ctx);
-            }
-            if let Some(description) = &var.description {
-                self.update_field_validation(index, EditorType::Description, description, ctx);
-            }
-        });
-
-        self.set_saving_status(SavingStatus::Saved, ctx);
-        self.update_editor_interactivity(ctx);
-        ctx.notify();
-    }
 
     fn invoke_env_var_collection(&self, ctx: &mut ViewContext<Self>) {
         match &self
@@ -932,70 +652,8 @@ impl EnvVarCollectionView {
         ctx.notify();
     }
 
-    fn handle_active_env_var_collection_change(
-        &mut self,
-        _handle: ModelHandle<ActiveEnvVarCollectionData>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Refresh the overflow menu to show actions that only apply to synced EVCs.
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-        ctx.notify();
-    }
 
-    fn handle_active_env_var_collection_event(
-        &mut self,
-        _handle: ModelHandle<ActiveEnvVarCollectionData>,
-        event: &ActiveEnvVarCollectionDataEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ActiveEnvVarCollectionDataEvent::BreadcrumbsChanged => {
-                self.update_breadcrumbs(ctx);
-                ctx.notify()
-            }
-            ActiveEnvVarCollectionDataEvent::CreatedOnServer(server_id) => {
-                self.update_breadcrumbs(ctx);
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.set_shareable_object(
-                        Some(ShareableObject::WarpDriveObject(*server_id)),
-                        ctx,
-                    );
-                });
-            }
-            ActiveEnvVarCollectionDataEvent::TrashStatusChanged => {
-                self.pane_configuration.update(ctx, |pane_config, ctx| {
-                    pane_config.refresh_pane_header_overflow_menu_items(ctx)
-                });
-            }
-        }
-    }
 
-    fn handle_cloud_model_event(&mut self, event: &CloudModelEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            CloudModelEvent::ObjectCreated { type_and_id, .. } => {
-                if self
-                    .as_active_env_var_collection_id(type_and_id, ctx)
-                    .is_some()
-                {
-                    ctx.notify();
-                }
-            }
-            CloudModelEvent::ObjectTrashed { .. }
-            | CloudModelEvent::ObjectDeleted { .. }
-            | CloudModelEvent::ObjectUntrashed { .. }
-            | CloudModelEvent::ObjectMoved { .. } => ctx.notify(),
-            CloudModelEvent::ObjectPermissionsUpdated { type_and_id, .. }
-                if self
-                    .as_active_env_var_collection_id(type_and_id, ctx)
-                    .is_some() =>
-            {
-                self.update_editor_interactivity(ctx);
-            }
-            _ => (),
-        }
-    }
 
     // Only enable the invoke/load button if the env var is committed and the current version is saved
     pub(super) fn should_disable_invoke(&self, app: &AppContext) -> bool {
@@ -1050,42 +708,17 @@ impl EnvVarCollectionView {
         NetworkStatus::as_ref(app).is_online()
     }
 
-    fn handle_network_status_event(
-        &mut self,
-        _handle: ModelHandle<NetworkStatus>,
-        event: &NetworkStatusEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let NetworkStatusEvent::NetworkStatusChanged { new_status: _ } = event;
-        self.pane_configuration.update(ctx, |pane_config, ctx| {
-            pane_config.refresh_pane_header_overflow_menu_items(ctx)
-        });
-    }
 
     pub fn set_saving_status(&mut self, status: SavingStatus, ctx: &mut ViewContext<Self>) {
         self.active_env_var_collection_data
             .update(ctx, |data, _| data.saving_status = status);
     }
 
-    pub fn pane_configuration(&self) -> &ModelHandle<PaneConfiguration> {
-        &self.pane_configuration
-    }
 
     pub fn env_var_collection_id<C: ModelAsRef>(&self, ctx: &C) -> Option<SyncId> {
         self.active_env_var_collection_data.as_ref(ctx).id()
     }
 
-    fn as_active_env_var_collection_id(
-        &self,
-        id: &CloudObjectTypeAndId,
-        ctx: &mut ViewContext<Self>,
-    ) -> Option<SyncId> {
-        id.as_generic_string_object_id().filter(|id| {
-            self.active_env_var_collection_data
-                .as_ref(ctx)
-                .is_active_env_var_collection(*id)
-        })
-    }
 
     fn set_pane_title(&self, title: &str, ctx: &mut ViewContext<Self>) {
         self.pane_configuration

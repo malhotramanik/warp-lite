@@ -27,7 +27,6 @@ use crate::send_telemetry_from_ctx;
 use crate::ui_components::icon_with_status::{IconWithStatusVariant, render_icon_with_status};
 use crate::util::time_format::format_elapsed_since;
 use crate::view_components::action_button::ActionButtonTheme;
-use crate::workspace::WorkspaceAction;
 
 const COLLAPSED_MAX_CHARS: usize = 100;
 const EXPANDED_MAX_CHARS: usize = 500;

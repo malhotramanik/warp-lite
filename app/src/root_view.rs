@@ -65,13 +65,12 @@ use crate::cloud_object::model::persistence::CloudModel;
 use crate::cloud_object::{GenericStringObjectFormat, JsonObjectType, ObjectType};
 use crate::drive::export::ExportManager;
 use crate::drive::items::WarpDriveItemId;
-use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs, OpenWarpDriveObjectSettings};
+use crate::drive::{CloudObjectTypeAndId, OpenWarpDriveObjectArgs};
 use crate::experiments::{BlockOnboarding, Experiment};
 use crate::features::FeatureFlag;
 use crate::interval_timer::IntervalTimer;
 use crate::launch_configs::launch_config;
 use crate::linear::LinearIssueWork;
-use crate::notebooks::manager::NotebookSource;
 use crate::pane_group::{NewTerminalOptions, PanesLayout};
 use crate::persistence::ModelEvent;
 use crate::pricing::{PricingInfoModel, PricingInfoModelEvent};
@@ -1161,7 +1160,7 @@ fn open_linear_issue_work_in_new_window(args: &LinearIssueWork, ctx: &mut AppCon
     });
 }
 
-fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, ctx: &mut AppContext) {
+fn open_warp_drive_object(arg: &OpenWarpDriveObjectArgs, _ctx: &mut AppContext) {
     match arg.object_type {
         _ => log::info!("Open object type {:?} not yet supported", arg.object_type),
     }
@@ -3078,9 +3077,9 @@ impl RootView {
                     handle.update(ctx, |workspace, ctx| {
                         let initialized_section_states =
                             workspace.has_warp_drive_initialized_sections(ctx);
-                        let notebook_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
+                        let _notebook_id = SyncId::ServerId(arg.server_id);
+                        let _settings = arg.settings.clone();
+                        let _ = ctx.spawn(initialized_section_states, move |_workspace, _, _ctx| {
                         });
                     });
                 }
@@ -3088,9 +3087,9 @@ impl RootView {
                     handle.update(ctx, |workspace, ctx| {
                         let initialized_section_states =
                             workspace.has_warp_drive_initialized_sections(ctx);
-                        let workflow_id = SyncId::ServerId(arg.server_id);
-                        let settings = arg.settings.clone();
-                        let _ = ctx.spawn(initialized_section_states, move |workspace, _, ctx| {
+                        let _workflow_id = SyncId::ServerId(arg.server_id);
+                        let _settings = arg.settings.clone();
+                        let _ = ctx.spawn(initialized_section_states, move |_workspace, _, _ctx| {
                         });
                     });
                 }

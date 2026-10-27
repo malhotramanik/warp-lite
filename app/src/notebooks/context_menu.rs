@@ -12,7 +12,7 @@ use super::editor::keys::custom_action_to_display;
 use super::editor::view::RichTextEditorView;
 use super::telemetry::ActionEntrypoint;
 use crate::editor::EditorView;
-use crate::menu::{self, Menu, MenuItem, MenuItemFields};
+use crate::menu::{Menu, MenuItem, MenuItemFields};
 use crate::pane_group::focus_state::PaneFocusHandle;
 use crate::pane_group::{PaneEvent, SplitPaneState};
 use crate::util::bindings::{
@@ -23,7 +23,6 @@ use crate::util::bindings::{
 #[path = "context_menu_tests.rs"]
 mod tests;
 
-const CONTEXT_MENU_WIDTH: f32 = 200.;
 
 pub struct ContextMenuState<V: TypedActionView + View>
 where
@@ -57,38 +56,11 @@ where
     V::Event: From<PaneEvent>,
     V::Action: Clone + From<ContextMenuAction>,
 {
-    pub fn new(ctx: &mut ViewContext<V>) -> Self {
-        let menu = ctx.add_typed_action_view(|_| Menu::new().with_width(CONTEXT_MENU_WIDTH));
-
-        ctx.subscribe_to_view(&menu, |view, _, event, ctx| match event {
-            menu::Event::ItemSelected | menu::Event::ItemHovered => (),
-            menu::Event::Close { via_select_item } => {
-                view.handle_action(
-                    &V::Action::from(ContextMenuAction::Close {
-                        via_select_item: *via_select_item,
-                    }),
-                    ctx,
-                );
-            }
-        });
-
-        Self {
-            source: None,
-            menu,
-            focus_handle: None,
-            copy_file_path: None,
-        }
-    }
 
     pub(super) fn set_focus_handle(&mut self, focus_handle: PaneFocusHandle) {
         self.focus_handle = Some(focus_handle);
     }
 
-    /// Set the display path used by the "Copy file path" menu item. Pass `None` to hide the item
-    /// (e.g. for notebooks not backed by a file).
-    pub(super) fn set_copy_file_path(&mut self, path: Option<String>) {
-        self.copy_file_path = path;
-    }
 
     /// Renders the context menu, if it's open.
     pub fn render(&self, stack: &mut Stack) {

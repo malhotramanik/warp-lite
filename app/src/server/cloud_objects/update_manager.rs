@@ -3281,19 +3281,6 @@ impl UpdateManager {
         );
     }
 
-    pub fn delete_ai_execution_profile(
-        &mut self,
-        ai_execution_profile_id: SyncId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.delete_object_by_user(
-            CloudObjectTypeAndId::GenericStringObject {
-                object_type: GenericStringObjectFormat::Json(JsonObjectType::AIExecutionProfile),
-                id: ai_execution_profile_id,
-            },
-            ctx,
-        );
-    }
 
     #[allow(clippy::too_many_arguments)]
     pub fn create_notebook(

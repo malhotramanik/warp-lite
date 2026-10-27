@@ -13,7 +13,7 @@ use warpui::{
     ViewContext, ViewHandle,
 };
 
-use crate::editor::{EditorOptions, EditorView, Event as EditorEvent, TextOptions};
+use crate::editor::EditorView;
 
 const PROMPT_INPUT_HEIGHT: f32 = 56.;
 const ICON_MARGIN_LEFT: f32 = 12.;
@@ -28,36 +28,6 @@ pub struct GlowingEditor {
 }
 
 impl GlowingEditor {
-    pub fn new(placeholder: impl Into<String>, ctx: &mut ViewContext<Self>) -> Self {
-        let appearance = Appearance::as_ref(ctx);
-        let font_family = appearance.ui_font_family();
-        let font_size = appearance.ui_font_size() + 2.;
-
-        let editor = ctx.add_typed_action_view(|ctx| {
-            let options = EditorOptions {
-                soft_wrap: true,
-                text: TextOptions {
-                    font_size_override: Some(font_size),
-                    font_family_override: Some(font_family),
-                    ..Default::default()
-                },
-                ..Default::default()
-            };
-            let mut editor = EditorView::new(options, ctx);
-            editor.set_placeholder_text(placeholder, ctx);
-            editor
-        });
-
-        ctx.subscribe_to_view(&editor, move |me, _, event, ctx| {
-            me.handle_editor_event(event, ctx);
-        });
-
-        Self {
-            editor,
-            validator: Box::new(|_| true),
-            has_error: false,
-        }
-    }
 
     /// Validates the input contents using the provided `validator` whenever a submit action is
     /// attempted.
@@ -67,42 +37,7 @@ impl GlowingEditor {
         self
     }
 
-    pub fn clear_buffer(&mut self, ctx: &mut ViewContext<Self>) {
-        self.editor.update(ctx, |editor, ctx| {
-            editor.clear_buffer(ctx);
-        });
-    }
 
-    fn handle_editor_event(&mut self, event: &EditorEvent, ctx: &mut ViewContext<Self>) {
-        match event {
-            EditorEvent::Enter => {
-                let prompt = self
-                    .editor
-                    .read(ctx, |editor, ctx| editor.buffer_text(ctx).trim().to_owned());
-                if prompt.is_empty() {
-                    return;
-                }
-
-                if !(self.validator)(&prompt) {
-                    self.has_error = true;
-                    ctx.notify();
-                } else {
-                    self.has_error = false;
-                    self.clear_buffer(ctx);
-                    ctx.emit(GlowingEditorEvent::Submit(prompt));
-                }
-            }
-            EditorEvent::Escape => ctx.emit(GlowingEditorEvent::Cancel),
-            // Clear error state when user types (since this is submit-only validation)
-            EditorEvent::Edited(_) => {
-                if self.has_error {
-                    self.has_error = false;
-                    ctx.notify();
-                }
-            }
-            _ => (),
-        }
-    }
 }
 
 pub enum GlowingEditorEvent {

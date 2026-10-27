@@ -38,7 +38,6 @@ use super::update_environment_form::{
     UpdateEnvironmentFormEvent,
 };
 use super::{SettingsSection, editor_text_colors};
-use crate::ai::ambient_agents::github_auth_url::GithubAuthRedirectTarget;
 use crate::ai::cloud_environments::{self, CloudAmbientAgentEnvironment};
 use crate::appearance::Appearance;
 use crate::cloud_object::model::persistence::{CloudModel, CloudModelEvent};
@@ -547,10 +546,6 @@ impl EnvironmentsPageView {
         view
     }
 
-    /// Returns the current page/mode of the environments view.
-    pub fn current_page(&self) -> &EnvironmentsPage {
-        &self.current_page
-    }
 
     /// Returns the environment setup mode selector view handle for tab-level rendering.
     pub fn environment_setup_mode_selector_handle(
@@ -571,18 +566,6 @@ impl EnvironmentsPageView {
             .then_some(&self.agent_assisted_environment_modal)
     }
 
-    /// Returns the pane configuration for BackingView support.
-    pub fn pane_configuration(&self) -> ModelHandle<crate::pane_group::pane::PaneConfiguration> {
-        self.pane_configuration.clone()
-    }
-    pub fn set_github_auth_redirect_target(
-        &mut self,
-        target: GithubAuthRedirectTarget,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        self.environment_form
-            .update(ctx, |form, _| form.set_github_auth_redirect_target(target));
-    }
 
     /// Focus the environments page view.
     pub fn focus(&mut self, ctx: &mut ViewContext<Self>) {

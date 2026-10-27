@@ -458,21 +458,6 @@ where
         ctx.notify();
     }
 
-    pub fn is_focused(&self, ctx: &AppContext) -> bool {
-        let Some(handle) = self.self_handle.upgrade(ctx) else {
-            return false;
-        };
-
-        if handle.is_focused(ctx) {
-            return true;
-        }
-
-        if self.dropdown.is_focused(ctx) {
-            return true;
-        }
-
-        false
-    }
 
     pub fn set_items(&mut self, items: Vec<DropdownItem<A>>, ctx: &mut ViewContext<Self>) {
         self.dropdown.update(ctx, |dropdown, ctx| {
