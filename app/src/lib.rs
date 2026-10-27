@@ -830,19 +830,6 @@ pub fn run() -> Result<()> {
                 return warp_cli::completions::generate_to_stdout(*shell);
             }
             warp_cli::Command::CommandLine(cmd) => {
-                #[cfg(not(target_family = "wasm"))]
-                if let CliCommand::EnvironmentCheckout(args) = cmd.as_ref() {
-                    let (mut tracing_initialization, parent_context) =
-                        tracing::init_child_process(&args.requests_file)?;
-                    let _parent_context = parent_context.attach();
-                    warp_logging::init(warp_logging::LogConfig {
-                        frontend: warp_logging::LogFrontend::Cli,
-                        log_destination: Some(warp_logging::LogDestination::Stderr),
-                        ..Default::default()
-                    })?;
-                    tracing_initialization.log_initialization_warning();
-                    return ai::agent_sdk::run_environment_checkout(args);
-                }
                 return run_internal(LaunchMode::command_line(
                     cmd.as_ref().clone(),
                     args.global_options().clone(),
@@ -921,10 +908,8 @@ fn run_worker_command(worker: &warp_cli::WorkerCommand) -> Result<()> {
             crate::remote_server::run_daemon(args.identity_key.clone())
         }
         #[cfg(not(target_family = "wasm"))]
-        warp_cli::WorkerCommand::AcpBridge { launch_file } => {
-            // Stdout belongs to the agent's protocol stream, so there is no logging and no
-            // initialize_app.
-            crate::ai::agent_sdk::driver::harness::acp::run_bridge(launch_file)
+        warp_cli::WorkerCommand::AcpBridge { .. } => {
+            anyhow::bail!("Agent harnesses are not available in warp-lite")
         }
         #[cfg(not(target_family = "wasm"))]
         warp_cli::WorkerCommand::RipgrepSearch {
@@ -3221,11 +3206,10 @@ fn launch(ctx: &mut warpui::AppContext, app_state: Option<AppState>, launch_mode
                 if #[cfg(target_family = "wasm")] {
                     panic!("Cannot execute CLI command {command:?} on the web");
                 } else {
-                    if let Err(err) = crate::ai::agent_sdk::run(ctx, command.clone(), global_options.clone()) {
-                        eprintln!("{err:#}");
-                        report_error!(err);
-                        std::process::exit(1);
-                    }
+                    // warp-lite: agent and cloud CLI commands are not available.
+                    let _ = (command, global_options, ctx);
+                    eprintln!("This command is not available in warp-lite");
+                    std::process::exit(1);
                 }
             }
         }

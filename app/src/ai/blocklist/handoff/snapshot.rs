@@ -7,7 +7,6 @@ use remote_server::proto::UploadHandoffSnapshotResponse;
 use warp_util::standardized_path::StandardizedPath;
 use warpui::{SingletonEntity, ViewContext};
 
-use crate::ai::agent_sdk::driver::upload_snapshot_for_handoff;
 use crate::ai::blocklist::handoff::touched_repos::{TouchedWorkspace, derive_touched_workspace};
 use crate::remote_server::manager::RemoteServerManager;
 use crate::server::server_api::ServerApiProvider;
@@ -128,18 +127,11 @@ pub(super) async fn upload_handoff_snapshot(
                 paths.iter().map(|sp| sp.to_local_path_lossy()).collect();
             let workspace = derive_touched_workspace(local_paths).await;
             let repo_paths: Vec<_> = workspace.repos.iter().map(|r| r.git_root.clone()).collect();
-            let upload_result = upload_snapshot_for_handoff(
-                repo_paths,
-                workspace.orphan_files.clone(),
-                ai_client,
-                http.as_ref(),
-            )
-            .await;
-            let result = match upload_result {
-                Ok(Some(token)) => Ok(HandoffUploadResult::Uploaded(token)),
-                Ok(None) => Ok(HandoffUploadResult::EmptyWorkspace),
-                Err(e) => Err(e),
-            };
+            // warp-lite: handoff snapshot uploads are removed.
+            let _ = (repo_paths, ai_client, http);
+            let result = Err(anyhow::anyhow!(
+                "Handoff snapshots are not available in warp-lite"
+            ));
             (workspace, result)
         }
     }

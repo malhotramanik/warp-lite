@@ -26,8 +26,6 @@ use super::ServerApi;
 pub use super::presigned_upload::FileUploadBody;
 pub use super::presigned_upload::UploadBody;
 use crate::ai::agent::api::ServerConversationToken;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_sdk::retry::with_bounded_retry;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::artifacts::Artifact;
 
@@ -506,32 +504,10 @@ impl ServerApi {
         &self,
         task_id: &AmbientAgentTaskId,
     ) -> Result<bytes::Bytes> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            with_bounded_retry("fetch task-scoped harness-support transcript", || async {
-                let response = self
-                    .get_public_api_response_for_task(
-                        task_id,
-                        "harness-support/transcript?redirect=false",
-                    )
-                    .await?;
-                let download = response
-                    .json::<PresignedDownloadResponse>()
-                    .await
-                    .map_err(reqwest::Error::without_url)
-                    .context("Failed to decode task-scoped transcript download URL")?;
-                self.base_client.download_presigned(&download.url).await
-            })
-            .await
-        }
-        #[cfg(target_family = "wasm")]
-        {
-            let _ = task_id;
-            unreachable!(
-                "fetch_transcript_for_task is not supported on wasm; agent_sdk is not built on this target"
-            );
-        }
-    }
+        let _ = task_id;
+        anyhow::bail!("Harness transcripts are not available in warp-lite")
+    
+}
 }
 
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
@@ -667,28 +643,9 @@ impl HarnessSupportClient for ServerApi {
     }
 
     async fn fetch_transcript(&self) -> Result<bytes::Bytes> {
-        #[cfg(not(target_family = "wasm"))]
-        {
-            with_bounded_retry("fetch harness-support transcript", || async {
-                let response = self
-                    .get_public_api_response("harness-support/transcript?redirect=false")
-                    .await?;
-                let download = response
-                    .json::<PresignedDownloadResponse>()
-                    .await
-                    .map_err(reqwest::Error::without_url)
-                    .context("Failed to decode transcript download URL")?;
-                self.base_client.download_presigned(&download.url).await
-            })
-            .await
-        }
-        #[cfg(target_family = "wasm")]
-        {
-            unreachable!(
-                "fetch_transcript is not supported on wasm; agent_sdk is not built on this target"
-            );
-        }
-    }
+        anyhow::bail!("Harness transcripts are not available in warp-lite")
+    
+}
 
     fn external_http_client(&self) -> &http_client::Client {
         self.base_client.external_http_client()

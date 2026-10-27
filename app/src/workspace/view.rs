@@ -182,8 +182,6 @@ use crate::ai::agent_management::notifications::view::{
 };
 use crate::ai::agent_management::telemetry::AgentManagementTelemetryEvent;
 use crate::ai::agent_management::view::{AgentManagementView, AgentManagementViewEvent};
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent_sdk::driver::harness::{claude_transcript, codex_transcript};
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::ambient_agents::telemetry::{CloudAgentTelemetryEvent, CloudModeEntryPoint};
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
@@ -13879,95 +13877,6 @@ impl Workspace {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    fn continue_third_party_conversation_locally(
-        &mut self,
-        task_id: AmbientAgentTaskId,
-        harness: AIAgentHarness,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let window_id = ctx.window_id();
-        let ai_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-
-        ctx.spawn(
-            async move {
-                let transcript_file = tempfile::Builder::new()
-                    .prefix("warp_run_transcript_")
-                    .suffix(".json")
-                    .tempfile()
-                    .context("Failed to create temporary transcript file")?;
-                let transcript_path = transcript_file.path().to_path_buf();
-
-                ai_client
-                    .download_run_transcript_to_path(&task_id, &transcript_path)
-                    .await
-                    .context("Failed to download run transcript")?;
-
-                let file = std::fs::File::open(&transcript_path)
-                    .context("Failed to open downloaded run transcript")?;
-                match harness {
-                    AIAgentHarness::ClaudeCode => {
-                        let launch =
-                            claude_transcript::rehydrate_claude_transcript_from_reader(file)?;
-                        Ok(ThirdPartyLocalContinuationLaunch {
-                            command: launch.command,
-                        })
-                    }
-                    AIAgentHarness::Codex => {
-                        let launch =
-                            codex_transcript::rehydrate_codex_transcript_from_reader(file)?;
-                        Ok(ThirdPartyLocalContinuationLaunch {
-                            command: launch.command,
-                        })
-                    }
-                    _ => anyhow::bail!(
-                        "Local continuation is not supported for this harness"
-                    ),
-                }
-            },
-            move |workspace, result, ctx| {
-                let launch = match result {
-                    Ok(launch) => launch,
-                    Err(err) => {
-                        log::warn!(
-                            "Failed to continue third-party conversation locally: {err:#}"
-                        );
-                        WorkspaceToastStack::handle(ctx).update(ctx, |toast_stack, ctx| {
-                            let toast = DismissibleToast::error(
-                                "Couldn't continue this conversation locally. Check the logs for details."
-                                    .to_owned(),
-                            );
-                            toast_stack.add_ephemeral_toast(toast, window_id, ctx);
-                        });
-                        return;
-                    }
-                };
-
-                let active_pane_group = workspace.active_tab_pane_group().clone();
-                let new_pane_id = active_pane_group.update(ctx, |pane_group, ctx| {
-                    pane_group.add_terminal_pane_ignoring_default_session_mode(
-                        PaneGroupDirection::Right,
-                        None,
-                        ctx,
-                    )
-                });
-
-                let Some(terminal_view) = active_pane_group
-                    .as_ref(ctx)
-                    .terminal_view_from_pane_id(new_pane_id, ctx)
-                else {
-                    report_error!(
-                        "Could not get terminal view handle when continuing third-party conversation locally."
-                    );
-                    return;
-                };
-
-                terminal_view.update(ctx, |terminal, ctx| {
-                    terminal.set_pending_command(&launch.command, ctx);
-                });
-            },
-        );
-    }
     /// Fork an existing AI conversation.
     /// Optionally summarizes the conversation after forking and/or sends an initial prompt.
     /// When cloud conversation storage is enabled and the source has a server token,
@@ -25961,7 +25870,8 @@ impl TypedActionView for Workspace {
             }
             #[cfg(not(target_family = "wasm"))]
             ContinueThirdPartyConversationLocally { task_id, harness } => {
-                self.continue_third_party_conversation_locally(*task_id, *harness, ctx);
+                // warp-lite: third-party harness continuation is removed.
+                let _ = (task_id, harness);
             }
             SummarizeAIConversation {
                 prompt,
