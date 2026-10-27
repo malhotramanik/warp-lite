@@ -9,7 +9,7 @@ pub(crate) use batch::ReviewCommentBatch;
 #[cfg(test)]
 pub(crate) use comment::ImportedCommentDetails;
 pub(crate) use comment::{
-    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, CommentOrigin, LineDiffContent,
+    AttachedReviewComment, AttachedReviewCommentTarget, CommentId, LineDiffContent,
 };
 pub(crate) use convert::convert_insert_review_comments;
 pub(crate) use pending_imported::{

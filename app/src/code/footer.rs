@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use lsp::supported_servers::LSPServerType;
 use lsp::{
-    LanguageId, LanguageServerId, LspManagerModel, LspManagerModelEvent, LspServerModel,
+    LanguageId, LanguageServerId, LspManagerModel, LspServerModel,
     LspState as LspModelState,
 };
 use pathfinder_color::ColorU;

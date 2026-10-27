@@ -1814,14 +1814,6 @@ impl LLMPreferences {
         *last_update.popup_visibility_state.lock() = UpdatePopupVisibilityState::Hidden;
     }
 
-    /// Fetches the latest set of models from the server for the currently logged in user, and updates the model.
-    pub fn refresh_authed_models(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.refresh_authed_models_for_team_uid(scope.team_uid(), ctx);
-    }
 
     fn refresh_authed_models_for_team_uid(
         &self,
@@ -1857,37 +1849,7 @@ impl LLMPreferences {
         );
     }
 
-    /// No auth required (i.e. to populate the pre-login onboarding picker).
-    fn refresh_public_models(&self, ctx: &mut ModelContext<Self>) {
-        let ai_api_client = ServerApiProvider::as_ref(ctx).get_ai_client();
-        ctx.spawn(
-            async move { ai_api_client.get_free_available_models(None).await },
-            |me, result, ctx| match result {
-                Ok(update) => {
-                    if update
-                        != *UserWorkspaces::as_ref(ctx).feature_model_choice_for_team_uid(None)
-                    {
-                        me.on_server_update(None, update, ctx);
-                    }
-                }
-                Err(e) => {
-                    report_error!(e.context("Failed to fetch free-tier LLMs from server"));
-                }
-            },
-        );
-    }
 
-    pub fn refresh_available_models(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if AuthStateProvider::as_ref(ctx).get().is_logged_in() {
-            self.refresh_authed_models(scope, ctx);
-        } else {
-            self.refresh_public_models(ctx);
-        }
-    }
 
     /// Refetches the server's model catalogs when the connected ChatGPT subscription starts or
     /// stops funding OpenAI requests, since the server derives the agent-mode default and the

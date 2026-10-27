@@ -7,7 +7,7 @@ use warpui::platform::OperatingSystem;
 use warpui::units::IntoLines;
 
 use super::{
-    AgentOnboardingVersion, AskAISource, ContextMenuAction, OnboardingIntention, OnboardingVersion,
+    AgentOnboardingVersion, AskAISource, ContextMenuAction,  OnboardingVersion,
     TerminalAction,
 };
 use crate::ai::blocklist::agent_view::{
@@ -871,54 +871,6 @@ pub fn init(app: &mut AppContext) {
             id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
         ),
         // AgentModality callout debug bindings
-        EditableBinding::new(
-            "terminal:agent_onboarding_flow_modality_project",
-            "[Debug] Onboarding Callout: Modality - Project",
-            TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
-                AgentOnboardingVersion::AgentModality {
-                    has_project: true,
-                    intention: OnboardingIntention::AgentDrivenDevelopment,
-                },
-            )),
-        )
-        .with_enabled(|| {
-            FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
-        })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
-        EditableBinding::new(
-            "terminal:agent_onboarding_flow_modality_no_project",
-            "[Debug] Onboarding Callout: Modality - No Project",
-            TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
-                AgentOnboardingVersion::AgentModality {
-                    has_project: false,
-                    intention: OnboardingIntention::AgentDrivenDevelopment,
-                },
-            )),
-        )
-        .with_enabled(|| {
-            FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
-        })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
-        EditableBinding::new(
-            "terminal:agent_onboarding_flow_modality_terminal",
-            "[Debug] Onboarding Callout: Modality - Terminal",
-            TerminalAction::OnboardingFlow(OnboardingVersion::Agent(
-                AgentOnboardingVersion::AgentModality {
-                    has_project: false,
-                    intention: OnboardingIntention::Terminal,
-                },
-            )),
-        )
-        .with_enabled(|| {
-            FeatureFlag::AgentOnboarding.is_enabled() && ChannelState::enable_debug_features()
-        })
-        .with_context_predicate(
-            id!("Terminal") & id!(SharedSessionStatus::NotShared.as_keymap_context()),
-        ),
     ]);
 
     app.register_editable_bindings([EditableBinding::new(

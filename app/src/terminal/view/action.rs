@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use ai::skills::SkillReference;
 use command_corrections::Correction;
-pub use onboarding::OnboardingIntention;
 use pathfinder_geometry::vector::Vector2F;
 use session_sharing_protocol::common::Role;
 use session_sharing_protocol::sharer::RoleUpdateReason;
@@ -55,7 +54,6 @@ pub enum AgentOnboardingVersion {
     },
     AgentModality {
         has_project: bool,
-        intention: OnboardingIntention,
     },
 }
 

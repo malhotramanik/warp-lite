@@ -13,7 +13,6 @@ use warp_core::ui::appearance::Appearance;
 use warp_core::ui::theme::Fill;
 use warp_core::ui::theme::color::internal_colors;
 use warp_editor::editor::EditorView;
-use warp_editor::render::element::lens_element::RichTextElementLens;
 use warp_editor::render::element::{RenderableBlock, RichTextElement, VerticalExpansionBehavior};
 use warp_editor::render::model::{
     BlockLocation, ExpansionType, LineCount, RenderState, gutter_expansion_button_types,
@@ -27,7 +26,7 @@ use warpui::elements::{
 use warpui::event::DispatchedEvent;
 use warpui::fonts::FamilyId;
 use warpui::ui_components::components::UiComponent;
-use warpui::units::{IntoPixels, Pixels};
+use warpui::units::Pixels;
 use warpui::{
     AfterLayoutContext, AppContext, ClipBounds, Element, Event, EventContext, LayoutContext,
     ModelHandle, PaintContext, SingletonEntity, SizeConstraint,

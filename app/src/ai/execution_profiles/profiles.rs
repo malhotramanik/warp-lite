@@ -795,14 +795,6 @@ impl AIExecutionProfilesModel {
         });
     }
 
-    /// Returns whether onboarding must leave the existing default profile unchanged.
-    pub fn should_preserve_onboarding_profile(&self, ctx: &AppContext) -> bool {
-        if self.settings_are_authoritative() {
-            self.preserve_profile_onboarding_overrides
-        } else {
-            self.default_profile(ctx).sync_id().is_some()
-        }
-    }
 
     /// This function performs one-time migrations from legacy settings into the default profile.
     /// The issue this solves is that, whenever we migrate an existing setting into the profile object,
@@ -1269,32 +1261,6 @@ impl AIExecutionProfilesModel {
         }
     }
 
-    pub fn set_apply_code_diffs(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        apply_code_diffs: &ActionPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.apply_code_diffs != *apply_code_diffs {
-                    profile.apply_code_diffs = *apply_code_diffs;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "apply_code_diffs".to_string(),
-                setting_value: format!("{apply_code_diffs:?}"),
-            },
-            ctx
-        );
-    }
 
     pub fn set_read_files(
         &mut self,
@@ -1323,32 +1289,6 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn set_execute_commands(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        execute_commands: &ActionPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.execute_commands != *execute_commands {
-                    profile.execute_commands = *execute_commands;
-                    return true;
-                }
-                false
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "execute_commands".to_string(),
-                setting_value: format!("{execute_commands:?}"),
-            },
-            ctx
-        );
-    }
 
     pub fn set_write_to_pty(
         &mut self,
@@ -1376,38 +1316,6 @@ impl AIExecutionProfilesModel {
         );
     }
 
-    pub fn set_mcp_permissions(
-        &mut self,
-        profile_id: &ExecutionProfileId,
-        mcp_permissions: &ActionPermission,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.edit_profile_internal(
-            profile_id,
-            |profile| {
-                if profile.mcp_permissions == *mcp_permissions {
-                    return false;
-                }
-
-                if mcp_permissions == &ActionPermission::AlwaysAllow {
-                    profile.mcp_allowlist.clear();
-                } else if mcp_permissions == &ActionPermission::AlwaysAsk {
-                    profile.mcp_denylist.clear();
-                }
-                profile.mcp_permissions = *mcp_permissions;
-                true
-            },
-            ctx,
-        );
-
-        send_telemetry_from_ctx!(
-            TelemetryEvent::AIExecutionProfileSettingUpdated {
-                setting_type: "mcp_permissions".to_string(),
-                setting_value: format!("{mcp_permissions:?}"),
-            },
-            ctx
-        );
-    }
 
 
     pub fn set_ask_user_question(

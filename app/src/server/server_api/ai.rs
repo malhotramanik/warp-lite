@@ -73,10 +73,6 @@ use warp_graphql::platform_error::PlatformErrorInfo;
 use warp_graphql::queries::codebase_context_config::{
     CodebaseContextConfigQuery, CodebaseContextConfigResult, CodebaseContextConfigVariables,
 };
-use warp_graphql::queries::free_available_models::{
-    FreeAvailableModels, FreeAvailableModelsInput, FreeAvailableModelsResult,
-    FreeAvailableModelsVariables,
-};
 #[cfg(not(feature = "agent_mode_evals"))]
 use warp_graphql::queries::get_ai_credit_availability::{
     GetAICreditAvailability, GetAICreditAvailabilityVariables,
@@ -827,13 +823,6 @@ pub trait AIClient: 'static + Send + Sync {
         team_scope: RequestTeamScope,
     ) -> Result<ListConnectedSelfHostedWorkersResponse, anyhow::Error>;
 
-    /// Fetches the free-tier available models without requiring authentication.
-    /// Used during pre-login onboarding so logged-out users see an accurate model list
-    /// instead of the hard-coded `ModelsByFeature::default()` fallback.
-    async fn get_free_available_models(
-        &self,
-        referrer: Option<String>,
-    ) -> Result<ModelsByFeature, anyhow::Error>;
 
     async fn update_merkle_tree(
         &self,
@@ -1471,45 +1460,6 @@ impl AIClient for ServerApi {
         }
     }
 
-    async fn get_free_available_models(
-        &self,
-        referrer: Option<String>,
-    ) -> Result<ModelsByFeature, anyhow::Error> {
-        // This resolver is public; it does not require an auth token. We must NOT go through
-        // `send_graphql_request`, which awaits `get_or_refresh_access_token()`
-        let variables = FreeAvailableModelsVariables {
-            input: FreeAvailableModelsInput { referrer },
-            request_context: get_request_context(),
-        };
-        let operation = FreeAvailableModels::build(variables);
-
-        // Best-effort: if the user has a valid token (e.g. anonymous Firebase), include it;
-        // otherwise send unauthenticated. Either is acceptable for this resolver.
-        let auth_token = self
-            .get_or_refresh_access_token()
-            .await
-            .ok()
-            .and_then(|token| token.bearer_token());
-
-        let response = operation
-            .send_request(
-                self.base_client.owned_http_client(),
-                self.base_client
-                    .graphql_request_options_with_token(auth_token),
-            )
-            .await?
-            .data
-            .ok_or_else(|| anyhow!("Missing data in freeAvailableModels response"))?;
-
-        match response.free_available_models {
-            FreeAvailableModelsResult::FreeAvailableModelsOutput(output) => {
-                output.feature_model_choice.try_into()
-            }
-            FreeAvailableModelsResult::Unknown => {
-                Err(anyhow!("Unexpected freeAvailableModels response variant"))
-            }
-        }
-    }
 
     async fn update_merkle_tree(
         &self,
