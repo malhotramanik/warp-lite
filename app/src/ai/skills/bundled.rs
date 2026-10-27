@@ -36,13 +36,6 @@ pub enum BundledSkillActivation {
 
 pub(crate) const FACTORY_DEFERRED_REPOSITORIES_SKILL: &str = "factory-deferred-repositories";
 
-pub(crate) fn factory_deferred_repositories_skill_path() -> Option<PathBuf> {
-    warp_core::paths::bundled_resources_dir().map(|root| {
-        root.join("bundled")
-            .join("skills")
-            .join(FACTORY_DEFERRED_REPOSITORIES_SKILL)
-    })
-}
 
 impl BundledSkillActivation {
     pub fn is_enabled(&self, ctx: &AppContext) -> bool {

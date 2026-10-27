@@ -53,8 +53,6 @@ use crate::pane_group::child_agent::{
 };
 use crate::pane_group::{self, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::ServerApiProvider;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::CloudAgentShellRecoveryFailureClass;
 use crate::session_management::SessionNavigationData;
@@ -1559,7 +1557,7 @@ fn handle_terminal_view_event(
 fn dispatch_start_agent_conversation(
     group: &mut PaneGroup,
     parent_pane_id: PaneId,
-    terminal_pane_id: TerminalPaneId,
+    _terminal_pane_id: TerminalPaneId,
     request: StartAgentRequest,
     ctx: &mut ViewContext<PaneGroup>,
 ) {

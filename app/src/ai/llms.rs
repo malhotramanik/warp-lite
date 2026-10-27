@@ -1277,21 +1277,7 @@ impl LLMPreferences {
             .unwrap_or_else(|| available.default_llm_info())
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn set_computer_use_llm_override(
-        &mut self,
-        terminal_view_id: EntityId,
-        model_id: Option<LLMId>,
-    ) {
-        self.computer_use_llm_for_terminal_view
-            .insert(terminal_view_id, model_id);
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn clear_computer_use_llm_override(&mut self, terminal_view_id: EntityId) {
-        self.computer_use_llm_for_terminal_view
-            .remove(&terminal_view_id);
-    }
 
     /// Helper to get the AvailableLLMs for computer_use.
     /// Falls back to a computer-use-specific default if None.

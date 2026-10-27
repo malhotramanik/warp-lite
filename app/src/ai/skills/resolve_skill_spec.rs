@@ -16,7 +16,6 @@ use std::path::{Path, PathBuf};
 use ai::skills::{
     ParsedSkill, SKILL_PROVIDER_DEFINITIONS, SkillProvider, home_skills_path, parse_skill,
 };
-use command::r#async::Command as AsyncCommand;
 use command::blocking::Command;
 use warp_cli::skill::SkillSpec;
 use warp_util::local_or_remote_path::LocalOrRemotePath;
@@ -136,72 +135,6 @@ pub fn resolve_skill_spec(
     }
 }
 
-/// Clone a repository from GitHub into the working directory for skill resolution.
-///
-/// Uses HTTPS format: `https://github.com/org/repo.git`
-///
-/// This is used in sandboxed environments to auto-clone repos when a fully-qualified
-/// skill spec references a repo that doesn't exist locally.
-pub async fn clone_repo_for_skill(
-    org: &str,
-    repo: &str,
-    working_dir: &Path,
-) -> Result<(), ResolveSkillError> {
-    let repo_url = format!("https://github.com/{org}/{repo}.git");
-    let target_dir = working_dir.join(repo);
-
-    // Check if target already exists.
-    if target_dir.exists() {
-        if target_dir.join(".git").is_dir() {
-            log::info!(
-                "Target directory {} already exists and appears to be a git repo, skipping clone",
-                target_dir.display()
-            );
-            return Ok(());
-        }
-
-        return Err(ResolveSkillError::CloneFailed {
-            org: org.to_string(),
-            repo: repo.to_string(),
-            message: format!(
-                "Target directory {} already exists but is not a git repository",
-                target_dir.display()
-            ),
-        });
-    }
-
-    log::info!("Cloning {} into {}", repo_url, target_dir.display());
-    log::debug!(
-        "[GIT OPERATION] resolve_skill_spec.rs clone_repo_for_skill git clone {} {}",
-        repo_url,
-        target_dir.display()
-    );
-
-    let output = AsyncCommand::new("git")
-        .arg("clone")
-        .arg(&repo_url)
-        .arg(&target_dir)
-        .current_dir(working_dir)
-        .output()
-        .await
-        .map_err(|e| ResolveSkillError::CloneFailed {
-            org: org.to_string(),
-            repo: repo.to_string(),
-            message: format!("Failed to execute git clone: {e}"),
-        })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(ResolveSkillError::CloneFailed {
-            org: org.to_string(),
-            repo: repo.to_string(),
-            message: stderr.trim().to_string(),
-        });
-    }
-
-    log::info!("Successfully cloned {org}/{repo}");
-    Ok(())
-}
 
 fn resolve_repo_qualified(
     spec: &SkillSpec,

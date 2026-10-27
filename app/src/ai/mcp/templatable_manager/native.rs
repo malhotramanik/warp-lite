@@ -104,35 +104,6 @@ pub enum McpIntegration {
 }
 
 impl TemplatableMCPServerManager {
-    pub(crate) fn replace_runtime_environment(
-        &mut self,
-        environment: HashMap<String, String>,
-        ctx: &mut ModelContext<Self>,
-    ) -> (
-        Vec<TemplatableMCPServerInstallation>,
-        Vec<oneshot::Receiver<()>>,
-    ) {
-        let uuids: HashSet<_> = self
-            .active_servers
-            .keys()
-            .chain(self.spawned_servers.keys())
-            .copied()
-            .collect();
-        let retained = uuids
-            .iter()
-            .filter(|uuid| {
-                !self.cli_spawned_server_uuids.contains(uuid)
-                    && !self.builtin_server_uuids.contains(uuid)
-            })
-            .filter_map(|uuid| self.reconnectable_installation(*uuid).cloned())
-            .collect();
-        self.runtime_environment = environment;
-        let stopped = uuids
-            .into_iter()
-            .map(|uuid| self.shutdown_server_and_wait(uuid, ctx))
-            .collect();
-        (retained, stopped)
-    }
 
     /// Returns `true` if the given MCP integration is currently running.
     pub fn is_mcp_server_running(&self, integration: McpIntegration) -> bool {
@@ -686,14 +657,6 @@ impl TemplatableMCPServerManager {
         });
     }
 
-    /// Get all runnable MCP servers (templatable installations).
-    pub fn get_all_runnable_mcp_servers(ctx: &AppContext) -> Vec<(Uuid, String)> {
-        TemplatableMCPServerManager::as_ref(ctx)
-            .get_installed_templatable_servers()
-            .iter()
-            .map(|(uuid, installation)| (*uuid, installation.templatable_mcp_server().name.clone()))
-            .collect()
-    }
 
     /// Get all cloud synced MCP servers (templatable templates).
     pub fn get_all_cloud_synced_mcp_servers(ctx: &AppContext) -> HashMap<Uuid, String> {
@@ -788,15 +751,6 @@ impl TemplatableMCPServerManager {
         );
     }
 
-    /// Spawns an ephemeral MCP server started via the CLI (`oz agent run --mcp`).
-    pub fn spawn_cli_ephemeral_server(
-        &mut self,
-        installation: TemplatableMCPServerInstallation,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.cli_spawned_server_uuids.insert(installation.uuid());
-        self.spawn_ephemeral_server(installation, ctx);
-    }
 
     /// Reconciles built-in Warp-hosted MCP servers (currently the Factory
     /// MCP) with the feature-flag and auth state: spawns the server when it

@@ -2,10 +2,6 @@ use serde::Deserialize;
 
 use super::HarnessUsagePublicationStatus;
 
-#[derive(Deserialize)]
-pub(super) struct StartupCapability {
-    pub execution_id: i64,
-}
 
 #[derive(Deserialize)]
 pub(super) struct PublicationAcknowledgment {

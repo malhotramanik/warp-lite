@@ -49,7 +49,7 @@ pub(crate) use team_workspace_settings::TeamContextForOperationResolver;
 #[cfg(test)]
 pub(crate) use team_workspace_settings::TeamlessScopeForTest;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) use team_workspace_settings::{GeminiEnterpriseBackgroundHost, HeadlessTeamScope};
+pub(crate) use team_workspace_settings::GeminiEnterpriseBackgroundHost;
 pub use team_workspace_settings::{
     ResolvedTeamScope, TeamContext, TeamContextForOperation, TeamContextResolver, TeamScope,
 };

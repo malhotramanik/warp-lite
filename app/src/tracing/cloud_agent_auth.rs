@@ -123,9 +123,6 @@ impl AuthContext {
         })
     }
 
-    pub(super) fn snapshot(&self) -> Option<CredentialSnapshot> {
-        self.token_store.valid_snapshot()
-    }
 
     /// Creates a transport sharing the latest credential while leaving the exporter itself stable.
     pub(super) fn http_client(&self) -> AuthenticatedHttpClient {
@@ -178,21 +175,6 @@ impl TokenStore {
         (snapshot.expires_at > Utc::now()).then(|| snapshot.authorization_header.clone())
     }
 
-    fn valid_snapshot(&self) -> Option<CredentialSnapshot> {
-        let snapshot = self.inner.read().unwrap_or_else(|err| err.into_inner());
-        if snapshot.expires_at <= Utc::now() {
-            return None;
-        }
-        Some(CredentialSnapshot {
-            token: snapshot
-                .authorization_header
-                .to_str()
-                .ok()?
-                .strip_prefix("Bearer ")?
-                .to_owned(),
-            expires_at: snapshot.expires_at,
-        })
-    }
 
     /// Atomically replaces the current snapshot only with a usable unexpired credential.
     fn replace(&self, token: String, expires_at: DateTime<Utc>) -> anyhow::Result<()> {

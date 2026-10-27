@@ -954,15 +954,6 @@ impl OrchestrationEventStreamer {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn persist_dormant_claude_wake_cursor(
-        &mut self,
-        conversation_id: AIConversationId,
-        wake_message: &AgentMessageEventMetadata,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.persist_event_cursor(conversation_id, wake_message.sequence, ctx);
-    }
     pub fn new(ctx: &mut ModelContext<Self>) -> Self {
         let provider = ServerApiProvider::as_ref(ctx);
         let ai_client = provider.get_ai_client();

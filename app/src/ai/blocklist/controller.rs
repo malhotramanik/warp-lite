@@ -13,8 +13,6 @@ pub(super) mod shared_session;
 mod slash_command;
 mod startup_queue;
 use std::collections::{HashMap, HashSet};
-#[cfg(not(target_family = "wasm"))]
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -74,8 +72,6 @@ use crate::notebooks::editor::model::FileLinkResolutionContext;
 use crate::persistence::ModelEvent;
 use crate::send_telemetry_from_ctx;
 use crate::server::server_api::AIApiError;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::server_api::ServerApiProvider;
 use crate::server::team_scope::RequestTeamScope;
 use crate::server::telemetry::TelemetryEvent;
 use crate::terminal::ShellLaunchData;
@@ -432,13 +428,6 @@ enum LocalClaudeWakeTrigger {
 }
 
 impl LocalClaudeWakeTrigger {
-    #[cfg(not(target_family = "wasm"))]
-    fn requires_pending_events(&self) -> bool {
-        match self {
-            Self::PendingEvents => true,
-            Self::WakeOnlyStream { .. } => false,
-        }
-    }
 }
 
 struct InputQuery {
@@ -2333,34 +2322,7 @@ impl BlocklistAIController {
     }
 
 
-    #[cfg(not(target_family = "wasm"))]
-    fn schedule_pending_events_ready_retry(
-        &mut self,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.spawn(
-            async move { Timer::after(Duration::from_secs(2)).await },
-            move |me, _, ctx| {
-                me.handle_pending_events_ready(conversation_id, ctx);
-            },
-        );
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    fn schedule_dormant_claude_wake_ready_retry(
-        &mut self,
-        conversation_id: AIConversationId,
-        wake_message: AgentMessageEventMetadata,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        ctx.spawn(
-            async move { Timer::after(Duration::from_secs(2)).await },
-            move |me, _, ctx| {
-                me.handle_dormant_claude_wake_ready(conversation_id, wake_message.clone(), ctx);
-            },
-        );
-    }
 
     fn inject_pending_events_for_request(
         &mut self,

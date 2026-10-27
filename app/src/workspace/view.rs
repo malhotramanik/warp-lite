@@ -165,8 +165,6 @@ use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
 use crate::ai::agent::CancellationReason;
 use crate::ai::agent::api::ServerConversationToken;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::agent::conversation::AIAgentHarness;
 use crate::ai::agent::conversation::{AIConversation, AIConversationId};
 use crate::ai::agent::{AIAgentInput, EntrypointType};
 #[cfg(target_family = "wasm")]
@@ -1017,10 +1015,6 @@ pub struct TransferredTab {
     pub right_panel_open: bool,
     pub is_right_panel_maximized: bool,
     pub draggable_state: DraggableState,
-}
-#[cfg(not(target_family = "wasm"))]
-struct ThirdPartyLocalContinuationLaunch {
-    command: String,
 }
 
 /// Per-`TabGroupId` hover state for the horizontal tab bar header.

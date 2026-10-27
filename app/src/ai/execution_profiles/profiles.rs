@@ -1101,32 +1101,7 @@ impl AIExecutionProfilesModel {
         self.session_computer_use.get(&terminal_view_id)
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn set_session_computer_use(
-        &mut self,
-        terminal_view_id: EntityId,
-        enabled: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.session_computer_use
-            .insert(terminal_view_id, SessionComputerUse { enabled });
-        ctx.emit(AIExecutionProfilesModelEvent::UpdatedActiveProfile { terminal_view_id });
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn clear_session_computer_use(
-        &mut self,
-        terminal_view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if self
-            .session_computer_use
-            .remove(&terminal_view_id)
-            .is_some()
-        {
-            ctx.emit(AIExecutionProfilesModelEvent::UpdatedActiveProfile { terminal_view_id });
-        }
-    }
 
     /// Returns a profile by its client ID.
     /// Returns None if the profile is not found.

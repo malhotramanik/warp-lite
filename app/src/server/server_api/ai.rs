@@ -83,10 +83,6 @@ use warp_graphql::platform_error::PlatformErrorInfo;
 use warp_graphql::queries::codebase_context_config::{
     CodebaseContextConfigQuery, CodebaseContextConfigResult, CodebaseContextConfigVariables,
 };
-#[cfg(not(target_family = "wasm"))]
-use warp_graphql::queries::execution_config::{
-    BootstrapTaskResult, ExecutionBootstrap, ExecutionBootstrapVariables, ExecutionConfiguration,
-};
 use warp_graphql::queries::free_available_models::{
     FreeAvailableModels, FreeAvailableModelsInput, FreeAvailableModelsResult,
     FreeAvailableModelsVariables,
@@ -136,8 +132,6 @@ use warp_graphql::queries::task_git_credentials::{
     TaskGitCredentialsLegacyInput, TaskGitCredentialsLegacyResult,
     TaskGitCredentialsLegacyVariables, TaskGitCredentialsResult, TaskGitCredentialsVariables,
 };
-#[cfg(not(target_family = "wasm"))]
-use warp_graphql::queries::task_secrets::{ManagedSecretValue, TaskSecretsInput};
 use warp_multi_agent_api::ConversationData;
 use warp_server_client::PresignedDownloadResponse;
 
@@ -189,12 +183,6 @@ use crate::{
 
 const AI_ASSISTANT_REQUEST_TIMEOUT_SECONDS: u64 = 30;
 
-#[cfg(not(target_family = "wasm"))]
-pub(crate) struct ExecutionBootstrapData {
-    pub config: ExecutionConfiguration,
-    pub secrets: anyhow::Result<HashMap<String, ManagedSecretValue>>,
-    pub attachments: anyhow::Result<Vec<TaskAttachment>>,
-}
 
 /// A status update for a task, optionally including a platform error code.
 pub struct TaskStatusUpdate {
@@ -1759,45 +1747,6 @@ fn task_attachments_from_result(result: TaskResult) -> anyhow::Result<Vec<TaskAt
 }
 
 impl ServerApi {
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) async fn get_execution_bootstrap(
-        &self,
-        task_id: &str,
-        execution_id: &str,
-        workload_token: String,
-        supports_deferred_repositories: bool,
-    ) -> anyhow::Result<ExecutionBootstrapData> {
-        let operation = ExecutionBootstrap::build_with_capabilities(ExecutionBootstrapVariables {
-            execution_id: execution_id.to_string().into(),
-            supports_deferred_repositories,
-            secrets_input: TaskSecretsInput {
-                task_id: task_id.to_string().into(),
-                workload_token,
-            },
-            task_input: TaskInput {
-                task_id: task_id.to_string().into(),
-            },
-            request_context: get_request_context(),
-        })?;
-        let response = self.send_graphql_request(operation, None).await?;
-        let (config, attachments) = match response.task {
-            BootstrapTaskResult::TaskOutput(output) => (
-                output.task.execution_config,
-                Ok(task_attachments_from_list(output.task.attachments)),
-            ),
-            BootstrapTaskResult::UserFacingError(error) => {
-                return Err(anyhow!(get_user_facing_error_message(error)));
-            }
-            BootstrapTaskResult::Unknown => {
-                return Err(anyhow!("Unknown execution task response"));
-            }
-        };
-        Ok(ExecutionBootstrapData {
-            config,
-            secrets: super::managed_secrets::task_secrets_from_result(response.task_secrets),
-            attachments,
-        })
-    }
     async fn get_public_api_with_team_scope<R>(
         &self,
         path: &str,
@@ -1826,28 +1775,6 @@ impl ServerApi {
         Ok(response)
     }
 
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) async fn list_agent_messages_for_task(
-        &self,
-        task_id: &AmbientAgentTaskId,
-        run_id: &str,
-        request: ListAgentMessagesRequest,
-    ) -> anyhow::Result<Vec<AgentMessageHeader>, anyhow::Error> {
-        let mut params = vec![format!("limit={}", request.limit)];
-        if request.unread_only {
-            params.push("unread=true".to_string());
-        }
-        if let Some(since) = request.since {
-            params.push(format!("since={}", urlencoding::encode(&since)));
-        }
-
-        let path = format!("agent/messages/{run_id}?{}", params.join("&"));
-        let response = self
-            .get_public_api_response_for_task(task_id, &path)
-            .await?;
-        let response = response.json::<Vec<AgentMessageHeader>>().await?;
-        Ok(response)
-    }
 
     pub(crate) async fn mark_message_delivered_for_task(
         &self,

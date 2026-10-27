@@ -14,85 +14,18 @@ use crate::ai::attachment_utils::{
     build_file_attachment_map, download_task_file_attachments, resolve_agent_attachments,
 };
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
-use crate::ai::blocklist::orchestration_events::OrchestrationEventService;
 use crate::ai::blocklist::{
-    BlocklistAIHistoryModel, QueuedPromptDeliveryMode, QueuedQuery, QueuedQueryId, QueuedQueryModel,
+    BlocklistAIHistoryModel, QueuedQuery, QueuedQueryId, QueuedQueryModel,
 };
 use crate::server::server_api::ServerApiProvider;
 
 impl BlocklistAIController {
-    /// Binds this controller to a native conversation before session sharing can begin
-    /// delivering startup follow-ups, so `route_native_startup_injection` knows which
-    /// conversation to target for the rest of this run. Idempotent: returns the existing
-    /// binding if one is already in place.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn bind_native_prompt_conversation(
-        &mut self,
-        restored_conversation_id: Option<AIConversationId>,
-        ctx: &mut ModelContext<Self>,
-    ) -> AIConversationId {
-        if let Some(id) = self.native_prompt_conversation_id {
-            return id;
-        }
-        let id = restored_conversation_id.unwrap_or_else(|| {
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history, ctx| {
-                history.start_new_conversation(self.terminal_surface_id, false, false, false, ctx)
-            })
-        });
-        self.native_prompt_conversation_id = Some(id);
-        log::info!(
-            "event=native_queue_initialized task_id={:?} terminal_id={:?} conversation_id={id} resumed={}",
-            self.ambient_agent_task_id,
-            self.terminal_surface_id,
-            restored_conversation_id.is_some(),
-        );
-        QueuedQueryModel::handle(ctx).update(ctx, |queue, ctx| {
-            queue.begin_native_setup(id, ctx);
-            queue.set_delivery_mode(id, QueuedPromptDeliveryMode::Steering);
-        });
-        id
-    }
 
     #[cfg_attr(target_family = "wasm", allow(dead_code))]
     pub(crate) fn native_prompt_conversation_id(&self) -> Option<AIConversationId> {
         self.native_prompt_conversation_id
     }
 
-    /// Unbinds this controller from its native conversation, dropping any prompts still queued
-    /// for it (e.g. the run ended before setup finished, or before a dispatch that was deferred
-    /// behind an active CLI subagent could go out) and releasing the native setup barrier if it
-    /// was still held -- otherwise this conversation would stay permanently dispatch-blocked for
-    /// any future local queueing against it, since nothing else would ever release that barrier.
-    ///
-    /// For a conversation whose turns an external harness authored, any orchestration events
-    /// still held behind that barrier are dropped first: releasing the barrier re-checks them,
-    /// and injecting them would open a native request the server cannot serve.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn unbind_native_prompt_conversation(&mut self, ctx: &mut ModelContext<Self>) {
-        let Some(id) = self.native_prompt_conversation_id.take() else {
-            return;
-        };
-        self.external_harness_prompt_sink = None;
-        self.external_harness_cancel_sink = None;
-        let unsent_count = QueuedQueryModel::as_ref(ctx).queue(id).len();
-        log::info!(
-            "event=native_queue_stopped task_id={:?} terminal_id={:?} conversation_id={id} unsent_count={unsent_count}",
-            self.ambient_agent_task_id,
-            self.terminal_surface_id,
-        );
-        let owns_turn_lifecycle = BlocklistAIHistoryModel::as_ref(ctx)
-            .conversation(&id)
-            .is_none_or(|conversation| conversation.driver().owns_turn_lifecycle());
-        if !owns_turn_lifecycle {
-            OrchestrationEventService::handle(ctx).update(ctx, |service, _| {
-                service.drop_pending_events_for_external_harness_conversation(id);
-            });
-        }
-        QueuedQueryModel::handle(ctx).update(ctx, |queue, ctx| {
-            queue.clear_queue(id, ctx);
-            queue.finish_native_setup(id, ctx);
-        });
-    }
 
     /// Routes a shared-session-injected prompt while this controller is bound to a native
     /// conversation: always queues it (preserving FIFO order with anything already queued),

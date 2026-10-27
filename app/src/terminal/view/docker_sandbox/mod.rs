@@ -5,41 +5,29 @@ use std::path::PathBuf;
 #[cfg(feature = "local_tty")]
 use std::sync::mpsc::SyncSender;
 
-#[cfg(not(target_family = "wasm"))]
-use warp_cli::agent::Harness;
 #[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
 use warp_errors::report_error;
 #[cfg(feature = "local_tty")]
 use warpui::ModelHandle;
 use warpui::ViewContext;
-#[cfg(not(target_family = "wasm"))]
-use warpui::r#async::FutureExt;
 #[cfg(feature = "local_tty")]
 use warpui::geometry::vector::Vector2F;
 #[cfg(not(target_family = "wasm"))]
 use warpui::{SingletonEntity, View, ViewHandle};
 
 use super::TerminalView;
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
 use crate::banner::BannerState;
 #[cfg(feature = "local_tty")]
 use crate::pane_group::TerminalViewResources;
 #[cfg(feature = "local_tty")]
 use crate::persistence::ModelEvent;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::cloud_objects::update_manager::UpdateManager;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::ids::{ServerId, SyncId};
 #[cfg(any(feature = "local_tty", not(target_family = "wasm")))]
 use crate::server::server_api::ServerApiProvider;
 #[cfg(feature = "local_tty")]
 use crate::terminal::TerminalManager;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]
 use crate::terminal::available_shells::AvailableShell;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::local_tty::docker_sandbox::DOCKER_SANDBOX_HOME_DIR;
 #[cfg(feature = "local_tty")]
 use crate::terminal::local_tty::docker_sandbox::resolve_sbx_path_from_user_shell;
 #[cfg(all(feature = "local_tty", not(feature = "remote_tty")))]

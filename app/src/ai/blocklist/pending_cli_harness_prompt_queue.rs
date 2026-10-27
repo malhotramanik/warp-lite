@@ -53,19 +53,7 @@ impl PendingCliHarnessPromptQueue {
         self.pending.entry(task_id).or_default().push(prompt);
     }
 
-    /// Removes and returns any prompts queued for `task_id`, in FIFO order. Called once the
-    /// task's CLI-harness session starts.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn drain(&mut self, task_id: AmbientAgentTaskId) -> Vec<QueuedCliHarnessPrompt> {
-        self.pending.remove(&task_id).unwrap_or_default()
-    }
 
-    /// Drops any prompts queued for `task_id` without delivering them, e.g. when its CLI
-    /// session's driver run ends before the harness ever started.
-    #[cfg_attr(target_family = "wasm", allow(dead_code))]
-    pub(crate) fn clear(&mut self, task_id: AmbientAgentTaskId) {
-        self.pending.remove(&task_id);
-    }
 }
 
 impl Entity for PendingCliHarnessPromptQueue {

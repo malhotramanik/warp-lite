@@ -31,7 +31,6 @@ use channel_versions::ChannelVersions;
 use chrono::{DateTime, FixedOffset, Utc};
 use factory::FactoryClient;
 use instant::Instant;
-use managed_mcp::ManagedMcpClient;
 use managed_secrets::AppManagedSecretsClient;
 use object::ObjectClient;
 use parking_lot::Mutex;
@@ -1611,10 +1610,6 @@ impl ServerApiProvider {
         self.server_api.clone()
     }
 
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_managed_mcp_client(&self) -> Arc<dyn ManagedMcpClient> {
-        self.server_api.clone()
-    }
 
     pub fn get_factory_client(&self) -> Arc<dyn FactoryClient> {
         self.server_api.clone()
@@ -1626,18 +1621,7 @@ impl ServerApiProvider {
         self.server_api.owned_http_client()
     }
 
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_harness_support_client(&self) -> Arc<dyn harness_support::HarnessSupportClient> {
-        self.server_api.clone()
-    }
 
-    /// Returns the standby API client with the app's shared authentication state.
-    #[cfg_attr(target_family = "wasm", expect(dead_code))]
-    pub fn get_prewarmed_sandbox_client(
-        &self,
-    ) -> Arc<dyn prewarmed_sandbox::PrewarmedSandboxClient> {
-        self.server_api.clone()
-    }
 }
 
 impl Entity for ServerApiProvider {

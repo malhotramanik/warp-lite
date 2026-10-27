@@ -5,8 +5,7 @@ use anyhow::{Result, ensure};
 use chrono::{DateTime, Utc};
 use http::header::{CONTENT_TYPE, RETRY_AFTER};
 use http_client::StatusCode;
-use serde::{Deserialize, Deserializer};
-use serde_json::Value;
+use serde::Deserialize;
 use warp_harness_usage::api::HarnessUsageRequest;
 
 use super::super::ServerApi;
@@ -33,27 +32,7 @@ pub(super) fn encode_request(request: &HarnessUsageRequest) -> Result<Vec<u8>> {
     Ok(body)
 }
 
-/// Execution ownership supplied only by authenticated, reporting-enabled startup.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct HarnessUsageCapability {
-    pub execution_id: i64,
-}
 
-pub(super) fn deserialize_harness_usage_capability<'de, D>(
-    deserializer: D,
-) -> Result<Option<HarnessUsageCapability>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let value = Value::deserialize(deserializer)?;
-    // Malformed capability data must not break raw transcript persistence or resume.
-    Ok(serde_json::from_value::<wire::StartupCapability>(value)
-        .ok()
-        .filter(|capability| capability.execution_id > 0)
-        .map(|capability| HarnessUsageCapability {
-            execution_id: capability.execution_id,
-        }))
-}
 
 /// Server disposition for one cumulative usage capture.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]

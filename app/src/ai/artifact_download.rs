@@ -42,13 +42,6 @@ pub(crate) fn default_download_filename(artifact: &ArtifactDownloadResponse) -> 
     format!("artifact-{}{}", artifact.artifact_uid(), extension)
 }
 
-#[cfg(feature = "local_fs")]
-pub(crate) fn download_destination(
-    artifact: &ArtifactDownloadResponse,
-    explicit_path: Option<PathBuf>,
-) -> PathBuf {
-    explicit_path.unwrap_or_else(|| PathBuf::from(default_download_filename(artifact)))
-}
 
 #[cfg(feature = "local_fs")]
 pub(crate) fn default_download_directory() -> Option<PathBuf> {
