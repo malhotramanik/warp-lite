@@ -639,7 +639,9 @@ impl LaunchMode {
             LaunchMode::RemoteServerDaemon { .. } => {
                 FeatureFlag::RemoteCodebaseIndexing.is_enabled()
             }
-            LaunchMode::App { .. } | LaunchMode::Test { .. } => true,
+            // warp-lite: no codebase indexing in the desktop app.
+            LaunchMode::App { .. } => false,
+            LaunchMode::Test { .. } => true,
             LaunchMode::RemoteServerProxy => false,
             // Codebase indexing stays off for the TUI until it has deferred
             // persisted-index restore and multi-process-safe snapshot writes

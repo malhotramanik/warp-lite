@@ -13,7 +13,7 @@ fn main() -> Result<()> {
         ChannelConfig {
             app_id: AppId::new("dev", "warp", "WarpOss"),
             logfile_name: "warp-oss.log".into(),
-            server_config: WarpServerConfig::production(),
+            server_config: WarpServerConfig::offline(),
             oz_config: OzConfig::production(),
             telemetry_config: None,
             crash_reporting_config: None,

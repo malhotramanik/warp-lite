@@ -15,6 +15,7 @@ use repo_metadata::repositories::{
 use repo_metadata::repository::{Repository, RepositorySubscriber, SubscriberId};
 use repo_metadata::watcher::{DirectoryWatcher, RepositoryUpdate};
 use strum::IntoEnumIterator;
+use warp_core::features::FeatureFlag;
 use warp_core::safe_warn;
 use warpui::{Entity, ModelContext, ModelHandle, SingletonEntity};
 use watcher::HomeDirectoryWatcherEvent;
@@ -178,6 +179,18 @@ impl FileMCPWatcher {
             },
             |_, _| {},
         );
+
+        // warp-lite: file-based MCP is off, so don't watch repos or provider home dirs.
+        if !FeatureFlag::FileBasedMcp.is_enabled() {
+            return Self {
+                file_mcp_tx,
+                in_flight_parses: HashMap::new(),
+                next_parse_generation: 0,
+                home_provider_watchers: HashMap::new(),
+                project_repo_watchers: HashSet::new(),
+                pending_scans: HashMap::new(),
+            };
+        }
 
         ctx.subscribe_to_model(&DetectedRepositories::handle(ctx), {
             let file_mcp_tx = file_mcp_tx.clone();

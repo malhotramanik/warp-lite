@@ -67,6 +67,19 @@ impl WarpServerConfig {
             iap_config: None,
         }
     }
+
+    /// warp-lite: points every server endpoint at a closed loopback port so
+    /// any request that still fires fails immediately without leaving the machine.
+    pub fn offline() -> Self {
+        Self {
+            server_root_url: "http://127.0.0.1:9".into(),
+            prewarmed_sandbox_control_url: None,
+            rtc_server_url: "ws://127.0.0.1:9/graphql/v2".into(),
+            session_sharing_server_url: None,
+            firebase_auth_api_key: "".into(),
+            iap_config: None,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]

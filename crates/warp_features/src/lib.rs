@@ -1092,17 +1092,12 @@ pub const PREVIEW_FLAGS: &[FeatureFlag] = &[];
 /// Features enabled for all release builds (i.e.: everything but WarpLocal).
 /// NOTE: if you are promoting a feature from Preview to launch, you'll likely
 /// want to enable the feature by default in app/Cargo.toml, rather than add it to RELEASE_FLAGS.
+// warp-lite: autoupdate, changelog, crash reporting and agent-only flags are
+// not enabled in release builds.
 pub const RELEASE_FLAGS: &[FeatureFlag] = &[
-    FeatureFlag::Autoupdate,
-    FeatureFlag::Changelog,
-    FeatureFlag::CrashReporting,
-    FeatureFlag::PeriodicHandoffCheckpoints,
-    FeatureFlag::VideoRecording,
-    FeatureFlag::WindowsVideoRecording,
     FeatureFlag::ImeMarkedText,
-    // Remote server binary is not yet supported on Windows.
-    #[cfg(not(windows))]
-    FeatureFlag::SshRemoteServer,
+    // warp-lite: SshRemoteServer is left out; SSH uses the ControlMaster flow
+    // instead of installing a helper binary on remote hosts.
     #[cfg(any(target_os = "macos", target_os = "windows"))]
     FeatureFlag::DragTabsToWindows,
 ];

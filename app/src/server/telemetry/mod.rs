@@ -311,6 +311,11 @@ impl TelemetryApi {
             return Ok(());
         }
 
+        // warp-lite: builds without a telemetry config never send events.
+        if !ChannelState::is_telemetry_available() {
+            return Ok(());
+        }
+
         if settings_snapshot.should_disable_telemetry() {
             log::info!("Not sending batched messages because telemetry is disabled.");
             return Ok(());

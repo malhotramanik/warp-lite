@@ -30,7 +30,6 @@ use warpui::{AppContext, Entity, ModelContext, SingletonEntity, UpdateModel, Wea
 
 use crate::ai::execution_profiles::ExecutionProfilesConfig;
 use crate::ai::request_usage_model::RequestLimitInfo;
-use crate::auth::AuthStateProvider;
 use crate::settings::PrivacySettings;
 use crate::terminal::{CLIAgent, TerminalView};
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces};
@@ -2274,15 +2273,10 @@ impl AISettings {
         !user_workspaces.is_ai_allowed_in_remote_sessions(&scope)
     }
 
-    pub fn is_any_ai_enabled(&self, app: &AppContext) -> bool {
-        // Disable AI for anonymous and logged-out users.
-        let is_anonymous_or_logged_out = AuthStateProvider::as_ref(app)
-            .get()
-            .is_anonymous_or_logged_out();
-
-        *self.is_any_ai_enabled
-            && !is_anonymous_or_logged_out
-            && !self.is_ai_disabled_due_to_remote_session_org_policy(app)
+    /// warp-lite: AI is permanently disabled. Every AI entry point and sub-toggle
+    /// derives from this getter.
+    pub fn is_any_ai_enabled(&self, _app: &AppContext) -> bool {
+        false
     }
 
     /// Returns whether conversation history is available for the current
