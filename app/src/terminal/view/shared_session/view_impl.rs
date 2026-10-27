@@ -30,7 +30,7 @@ use super::cloud_conversation_continuation::{
 use super::sharer::Sharer;
 use super::sharer::inactivity_modal::InactivityModalEvent;
 use super::viewer::Viewer;
-use super::{ConversationEndedTombstoneEvent, ConversationEndedTombstoneView};
+use super::ConversationEndedTombstoneView;
 use crate::ai::agent_conversations_model::AgentConversationsModel;
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::ai::blocklist::BlocklistAIHistoryModel;
@@ -983,28 +983,6 @@ impl TerminalView {
         }
     }
 
-    fn start_cloud_followup_from_tombstone(
-        &mut self,
-        task_id: crate::ai::ambient_agents::AmbientAgentTaskId,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if !FeatureFlag::HandoffCloudCloud.is_enabled() {
-            return;
-        }
-
-        let Some(ambient_agent_view_model) = self.ambient_agent_view_model.as_ref() else {
-            self.show_error_toast("Couldn't continue this cloud task.".to_string(), ctx);
-            return;
-        };
-
-        if ambient_agent_view_model.as_ref(ctx).task_id() != Some(task_id) {
-            self.show_error_toast("Couldn't continue this cloud task.".to_string(), ctx);
-            return;
-        }
-        self.enable_cloud_followup_input_after_conversation_end(task_id, ctx);
-        self.focus_input_box(ctx);
-        ctx.notify();
-    }
 
     pub fn handle_inactivity_modal_event(
         &mut self,

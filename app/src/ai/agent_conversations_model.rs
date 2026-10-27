@@ -43,14 +43,12 @@ use crate::ai::blocklist::orchestration_topology::orchestration_aware_conversati
 use crate::ai::blocklist::{
     BlocklistAIHistoryEvent, BlocklistAIHistoryModel, ConversationStatusUpdate,
 };
-use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::conversation_navigation::ConversationNavigationData;
 use crate::auth::AuthStateProvider;
 use crate::auth::auth_manager::{AuthManager, AuthManagerEvent};
-use crate::cloud_object::CloudObjectLookup as _;
 use crate::network::{NetworkStatus, NetworkStatusEvent, NetworkStatusKind};
 use crate::server::cloud_objects::update_manager::{UpdateManager, UpdateManagerEvent};
-use crate::server::ids::{ServerId, SyncId};
+use crate::server::ids::ServerId;
 use crate::server::retry_strategies::{
     OUT_OF_BAND_REQUEST_RETRY_STRATEGY, PERIODIC_POLL_RETRY_STRATEGY, is_transient_http_error,
 };

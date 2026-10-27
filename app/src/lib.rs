@@ -181,7 +181,6 @@ use watcher::HomeDirectoryWatcher;
 
 use crate::ai::active_agent_views_model::ActiveAgentViewsModel;
 #[cfg(not(target_family = "wasm"))]
-use crate::ai::aws_credentials::AwsCredentialRefresher as _;
 #[cfg(not(target_family = "wasm"))]
 use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
@@ -1784,8 +1783,6 @@ pub(crate) fn initialize_app(
         if matches!(launch_mode, LaunchMode::Tui { .. }) {
             manager.subscribe_to_tui_api_key_changes(ctx);
         }
-        #[cfg(not(target_family = "wasm"))]
-        manager.subscribe_to_settings_changes(ctx);
         // Gemini Enterprise (GEAP) credential refresh triggers: workspace
         // settings saves / team changes and the member's enablement toggle.
         #[cfg(not(target_family = "wasm"))]

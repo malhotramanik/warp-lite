@@ -1,9 +1,5 @@
 use std::path::Path;
-#[cfg(feature = "local_fs")]
-use std::path::PathBuf;
 
-#[cfg(feature = "local_fs")]
-use crate::server::server_api::ai::ArtifactDownloadResponse;
 
 pub(crate) fn sanitized_basename(path_or_filename: &str) -> Option<String> {
     let file_name = Path::new(path_or_filename).file_name()?.to_str()?;

@@ -4,13 +4,8 @@
 //! details panel, the `runner` CLI listing, etc. — should source its labels and
 //! icon from here so the surfaces cannot drift.
 
-use std::collections::HashMap;
 
-use warp_graphql::queries::get_runners::{
-    Runner, RunnerArch, RunnerConfig, RunnerMacOsVersion, RunnerOs,
-};
 
-use crate::ui_components::icons::Icon;
 
 
 

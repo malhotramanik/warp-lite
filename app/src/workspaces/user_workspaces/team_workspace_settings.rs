@@ -485,23 +485,6 @@ impl UserWorkspaces {
         }
     }
 
-    /// Whether *any* of the user's teams has AWS Bedrock credentials enabled, for work that
-    /// belongs to no window at all: loading the local AWS credential chain, and the "does this
-    /// user have any usable BYO path" check. A caller with a window must use
-    /// [`Self::is_aws_bedrock_credentials_enabled`] instead -- this deliberately answers for
-    /// the union of the user's teams, not for the team a window points at.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn is_aws_bedrock_credentials_enabled_for_any_team(&self, app: &AppContext) -> bool {
-        self.every_applicable_team_and_llm_settings()
-            .map(|(_, settings)| settings)
-            .any(|llm_settings| {
-                Self::host_credentials_enabled(llm_settings, &LLMModelHost::AwsBedrock, || {
-                    *AISettings::as_ref(app)
-                        .aws_bedrock_credentials_enabled
-                        .value()
-                })
-            })
-    }
 
     /// Did the admin enable Gemini Enterprise (GEAP) for `scope`'s team?
     pub(crate) fn is_gemini_enterprise_available_from_workspace<S: TeamScope + ?Sized>(
