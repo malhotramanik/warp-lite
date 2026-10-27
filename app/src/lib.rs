@@ -83,7 +83,7 @@ mod tracing;
 #[cfg(feature = "tui")]
 mod tui;
 #[cfg(feature = "tui")]
-pub mod tui_export;
+pub(crate) mod tui_export;
 #[cfg(feature = "tui")]
 mod tui_onboarding_markers;
 #[cfg(all(feature = "tui", any(test, feature = "test-util")))]
@@ -92,7 +92,7 @@ mod ui_components;
 mod undo_close;
 mod uri;
 mod user_config;
-pub mod util;
+pub(crate) mod util;
 mod view_components;
 mod vim_registers;
 mod voice;
@@ -116,25 +116,23 @@ mod workspaces;
 // in the warp::integration_testing::assertions module (or a sub-module).  These
 // functions will allow us to keep types internal to this crate and expose a
 // simpler API for integration tests to consume.
-pub mod ai_assistant;
-pub mod appearance;
-pub mod channel;
-pub mod editor;
-pub mod features;
-pub mod input_suggestions;
-#[cfg(feature = "integration_tests")]
-pub mod integration_testing;
-pub mod keyboard;
-pub mod launch_configs;
-pub mod pane_group;
-pub mod resource_center;
-pub mod root_view;
-pub mod search;
-pub mod settings;
-pub mod settings_view;
-pub mod tab_configs;
-pub mod terminal;
-pub mod themes;
+pub(crate) mod ai_assistant;
+pub(crate) mod appearance;
+pub(crate) mod channel;
+pub(crate) mod editor;
+pub(crate) mod features;
+pub(crate) mod input_suggestions;
+pub(crate) mod keyboard;
+pub(crate) mod launch_configs;
+pub(crate) mod pane_group;
+pub(crate) mod resource_center;
+pub(crate) mod root_view;
+pub(crate) mod search;
+pub(crate) mod settings;
+pub(crate) mod settings_view;
+pub(crate) mod tab_configs;
+pub(crate) mod terminal;
+pub(crate) mod themes;
 use ::ai::index::DEFAULT_SYNC_REQUESTS_PER_MIN;
 #[cfg(feature = "local_fs")]
 use ::ai::index::full_source_code_embedding::SnapshotStorage;
@@ -143,8 +141,8 @@ use ::ai::index::full_source_code_embedding::manager::{
     CodebaseIndexManager, CodebaseIndexManagerConfig,
 };
 use ::ai::project_context::model::ProjectContextModel;
-pub use ai::agent::todos::AIAgentTodoList;
-pub use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
+pub(crate) use ai::agent::todos::AIAgentTodoList;
+pub(crate) use ai::agent::{AIAgentActionResultType, FileEdit, TodoOperation};
 use ai::agent_conversations_model::AgentConversationsModel;
 use ai::agent_management::AgentNotificationsModel;
 use ai::ambient_agents::scheduled::ScheduledAgentManager;
@@ -175,7 +173,7 @@ use terminal::general_settings::GeneralSettings;
 use terminal::keys_settings::KeysSettings;
 #[cfg(all(not(target_family = "wasm"), feature = "local_tty"))]
 use terminal::local_shell::LocalShellState;
-pub use util::bindings::cmd_or_ctrl_shift;
+pub(crate) use util::bindings::cmd_or_ctrl_shift;
 use voice::transcriber::VoiceTranscriber;
 use warp_cli::agent::AgentCommand;
 use warp_cli::{CliCommand, GlobalOptions};
@@ -190,8 +188,8 @@ use crate::ai::geap_credentials::GeapCredentialRefresher as _;
 use crate::ai::mcp::{FileBasedMCPManager, FileMCPWatcher};
 use crate::uri::web_intent_parser::maybe_rewrite_web_url_to_intent;
 use crate::view_components::DismissibleToast;
-pub mod workflows;
-pub mod workspace;
+pub(crate) mod workflows;
+pub(crate) mod workspace;
 
 use std::borrow::Cow;
 use std::collections::HashSet;
@@ -209,7 +207,7 @@ use channel::ChannelState;
 use interval_timer::IntervalTimer;
 use itertools::Itertools;
 #[cfg(feature = "integration_tests")]
-pub use persistence::testing as sqlite_testing;
+pub(crate) use persistence::testing as sqlite_testing;
 use referral_theme_status::ReferralThemeStatus;
 use server::server_api::ServerApiProvider;
 use settings::{ExtraMetaKeys, PrivacySettings};
@@ -219,13 +217,13 @@ use terminal::input;
 use terminal::session_settings::SessionSettings;
 use url::Url;
 // Re-export the debounce function to simplify imports.
-pub use warp_core::r#async::debounce;
+pub(crate) use warp_core::r#async::debounce;
 use warp_core::execution_mode::{AppExecutionMode, ExecutionMode};
 // Re-export the send_telemetry_from_ctx macro at the crate root level
-pub use warp_core::send_telemetry_from_app_ctx;
-pub use warp_core::send_telemetry_from_ctx;
+pub(crate) use warp_core::send_telemetry_from_app_ctx;
+pub(crate) use warp_core::send_telemetry_from_ctx;
 // Re-export the safe logging macros at the crate root level for backwards compatibility
-pub use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
+pub(crate) use warp_core::{safe_debug, safe_error, safe_info, safe_warn};
 use warp_errors::{report_error, report_if_error};
 #[cfg(feature = "local_fs")]
 use warp_files::FileModel;
@@ -276,7 +274,7 @@ use crate::drive::CloudObjectTypeAndId;
 use crate::drive::export::ExportManager;
 use crate::env_vars::manager::EnvVarCollectionManager;
 use crate::experiments::ImprovedPaletteSearch;
-pub use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
+pub(crate) use crate::global_resource_handles::{GlobalResourceHandles, GlobalResourceHandlesProvider};
 use crate::gpu_state::GPUState;
 use crate::network::NetworkStatus;
 use crate::notebooks::CloudNotebook;
@@ -297,7 +295,7 @@ use crate::server::experiments::ServerExperiments;
 use crate::server::iap_identity_minter::ManagedSecretsIapMinter;
 use crate::server::server_api::managed_secrets::AppManagedSecretManager as ManagedSecretManager;
 use crate::server::sync_queue::{QueueItem, SyncQueue};
-pub use crate::server::telemetry::{
+pub(crate) use crate::server::telemetry::{
     AgentModeEntrypoint, AgentModeEntrypointSelectionType, TelemetryEvent,
 };
 use crate::server::telemetry::{AppStartupInfo, CloseTarget, PaletteSource, TelemetryCollector};
@@ -318,7 +316,7 @@ use crate::terminal::resizable_data::ResizableData;
 use crate::terminal::view::inline_banner::ByoLlmAuthBannerSessionState;
 use crate::terminal::{AudibleBell, CustomSecretRegexUpdater, History};
 #[cfg(feature = "tui")]
-pub use crate::tui::{TuiLoginEvent, TuiLoginModel, TuiLoginPhase, log_out_tui};
+pub(crate) use crate::tui::{TuiLoginEvent, TuiLoginModel, TuiLoginPhase, log_out_tui};
 use crate::undo_close::UndoCloseStack;
 use crate::user_config::WarpConfig;
 use crate::util::bindings::is_binding_cross_platform;
