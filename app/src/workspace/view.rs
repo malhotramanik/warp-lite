@@ -20818,9 +20818,10 @@ impl TypedActionView for Workspace {
             // warp-lite: agent management is removed.
             OpenCloudAgentSetupGuide
             | OpenAgentManagementView
-            | ShowHoaOnboardingFlow
             | NewTabInAgentMode { .. }
             | NewPaneInAgentMode { .. } => {}
+            #[cfg(debug_assertions)]
+            ShowHoaOnboardingFlow => {}
             ActivateTab(index) => self.activate_tab(*index, ctx),
             ActivateTabByNumber(num) => self.activate_tab(num.saturating_sub(1), ctx),
             SetTabShortcutModifierKey { key_code, pressed } => {
