@@ -76,33 +76,6 @@ impl HistoryContext {
 
     // Same as to_context_string, but skips any commands up to and including the specified ID.
     // Returns a tuple of the resulting string and a boolean indicating whether any commands were skipped.
-    pub fn to_context_string_skip_before_command_id(&self, id: i32) -> (String, bool) {
-        let mut command_strings = Vec::with_capacity(self.previous_commands.len());
-        let mut skipped = false;
-        for command in self
-            .previous_commands
-            .iter()
-            .chain(std::iter::once(&self.next_command))
-        {
-            // Skip all commands up to the specified ID
-            if command.id == id {
-                command_strings.clear();
-                skipped = true;
-                continue;
-            }
-            let command_with_context = CommandWithContext {
-                command: command.command.clone(),
-                pwd: command.pwd.clone(),
-                exit_code: command.exit_code,
-                git_branch: command.git_branch.clone(),
-                start_ts: command.start_ts,
-            };
-            if let Ok(command_string) = serde_json::to_string(&command_with_context) {
-                command_strings.push(command_string);
-            }
-        }
-        (command_strings.join("\n"), skipped)
-    }
 }
 
 

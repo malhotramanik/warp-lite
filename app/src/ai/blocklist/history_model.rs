@@ -28,7 +28,7 @@ use super::persistence::{PersistedAIInput, PersistedAIInputType};
 use crate::GlobalResourceHandlesProvider;
 use crate::ai::agent::api::ServerConversationToken;
 use crate::ai::agent::conversation::{
-    AIConversation, AIConversationId, ConversationDriver, ConversationStatus,
+    AIConversation, AIConversationId, ConversationStatus,
     ServerAIConversationMetadata, TodoStatus, UpdateConversationError,
 };
 use crate::ai::agent::task::TaskId;
@@ -414,25 +414,6 @@ impl BlocklistAIHistoryModel {
             .flatten()
     }
 
-    /// Returns a flattened and ordered (oldest first) list of exchanges from conversations
-    /// that were cleared for a terminal surface, but are no longer live/visible.
-    pub fn all_cleared_root_task_exchanges_for_terminal_surface(
-        &self,
-        terminal_surface_id: EntityId,
-    ) -> impl Iterator<Item = &AIAgentExchange> {
-        self.cleared_conversation_ids_for_terminal_surface
-            .get(&terminal_surface_id)
-            .into_iter()
-            .flat_map(|conversation_ids| {
-                conversation_ids.iter().flat_map(|conversation_id| {
-                    self.conversations_by_id
-                        .get(conversation_id)
-                        .map(|conversation| conversation.root_task_exchanges())
-                })
-            })
-            .flatten()
-    }
-
     /// Returns a list of all conversations that have been cleared across all terminal surfaces.
     pub fn all_cleared_conversations(&self) -> Vec<(EntityId, &AIConversation)> {
         self.cleared_conversation_ids_for_terminal_surface
@@ -467,10 +448,6 @@ impl BlocklistAIHistoryModel {
     /// * The conversation has never been read into memory from db. Use load_conversation_from_db to handle reading from db.
     pub fn conversation(&self, conversation_id: &AIConversationId) -> Option<&AIConversation> {
         self.conversations_by_id.get(conversation_id)
-    }
-
-    pub fn mark_conversation_has_imported_comments(&mut self, id: AIConversationId) {
-        self.conversations_with_imported_comments.insert(id);
     }
 
     pub fn conversation_has_imported_comments(&self, id: &AIConversationId) -> bool {
@@ -1178,25 +1155,6 @@ impl BlocklistAIHistoryModel {
         self.conversations_by_id
             .get(&conversation_id)
             .is_some_and(|c| c.is_exchange_hidden(exchange_id))
-    }
-
-    /// Test-only, crate-visible wrapper around [`Self::update_conversation_for_new_request_input`]
-    /// so tests outside this module (e.g. `agent_sdk::driver_tests`) can attach an in-flight
-    /// request to a conversation without widening that method's production visibility.
-    #[cfg(test)]
-    pub(crate) fn update_conversation_for_new_request_input_for_test(
-        &mut self,
-        request_input: RequestInput,
-        stream_id: ResponseStreamId,
-        terminal_surface_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), UpdateHistoryError> {
-        self.update_conversation_for_new_request_input(
-            request_input,
-            stream_id,
-            terminal_surface_id,
-            ctx,
-        )
     }
 
     /// Add a new [`AIAgentExchange`] to the [`AIConversation`] with the given [`AIConversationId`].
@@ -2674,16 +2632,6 @@ impl BlocklistAIHistoryModel {
     ) {
         if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
             conversation.set_is_viewing_shared_session(is_viewing_shared_session);
-        }
-    }
-
-    pub fn set_driver_for_conversation(
-        &mut self,
-        conversation_id: AIConversationId,
-        driver: ConversationDriver,
-    ) {
-        if let Some(conversation) = self.conversations_by_id.get_mut(&conversation_id) {
-            conversation.set_driver(driver);
         }
     }
 

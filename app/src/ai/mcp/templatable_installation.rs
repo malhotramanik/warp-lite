@@ -55,13 +55,6 @@ impl TemplatableMCPServerInstallation {
         }
     }
 
-    /// Records the Warp-side id (managed uid or well-known integration id) this
-    /// installation was resolved from. See [`Self::warp_id`].
-    pub fn with_warp_id(mut self, warp_id: Option<String>) -> Self {
-        self.warp_id = warp_id;
-        self
-    }
-
     /// The Warp-side id this installation was resolved from, if any.
     pub fn warp_id(&self) -> Option<&str> {
         self.warp_id.as_deref()

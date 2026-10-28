@@ -1,11 +1,7 @@
-use channel_versions::overrides::TargetOS;
 use chrono::{DateTime, Local};
-use parking_lot::FairMutex;
 use serde::{Deserialize, Serialize};
 use warp_core::command::ExitCode;
 
-use crate::terminal::event::UserBlockCompleted;
-use crate::terminal::model::TerminalModel;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
 
@@ -61,56 +57,6 @@ pub struct BlockContext {
 }
 
 impl BlockContext {
-    /// Construct a BlockContext from a [`UserBlockCompleted`]. `model` is used to resolve the
-    /// block's lazily-computed fields (see [`UserBlockCompleted`]'s accessor methods); it's only
-    /// locked for fields that aren't already cached.
-    pub fn from_completed_block(
-        block_completed: &UserBlockCompleted,
-        model: &FairMutex<TerminalModel>,
-    ) -> Box<Self> {
-        let serialized_block = block_completed.serialized_block.get_with(|compute| {
-            let model = model.lock();
-            compute(model.block_list())
-        });
-        Box::new(Self {
-            id: serialized_block.id.clone(),
-            index: block_completed.index,
-            command: block_completed
-                .command_with_obfuscated_secrets
-                .get_with(|compute| {
-                    let model = model.lock();
-                    compute(model.block_list())
-                })
-                .to_owned(),
-            output: block_completed
-                .output_truncated_with_obfuscated_secrets
-                .get_with(|compute| {
-                    let model = model.lock();
-                    compute(model.block_list())
-                })
-                .to_owned(),
-            exit_code: serialized_block.exit_code,
-            is_auto_attached: false,
-            started_ts: serialized_block.start_ts,
-            finished_ts: serialized_block.completed_ts,
-            pwd: serialized_block.pwd.clone(),
-            shell: serialized_block
-                .shell_host
-                .as_ref()
-                .map(|sh| sh.shell_type.name().to_owned()),
-            username: serialized_block
-                .shell_host
-                .as_ref()
-                .map(|sh| sh.user.clone()),
-            hostname: serialized_block
-                .shell_host
-                .as_ref()
-                .map(|sh| sh.hostname.clone()),
-            git_branch: serialized_block.git_head.clone(),
-            os: TargetOS::current().and_then(|os| os.name()),
-            session_id: serialized_block.session_id.map(|sid| sid.as_u64()),
-        })
-    }
 }
 
 #[cfg(test)]

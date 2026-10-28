@@ -129,12 +129,6 @@ impl UserTakeOverReason {
         }
     }
 
-    pub fn transfer_reason(&self) -> Option<&str> {
-        match self {
-            Self::TransferFromAgent { reason } => Some(reason.as_str()),
-            _ => None,
-        }
-    }
 }
 
 /// Represents which party is in control of the active long running command.
@@ -383,33 +377,6 @@ impl CLISubagentController {
             .and_then(|state| state.last_snapshot_at)
     }
 
-    pub fn set_latest_instruction(
-        &mut self,
-        block_id: BlockId,
-        instruction: String,
-        ctx: &mut ModelContext<Self>,
-    ) -> Option<String> {
-        let previous = self
-            .active_subagents_by_block
-            .entry(block_id.clone())
-            .or_default()
-            .latest_instruction
-            .replace(instruction);
-        ctx.emit(CLISubagentEvent::UpdatedInstruction { block_id });
-        previous
-    }
-
-    pub fn restore_latest_instruction(
-        &mut self,
-        block_id: BlockId,
-        instruction: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(state) = self.active_subagents_by_block.get_mut(&block_id) {
-            state.latest_instruction = instruction;
-            ctx.emit(CLISubagentEvent::UpdatedInstruction { block_id });
-        }
-    }
     /// Returns the CLI subagent associated with the active command block.
     pub fn active_target(&self) -> Option<CLISubagentTarget> {
         let terminal_model = self.terminal_model.lock();
@@ -418,12 +385,6 @@ impl CLISubagentController {
             return None;
         }
         self.target_for_block_in_model(block.id(), &terminal_model)
-    }
-
-    /// Returns the CLI subagent associated with `block_id`.
-    pub fn target_for_block(&self, block_id: &BlockId) -> Option<CLISubagentTarget> {
-        let terminal_model = self.terminal_model.lock();
-        self.target_for_block_in_model(block_id, &terminal_model)
     }
 
     fn target_for_block_in_model(

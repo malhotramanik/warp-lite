@@ -52,7 +52,7 @@ use crate::ai::agent::{
     AIAgentActionResult, AIAgentActionResultType, AIAgentAttachment, AIAgentContext,
     AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers,
     BaseUserQuery, CancellationOutcome, CancellationReason, DocumentContentAttachmentSource,
-    EntrypointType, FileContext, FinishedAIAgentOutput, PassiveSuggestionResultType,
+    EntrypointType, FinishedAIAgentOutput, PassiveSuggestionResultType,
     PassiveSuggestionTrigger, PassiveSuggestionTriggerType, RenderableAIError,
     RequestCommandOutputResult, RequestCost, RequestMetadata, RunningCommand, StaticQueryType,
     TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
@@ -1080,32 +1080,6 @@ impl BlocklistAIController {
         );
     }
 
-    /// Sends the first submission of a previously queued user prompt into a new conversation.
-    /// Same as [`Self::send_user_query_in_new_conversation`] but marks the emitted
-    /// `SentRequest` event so UI subscribers (e.g. the input editor) know not to treat
-    /// this as a direct user submission and therefore not clear the input buffer.
-    pub fn send_queued_user_query_in_new_conversation(
-        &mut self,
-        query: String,
-        static_query_type: Option<StaticQueryType>,
-        entrypoint_type: EntrypointType,
-        participant_id: Option<ParticipantId>,
-        queued_query_id: QueuedQueryId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_user_query_in_new_conversation_internal(
-            query,
-            static_query_type,
-            entrypoint_type,
-            participant_id,
-            /*is_queued_prompt*/ true,
-            Some(queued_query_id),
-            None,
-            HashMap::new(),
-            ctx,
-        );
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn send_user_query_in_new_conversation_internal(
         &mut self,
@@ -1183,28 +1157,6 @@ impl BlocklistAIController {
                 ctx,
             );
         }
-    }
-
-    /// Sends a query into an existing conversation as an agent-initiated request.
-    /// This is the agent-initiated counterpart to `send_user_query_in_conversation`.
-    pub fn send_agent_query_in_conversation(
-        &mut self,
-        query: String,
-        conversation_id: AIConversationId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.send_user_query_in_conversation_internal(
-            query,
-            conversation_id,
-            None,
-            false,
-            HashMap::new(),
-            EntrypointType::AgentInitiated,
-            /*is_queued_prompt*/ false,
-            /*queued_query_id*/ None,
-            None,
-            ctx,
-        );
     }
 
     /// Sends the given user query to the AI model, returning whether it
@@ -1572,18 +1524,6 @@ impl BlocklistAIController {
         } else {
             self.send_slash_command_request(request, ctx);
         }
-    }
-
-    /// Resolves and sends a skill invocation for surfaces that do not need intermediate UI work.
-    pub fn send_invoke_skill_request(
-        &mut self,
-        reference: SkillReference,
-        user_query: Option<String>,
-        ctx: &mut ModelContext<Self>,
-    ) -> Result<(), ActiveSkillLookupError> {
-        let skill = self.resolve_skill_for_invocation(&reference, ctx)?;
-        self.send_resolved_skill_invocation(skill, user_query, None, None, ctx);
-        Ok(())
     }
 
     /// Same as [`Self::send_slash_command_request`] but marks the emitted `SentRequest`
@@ -2550,55 +2490,6 @@ impl BlocklistAIController {
             .insert(conversation_id, handle);
     }
 
-    pub fn send_passive_code_diff_request(
-        &mut self,
-        query: String,
-        block_id: &BlockId,
-        file_contexts: Vec<FileContext>,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let mut input_context = file_contexts
-            .into_iter()
-            .map(AIAgentContext::File)
-            .collect_vec();
-        if let Some(block_context) = self
-            .context_model
-            .as_ref(ctx)
-            .transform_block_to_context(block_id, false)
-        {
-            input_context.push(block_context);
-        }
-
-        let scope = ResolvedTeamScope::from_scope(&self.team_context(ctx));
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                vec![AIAgentInput::AutoCodeDiffQuery {
-                    query,
-                    context: input_context.into(),
-                }],
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                self.get_current_response_initiator(),
-                new_conversation.id(),
-                self.terminal_surface_id,
-                &scope,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::PromptSuggestion {
-                    is_static: false,
-                    is_coding: true,
-                },
-                is_auto_resume_after_error: false,
-            }),
-            RecoveryBudget::fresh(),
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
-    }
-
     /// Builds request params for an out-of-band passive suggestions request.
     ///
     /// This reads conversation state read-only and does NOT create exchanges,
@@ -2726,53 +2617,6 @@ impl BlocklistAIController {
         Ok((conversation_id, request_params))
     }
 
-    pub fn send_unit_test_suggestions_request(
-        &mut self,
-        block_output: String,
-        trigger: PassiveSuggestionTrigger,
-        ctx: &mut ModelContext<Self>,
-    ) -> anyhow::Result<(AIConversationId, ResponseStreamId)> {
-        let attachments = vec![AIAgentAttachment::PlainText(block_output.to_string())];
-        let trigger_type = (&trigger).into();
-        let inputs = vec![AIAgentInput::TriggerPassiveSuggestion {
-            context: input_context_for_request(
-                false,
-                self.context_model.as_ref(ctx),
-                self.active_session.as_ref(ctx),
-                None,
-                vec![],
-                ctx,
-            ),
-            attachments,
-            trigger,
-        }];
-
-        let scope = ResolvedTeamScope::from_scope(&self.team_context(ctx));
-        let new_conversation = self.start_new_conversation_for_request(ctx);
-        self.send_request_input(
-            RequestInput::for_task(
-                inputs,
-                new_conversation.get_root_task_id().clone(),
-                &self.active_session,
-                self.get_current_response_initiator(),
-                new_conversation.id(),
-                self.terminal_surface_id,
-                &scope,
-                ctx,
-            ),
-            Some(RequestMetadata {
-                is_autodetected_user_query: false,
-                entrypoint: EntrypointType::TriggerPassiveSuggestion {
-                    trigger: Some(trigger_type),
-                },
-                is_auto_resume_after_error: false,
-            }),
-            RecoveryBudget::fresh(),
-            /*is_queued_prompt*/ false,
-            ctx,
-        )
-    }
-
     /// Set the ID of the ambient agent task which owns this controller and its backing session.
     pub fn set_ambient_agent_task_id(
         &mut self,
@@ -2788,11 +2632,6 @@ impl BlocklistAIController {
     #[cfg(test)]
     pub fn get_ambient_agent_task_id(&self) -> Option<AmbientAgentTaskId> {
         self.ambient_agent_task_id
-    }
-
-    /// Set the per-session directory for downloading file attachments.
-    pub fn set_attachments_download_dir(&mut self, dir: std::path::PathBuf) {
-        self.attachments_download_dir = Some(dir);
     }
 
     fn start_new_conversation_for_request<'a>(

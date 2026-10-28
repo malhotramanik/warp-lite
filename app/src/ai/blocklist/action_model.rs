@@ -36,7 +36,7 @@ pub use execute::{
     read_local_file_context,
 };
 pub(crate) use execute::{
-    FileReadResult, MalformedFinalLineProxyEvent, apply_edits, coerce_integer_args,
+    MalformedFinalLineProxyEvent, coerce_integer_args,
 };
 #[cfg(test)]
 pub(crate) use execute::{compose_run_agents_child_prompt, run_agents_to_start_agent_mode};
@@ -470,12 +470,6 @@ impl BlocklistAIActionModel {
         }
     }
 
-    /// Clears action results restored from a previous conversation transcript.
-    pub fn clear_restored_action_results(&mut self) {
-        self.past_action_results.clear();
-        self.recording_spans_by_conversation.get_mut().clear();
-    }
-
     fn try_to_execute_available_actions(
         &mut self,
         conversation_id: AIConversationId,
@@ -553,14 +547,6 @@ impl BlocklistAIActionModel {
         self.blocked_action_for_conversation(&conversation_id)
     }
 
-    /// Returns a pending action by its ID, searching across all conversations.
-    pub fn get_pending_action_by_id(&self, action_id: &AIAgentActionId) -> Option<&AIAgentAction> {
-        self.pending_actions
-            .values()
-            .flat_map(|queue| queue.iter())
-            .find(|action| &action.id == action_id)
-    }
-
     /// Returns the next pending or running action ID, for the active conversation, if any.
     pub fn get_pending_or_running_action_id<'a>(
         &'a self,
@@ -590,14 +576,6 @@ impl BlocklistAIActionModel {
             .get(&conversation_id)
             .and_then(RunningActions::first_action_id)
             .and_then(|action_id| self.executor.as_ref(app).async_executing_action(action_id))
-    }
-
-    /// Returns whether there is a pending or running action for the active conversation.
-    pub fn has_unfinished_actions(&self, app: &AppContext) -> bool {
-        let Some(conversation_id) = self.active_conversation_id(app) else {
-            return false;
-        };
-        self.has_unfinished_actions_for_conversation(conversation_id)
     }
 
     pub fn has_unfinished_actions_for_conversation(

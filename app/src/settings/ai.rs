@@ -159,20 +159,6 @@ settings::macros::implement_setting_for_enum!(
 );
 
 impl VoiceInputToggleKey {
-    pub fn all_possible_values() -> Vec<VoiceInputToggleKey> {
-        let all_keys = VoiceInputToggleKey::iter().collect();
-        match OperatingSystem::get() {
-            OperatingSystem::Mac => all_keys,
-            // For non-Mac platforms, we exclude the `Fn` key since it may not be correctly identified by winit.
-            // In particular, we saw it is unidentified for a ThinkPad with a standard keyboard.
-            OperatingSystem::Windows | OperatingSystem::Linux | OperatingSystem::Other(_) => {
-                all_keys
-                    .into_iter()
-                    .filter(|key| *key != VoiceInputToggleKey::Fn)
-                    .collect()
-            }
-        }
-    }
 
     /// Display name for choosing key from the AI settings page.
     pub fn display_name(&self) -> &'static str {
@@ -2267,14 +2253,6 @@ impl AISettings {
         self.is_cloud_handoff_enabled(app) && !*self.should_force_disable_ampersand_handoff
     }
 
-    pub fn is_auto_handoff_on_sleep_enabled(&self, app: &warpui::AppContext) -> bool {
-        self.is_cloud_handoff_enabled(app)
-            && self
-                .auto_handoff_on_sleep_enabled
-                .is_supported_on_current_platform()
-            && *self.auto_handoff_on_sleep_enabled
-    }
-
     /// Determines whether a quota reset banner should be displayed to the user.
     ///
     /// The banner should be shown if the most recent completed billing cycle had
@@ -2363,29 +2341,12 @@ impl AISettings {
         );
     }
 
-    pub fn is_command_denylist_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
-    }
 
 
 
 
 
 
-
-
-    pub fn is_ask_user_question_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_any_ai_enabled(app)
-    }
-
-    pub fn is_mcp_permission_editable(&self, app: &AppContext) -> bool {
-        // TODO: Allow workspace overrides on MCP permissions.
-        self.is_any_ai_enabled(app)
-    }
-
-    pub fn is_run_agents_permissions_editable(&self, app: &AppContext) -> bool {
-        self.is_orchestration_enabled(app)
-    }
 
     pub fn show_code_suggestion_speedbump(&self, app: &AppContext) -> bool {
         self.is_any_ai_enabled(app) && *self.show_code_suggestion_speedbump
@@ -2424,63 +2385,6 @@ impl AISettings {
         Some(voice_input_toggle_key)
     }
 
-    pub fn add_cli_agent_footer_enabled_command(
-        &mut self,
-        command: &str,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let command = command.trim();
-        if command.is_empty() {
-            return;
-        }
-        if self
-            .cli_agent_footer_enabled_commands
-            .value()
-            .contains_key(command)
-        {
-            return;
-        }
-
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        map.insert(command.to_string(), String::new());
-        report_if_error!(
-            self.cli_agent_footer_enabled_commands
-                .set_value(ToolbarCommandMap::new(map), ctx)
-        );
-    }
-
-    pub fn remove_cli_agent_footer_enabled_command(
-        &mut self,
-        command: &str,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let command = command.trim();
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        map.shift_remove(command);
-        report_if_error!(
-            self.cli_agent_footer_enabled_commands
-                .set_value(ToolbarCommandMap::new(map), ctx)
-        );
-    }
-
-    pub fn set_cli_agent_for_command(
-        &mut self,
-        pattern: &str,
-        agent: Option<CLIAgent>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut map = self.cli_agent_footer_enabled_commands.value().0.clone();
-        if !map.contains_key(pattern) {
-            return;
-        }
-        let value = agent.map(|a| a.to_serialized_name()).unwrap_or_default();
-        map.insert(pattern.to_string(), value);
-        report_if_error!(
-            self.cli_agent_footer_enabled_commands
-                .set_value(ToolbarCommandMap::new(map), ctx)
-        );
-    }
-
     /// Whether the feature-intro popover with the given id key has been seen.
     pub fn is_feature_intro_seen(&self, key: &str) -> bool {
         self.seen_feature_intro_ids
@@ -2500,45 +2404,6 @@ impl AISettings {
         report_if_error!(self.seen_feature_intro_ids.set_value(map, ctx));
     }
 
-    /// Whether the plugin install chip was dismissed for the given agent/host.
-    pub fn is_plugin_install_chip_dismissed(&self, key: &str) -> bool {
-        self.plugin_install_chip_dismissed_map
-            .get(key)
-            .copied()
-            .unwrap_or(false)
-    }
-
-    /// Mark the plugin install chip as dismissed for the given agent/host.
-    pub fn dismiss_plugin_install_chip(&mut self, key: &str, ctx: &mut ModelContext<Self>) {
-        let mut map = self.plugin_install_chip_dismissed_map.clone();
-        map.insert(key.to_owned(), true);
-        report_if_error!(self.plugin_install_chip_dismissed_map.set_value(map, ctx));
-    }
-
-    /// Returns the minimum plugin version for which the update chip was dismissed
-    /// for the given agent/host, or an empty string if not dismissed.
-    pub fn plugin_update_chip_dismissed_version(&self, key: &str) -> &str {
-        self.plugin_update_chip_dismissed_for_version_map
-            .get(key)
-            .map(String::as_str)
-            .unwrap_or("")
-    }
-
-    /// Record that the user dismissed the update chip for the given agent/host at
-    /// the specified minimum version.
-    pub fn dismiss_plugin_update_chip(
-        &mut self,
-        key: &str,
-        version: String,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let mut map = self.plugin_update_chip_dismissed_for_version_map.clone();
-        map.insert(key.to_owned(), version);
-        report_if_error!(
-            self.plugin_update_chip_dismissed_for_version_map
-                .set_value(map, ctx)
-        );
-    }
 }
 
 /// Singleton model that caches compiled regexes for the `cli_agent_footer_enabled_commands`

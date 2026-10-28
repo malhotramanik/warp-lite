@@ -802,12 +802,6 @@ impl AmbientAgentViewModel {
         ctx.emit(AmbientAgentViewModelEvent::EnteredSetupState);
     }
 
-    /// Transition from Setup to Composing state.
-    pub fn enter_composing_from_setup(&mut self, ctx: &mut ModelContext<Self>) {
-        self.status = Status::Composing;
-        ctx.emit(AmbientAgentViewModelEvent::EnteredComposingState);
-    }
-
     /// This is used when we join an already-running ambient agent shared session (e.g. from the
     /// agent management view). We want the ambient agent UI affordances (like the environment
     /// selector) to be visible even though we did not spawn the agent from this view model.
@@ -1030,42 +1024,6 @@ impl AmbientAgentViewModel {
 
     pub fn pending_followup_prompt(&self) -> Option<&str> {
         self.pending_followup_prompt.as_deref()
-    }
-
-    pub fn should_show_followup_progress(&self) -> bool {
-        self.pending_followup_prompt.is_some()
-            && matches!(
-                self.status,
-                Status::WaitingForSession { .. }
-                    | Status::Failed { .. }
-                    | Status::NeedsGithubAuth { .. }
-                    | Status::Cancelled { .. }
-            )
-    }
-
-    /// Reset cloud-specific prompt state so a retained cloud view can compose a new task.
-    pub fn reset_for_new_cloud_prompt(&mut self, ctx: &mut ModelContext<Self>) {
-        self.status = Status::Composing;
-        self.environment_id = None;
-        self.environment_id_from_viewed_task = false;
-        self.task_id = None;
-        self.source = None;
-        self.conversation_id = None;
-        self.harness_model_id = None;
-        self.harness_reasoning_level = None;
-        self.harness_command_started = false;
-        self.active_execution_session_id = None;
-        self.last_ended_execution_session_id = None;
-        self.pending_followup_prompt = None;
-        self.request = None;
-        self.request_team_scope = None;
-        #[cfg(all(feature = "local_fs", not(target_family = "wasm")))]
-        {
-            self.local_to_cloud_handoff_state = None;
-        }
-        self.setup_commands_state = Default::default();
-        self.stop_progress_timer();
-        ctx.notify();
     }
 
     /// Sets the local conversation ID associated with this cloud agent run.

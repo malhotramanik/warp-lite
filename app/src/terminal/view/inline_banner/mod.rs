@@ -21,7 +21,6 @@ pub use aws_cli_not_installed::*;
 pub use notifications_discovery::*;
 pub use notifications_error::*;
 pub use open_in_warp::*;
-pub use passive_code_diff::*;
 use pathfinder_color::ColorU;
 pub use session_state::*;
 pub use shared_sessions::*;

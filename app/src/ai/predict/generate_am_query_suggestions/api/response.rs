@@ -33,12 +33,6 @@ pub struct SimpleQuery {
 }
 
 impl GenerateAMQuerySuggestionsResponse {
-    /// Check whether the response contains a valid code delegation, which should include:
-    /// 1) the coding_query field is non-empty.
-    /// 2) the attached file locations to the coding_query is non-empty.
-    pub fn is_valid_code_delegation(&self) -> bool {
-        matches!(&self.suggestion, Some(Suggestion::Coding(coding_query)) if !coding_query.files.is_empty())
-    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

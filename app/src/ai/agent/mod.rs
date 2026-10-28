@@ -507,16 +507,6 @@ impl AIAgentOutput {
             })
     }
 
-    /// Returns only the text from reasoning messages in the output.
-    pub fn text_from_agent_reasoning(&self) -> impl Iterator<Item = &AIAgentText> {
-        self.messages
-            .iter()
-            .filter_map(|message| match &message.message {
-                AIAgentOutputMessageType::Reasoning { text, .. } => Some(text),
-                _ => None,
-            })
-    }
-
     /// Returns all of the text contained in the output, including agent output, reasoning,
     /// and conversation summaries.
     ///
@@ -568,15 +558,6 @@ impl AIAgentOutput {
             .iter()
             .filter_map(|message| match &message.message {
                 AIAgentOutputMessageType::Action(action) => Some(action),
-                _ => None,
-            })
-    }
-
-    pub fn todo_operations(&self) -> impl Iterator<Item = &TodoOperation> {
-        self.messages
-            .iter()
-            .filter_map(|message| match &message.message {
-                AIAgentOutputMessageType::TodoOperation(operation) => Some(operation),
                 _ => None,
             })
     }
@@ -847,10 +828,6 @@ impl RenderableAIError {
 
     pub fn is_invalid_api_key(&self) -> bool {
         matches!(self, Self::InvalidApiKey { .. })
-    }
-
-    pub fn is_aws_bedrock_credentials_error(&self) -> bool {
-        matches!(self, Self::AwsBedrockCredentialsExpiredOrInvalid { .. })
     }
 
     pub fn is_chatgpt_subscription_error(&self) -> bool {
@@ -1171,22 +1148,9 @@ impl Display for AIAgentAction {
 }
 
 impl AIAgentAction {
-    pub fn is_request_file_edit(&self) -> bool {
-        matches!(self.action, AIAgentActionType::RequestFileEdits { .. })
-    }
 
     pub fn is_request_command_output(&self) -> bool {
         self.action.is_request_command_output()
-    }
-
-    pub fn is_agent_monitored_request_command_output(&self) -> bool {
-        matches!(
-            self.action,
-            AIAgentActionType::RequestCommandOutput {
-                wait_until_completion: false,
-                ..
-            }
-        )
     }
 
     pub fn is_get_specific_files(&self) -> bool {
@@ -1527,27 +1491,6 @@ impl Display for AIAgentActionResult {
 }
 
 impl AIAgentActionResult {
-    /// Returns `true` if this action was explicitly rejected by the user.
-    pub fn is_rejected(&self) -> bool {
-        matches!(
-            self.result,
-            AIAgentActionResultType::RequestFileEdits(RequestFileEditsResult::Cancelled)
-                | AIAgentActionResultType::RequestCommandOutput(
-                    RequestCommandOutputResult::CancelledBeforeExecution
-                )
-                | AIAgentActionResultType::ReadFiles(ReadFilesResult::Cancelled)
-                | AIAgentActionResultType::UploadArtifact(UploadArtifactResult::Cancelled)
-                | AIAgentActionResultType::SearchCodebase(SearchCodebaseResult::Cancelled)
-                | AIAgentActionResultType::Grep(GrepResult::Cancelled)
-                | AIAgentActionResultType::FileGlob(FileGlobResult::Cancelled)
-                | AIAgentActionResultType::ReadMCPResource(ReadMCPResourceResult::Cancelled)
-                | AIAgentActionResultType::CallMCPTool(CallMCPToolResult::Cancelled)
-                | AIAgentActionResultType::SuggestNewConversation(
-                    SuggestNewConversationResult::Cancelled,
-                )
-                | AIAgentActionResultType::SuggestPrompt(SuggestPromptResult::Cancelled),
-        )
-    }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -1639,15 +1582,6 @@ impl AgentOutputText {
             .map(FormattedTextWrapper::formatted_text_arc)
     }
 
-    /// Note that mutating the returned string will not automatically reparse the text and update `formatted_lines`.
-    pub fn mut_text(&mut self) -> &mut String {
-        &mut self.markdown_text
-    }
-
-    pub fn reparse_markdown(&mut self) {
-        let parsed_result = parse_markdown(self.markdown_text.as_str());
-        self.formatted_lines = parsed_result.map(|formatted| formatted.into()).ok();
-    }
 }
 
 impl From<String> for AgentOutputText {
@@ -2252,14 +2186,6 @@ impl AIAgentOutputMessage {
 
     pub fn with_citations(self, citations: Vec<AIAgentCitation>) -> Self {
         Self { citations, ..self }
-    }
-
-    pub fn skill_invoked(id: MessageId, invoked_skill: InvokedSkill) -> Self {
-        Self {
-            id,
-            message: AIAgentOutputMessageType::SkillInvoked(invoked_skill),
-            citations: vec![],
-        }
     }
 
     pub fn messages_received_from_agents(
@@ -3411,10 +3337,6 @@ impl AIAgentInput {
         }
     }
 
-    pub fn is_auto_code_diff_query(&self) -> bool {
-        matches!(self, AIAgentInput::AutoCodeDiffQuery { .. })
-    }
-
     /// Returns true if this input type provides its own display query that should be preserved
     /// without prepending "/agent".
     pub fn has_custom_display_query(&self) -> bool {
@@ -3610,14 +3532,6 @@ impl AIAgentExchange {
             .map(|finish_time| finish_time.signed_duration_since(self.start_time))
     }
 
-    /// The elapsed wall-clock time since this exchange started. `None` when
-    /// the clock skewed such that `start_time` is in the future.
-    pub fn time_since_start(&self) -> Option<Duration> {
-        Local::now()
-            .signed_duration_since(self.start_time)
-            .to_std()
-            .ok()
-    }
 }
 
 /// Request-level metadata propagated to the `AIAgentApi` that may be used for logging.

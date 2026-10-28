@@ -1583,20 +1583,6 @@ impl LLMPreferences {
             .insert(team_uid, unavailable);
     }
 
-    #[cfg(feature = "integration_tests")]
-    pub fn is_available_agent_mode_llm(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        id: &LLMId,
-        app: &AppContext,
-    ) -> bool {
-        UserWorkspaces::as_ref(app)
-            .feature_model_choice_for_scope(scope)
-            .agent_mode
-            .info_for_id(id)
-            .is_some()
-    }
-
     /// Creates a pane-level override for the Agent Mode LLM.
     pub fn update_preferred_agent_mode_llm(
         &mut self,

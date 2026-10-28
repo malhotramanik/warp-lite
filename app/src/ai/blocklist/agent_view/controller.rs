@@ -309,33 +309,6 @@ impl AgentViewState {
         }
     }
 
-    /// Returns true if the conversation has been modified since the agent view was opened.
-    /// New (empty) conversations are always considered modified.
-    /// If a conversation is not open in an agent view, this is always false.
-    pub fn was_conversation_modified_since_opening(
-        &self,
-        history_model: &BlocklistAIHistoryModel,
-    ) -> bool {
-        match self {
-            AgentViewState::Active {
-                conversation_id,
-                original_conversation_length,
-                ..
-            } => {
-                if *original_conversation_length == 0 {
-                    return true;
-                }
-
-                let current_conversation_length = history_model
-                    .conversation(conversation_id)
-                    .map(|c| c.exchange_count())
-                    .unwrap_or(0);
-                current_conversation_length > *original_conversation_length
-            }
-            AgentViewState::Inactive => false,
-        }
-    }
-
     /// Returns the save position ID for the zero state block, if active.
     pub fn zero_state_position_id(&self) -> Option<String> {
         self.active_conversation_id()
@@ -466,18 +439,6 @@ impl AgentViewController {
         }
 
         Ok(())
-    }
-
-    /// If set, indicates the user attempted to exit an in-progress conversation and we are
-    /// waiting for a second exit attempt to confirm cancelling/exiting.
-    pub fn pending_exit_confirmation_conversation_id(&self) -> Option<AIConversationId> {
-        match self.pending_confirmation.as_ref() {
-            Some(PendingConfirmation::Exit {
-                conversation_id,
-                expires_at,
-            }) if *expires_at > Instant::now() => Some(*conversation_id),
-            _ => None,
-        }
     }
 
     pub fn clear_pending_exit_confirmation(&mut self, ctx: &mut ModelContext<Self>) {

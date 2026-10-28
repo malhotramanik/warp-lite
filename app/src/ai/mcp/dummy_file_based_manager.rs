@@ -25,20 +25,6 @@ impl FileBasedMCPManager {
         vec![]
     }
 
-    pub fn get_installation_by_uuid(
-        &self,
-        _uuid: Uuid,
-    ) -> Option<&TemplatableMCPServerInstallation> {
-        None
-    }
-
-    pub fn directory_paths_for_installation_and_provider(
-        &self,
-        _uuid: Uuid,
-        _provider: MCPProvider,
-    ) -> Vec<PathBuf> {
-        vec![]
-    }
 }
 
 impl Entity for FileBasedMCPManager {

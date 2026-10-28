@@ -34,8 +34,7 @@ use super::task::{
 use super::task_store::TaskStore;
 use super::{
     AIAgentAction, AIAgentActionId, AIAgentActionResultType, AIAgentActionType, AIAgentContext,
-    AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutput, AIAgentOutputStatus,
-    AIAgentTodo, AIAgentTodoId, FinishedAIAgentOutput, MessageId, OutputModelInfo,
+    AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutput, AIAgentOutputStatus, AIAgentTodoId, FinishedAIAgentOutput, MessageId, OutputModelInfo,
     RenderableAIError, RequestCost, ServerOutputId, Shared, StartRecordingResult,
     StopRecordingResult, SuggestedLoggingId, Suggestions,
 };
@@ -1416,11 +1415,6 @@ impl AIConversation {
             .map(|(config, status)| (config, *status))
     }
 
-    /// Returns `true` if at least one plan has an orchestration config.
-    pub fn has_any_orchestration_config(&self) -> bool {
-        !self.orchestration_configs.is_empty()
-    }
-
     /// Inserts or replaces the orchestration config for a specific plan.
     /// Returns `true` if the value actually changed.
     pub fn set_orchestration_config_for_plan(
@@ -1609,16 +1603,6 @@ impl AIConversation {
         has_passive_exchange
     }
 
-    /// True if the conversation consists of just one exchange
-    /// and that exchange is a passive suggestion.
-    pub fn is_single_passive_exchange(&self) -> bool {
-        self.task_store.task_count() == 1
-            && self.is_entirely_passive()
-            && self
-                .get_root_task()
-                .is_some_and(|task| task.exchanges_len() == 1)
-    }
-
     /// True if the conversation started with a CLI subagent and was never continued.
     /// These conversations only have CLI subagent exchanges with no user queries,
     /// meaning they never hit the primary agent.
@@ -1756,11 +1740,6 @@ impl AIConversation {
         self.exchanges_reversed()
             .skip_while(|e| e.id != *exchange_id)
             .nth(1)
-    }
-
-    /// Returns the last exchange that didn't contain a passive request.
-    pub fn last_non_passive_exchange(&self) -> Option<&AIAgentExchange> {
-        self.exchanges_reversed().find(|e| !e.has_passive_request())
     }
 
     /// Returns the latest root task exchange that has a visible AI block.
@@ -1928,12 +1907,6 @@ impl AIConversation {
             }
         }
         result.join("\n\n")
-    }
-
-    pub fn has_auto_code_diff_query(&self) -> bool {
-        self.root_task_exchanges()
-            .flat_map(|exchange| exchange.input.iter())
-            .any(|input| input.is_auto_code_diff_query())
     }
 
     pub fn latest_user_query(&self) -> Option<String> {
@@ -3911,11 +3884,6 @@ impl AIConversation {
 
     pub fn active_todo_list(&self) -> Option<&AIAgentTodoList> {
         self.todo_lists.last()
-    }
-
-    pub fn active_todo(&self) -> Option<&AIAgentTodo> {
-        self.active_todo_list()
-            .and_then(|todo_list| todo_list.in_progress_item())
     }
 
     pub fn todo_status(&self, todo_id: &AIAgentTodoId) -> Option<TodoStatus> {

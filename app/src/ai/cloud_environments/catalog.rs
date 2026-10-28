@@ -117,14 +117,6 @@ impl CloudEnvironmentCatalog {
         });
     }
 
-    /// Requests an out-of-band refresh of cloud objects from the server.
-    #[cfg(feature = "tui")]
-    pub fn refresh_from_server(&self, ctx: &mut ModelContext<Self>) {
-        UpdateManager::handle(ctx).update(ctx, |manager, ctx| {
-            manager.refresh_updated_objects(ctx);
-        });
-    }
-
     fn refresh(&mut self, ctx: &mut ModelContext<Self>) {
         let (environments, orchestration_default_environment_id) = Self::current_environments(ctx);
         if environments != self.environments

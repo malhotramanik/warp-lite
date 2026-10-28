@@ -144,12 +144,6 @@ impl AIDocumentInstance {
         }
     }
 
-    pub fn get_editor(&self) -> ModelHandle<NotebooksEditorModel> {
-        match self {
-            AIDocumentInstance::Current(doc) => doc.editor.clone(),
-            AIDocumentInstance::Earlier(doc) => doc.editor.clone(),
-        }
-    }
 }
 
 /// Source of an update to an AI document.
@@ -749,12 +743,6 @@ impl AIDocumentModel {
         });
     }
 
-    pub fn is_document_creation_streaming(&self, id: &AIDocumentId) -> bool {
-        self.streaming_create_documents
-            .values()
-            .any(|doc_id| *doc_id == *id)
-    }
-
     /// Returns the streaming document ID for a CreateDocuments tool call document, if any.
     pub fn streaming_document_id_for_create_documents(
         &self,
@@ -855,27 +843,6 @@ impl AIDocumentModel {
         }
     }
 
-    /// Mark a document as visible (or not) in the given pane group.
-    pub fn set_document_visible(
-        &mut self,
-        id: &AIDocumentId,
-        pane_group_id: EntityId,
-        is_visible: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(doc) = self.get_current_document_mut(id) else {
-            return;
-        };
-        let changed = if is_visible {
-            doc.visible_in_pane_groups.insert(pane_group_id)
-        } else {
-            doc.visible_in_pane_groups.remove(&pane_group_id)
-        };
-        if changed {
-            ctx.emit(AIDocumentModelEvent::DocumentVisibilityChanged(*id));
-        }
-    }
-
     /// Check if any document for the given conversation is visible in the specified pane group.
     pub fn is_document_visible_by_conversation_in_pane_group(
         &self,
@@ -886,20 +853,6 @@ impl AIDocumentModel {
             doc.conversation_id == *conversation_id
                 && doc.visible_in_pane_groups.contains(&pane_group_id)
         })
-    }
-
-    /// Check if any document for the given conversation is visible in any pane group.
-    pub fn is_document_visible_by_conversation(&self, conversation_id: &AIConversationId) -> bool {
-        self.documents.values().any(|doc| {
-            doc.conversation_id == *conversation_id && !doc.visible_in_pane_groups.is_empty()
-        })
-    }
-
-    /// Check if a specific document is visible in any pane group.
-    pub fn is_document_visible(&self, document_id: &AIDocumentId) -> bool {
-        self.documents
-            .get(document_id)
-            .is_some_and(|doc| !doc.visible_in_pane_groups.is_empty())
     }
 
     /// Get a copy of a document by id and version.
@@ -923,20 +876,6 @@ impl AIDocumentModel {
         }
     }
 
-    pub fn get_document_warp_drive_object_link(
-        &self,
-        id: &AIDocumentId,
-        ctx: &AppContext,
-    ) -> Option<String> {
-        let document = self.documents.get(id)?;
-        if !self.get_document_save_status(id).is_saved() {
-            return None;
-        }
-        let sync_id = document.sync_id?;
-        let notebook = CloudModel::as_ref(ctx).get_notebook(&sync_id)?;
-        notebook.object_link()
-    }
-
     /// Get the raw markdown content of a document by id.
     pub fn get_document_content(
         &self,
@@ -945,73 +884,6 @@ impl AIDocumentModel {
     ) -> Option<String> {
         let doc = self.documents.get(id)?;
         Some(doc.editor.as_ref(ctx).markdown_unescaped(ctx))
-    }
-
-    /// Apply persisted content from SQLite on top of conversation-restored content.
-    /// If the persisted content differs from the current editor content, update the
-    /// editor and mark the document as Dirty so it gets attached to the next query.
-    /// If the document doesn't exist (conversation wasn't restored), create it with
-    /// the persisted content.
-    pub fn apply_persisted_content(
-        &mut self,
-        id: AIDocumentId,
-        persisted_content: &str,
-        persisted_title: Option<&str>,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(doc) = self.documents.get_mut(&id) else {
-            // Document doesn't exist from conversation restoration.
-            // Create it from the persisted content so the pane has something
-            // to display. Use a synthetic conversation ID since the original
-            // conversation wasn't restored.
-            log::info!(
-                "Creating document {id} from persisted SQLite content (conversation not restored)"
-            );
-            let title = persisted_title.unwrap_or(DEFAULT_PLANNING_DOCUMENT_TITLE);
-            self.create_document_internal(
-                id,
-                title,
-                persisted_content,
-                AIDocumentUpdateSource::Restoration,
-                // We don't have the conversation ID this is for - this is free floating and not connected to any conversation
-                // so create a random one.
-                AIConversationId::new(),
-                None,
-                Local::now(),
-                // Restored plans are often never opened; skip font shaping until first display.
-                LayoutTiming::Lazy,
-                ctx,
-            );
-            return;
-        };
-
-        let current_content = doc.editor.as_ref(ctx).markdown_unescaped(ctx);
-        if current_content == persisted_content {
-            log::info!(
-                "Persisted SQLite content for document {id} is the same as the current content"
-            );
-            return;
-        }
-
-        log::info!(
-            "Applying persisted SQLite content for document {id} (content differs from conversation restoration)"
-        );
-        doc.editor.update(ctx, |editor, editor_ctx| {
-            editor.reset_with_markdown(persisted_content, editor_ctx);
-        });
-
-        // Mark as dirty so the updated plan is attached to the next agent query
-        doc.user_edit_status = AIDocumentUserEditStatus::Dirty;
-        let version = doc.version;
-        ctx.emit(AIDocumentModelEvent::DocumentUpdated {
-            document_id: id,
-            version,
-            source: AIDocumentUpdateSource::Restoration,
-        });
-        ctx.emit(AIDocumentModelEvent::DocumentUserEditStatusUpdated {
-            document_id: id,
-            status: AIDocumentUserEditStatus::Dirty,
-        });
     }
 
     /// Update the title of a document.

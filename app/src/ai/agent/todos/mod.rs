@@ -19,14 +19,6 @@ impl AIAgentTodoList {
         self
     }
 
-    pub fn update_pending_items(&mut self, pending_items: Vec<AIAgentTodo>) {
-        self.pending_items = pending_items;
-    }
-
-    pub fn clear_pending_items(&mut self) {
-        self.pending_items.clear();
-    }
-
     pub fn len(&self) -> usize {
         self.pending_items.len() + self.completed_items.len()
     }

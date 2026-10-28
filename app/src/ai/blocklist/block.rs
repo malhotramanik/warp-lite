@@ -111,8 +111,6 @@ use crate::ai::blocklist::block::keyboard_navigable_buttons::{
     KeyboardNavigableButtonBuilder, KeyboardNavigableButtons,
 };
 use crate::ai::blocklist::context_model::AttachmentType;
-#[cfg(feature = "agent_mode_debug")]
-use crate::ai::blocklist::diff_types::FileDiff;
 use crate::ai::blocklist::inline_action::ask_user_question_view::{
     self, AskUserQuestionView, AskUserQuestionViewEvent,
 };
@@ -210,7 +208,7 @@ use crate::workspace::{ForkAIConversationParams, ForkedConversationDestination, 
 use crate::workspaces::user_profiles::{UserProfileWithUID, UserProfiles};
 use crate::workspaces::user_workspaces::UserWorkspaces;
 use crate::{
-    AIAgentTodoList, Appearance, FileEdit, LLMPreferences, PrivacySettings, ToastStack,
+    AIAgentTodoList, Appearance, FileEdit, PrivacySettings, ToastStack,
     send_telemetry_from_ctx,
 };
 
@@ -1792,10 +1790,6 @@ impl AIBlock {
         self.spawn_link_detection(ctx);
 
         ctx.notify();
-    }
-
-    pub fn contains_actions(&self) -> bool {
-        !self.requested_action_ids.is_empty()
     }
 
     pub fn contains_action(&self, action_id: &AIAgentActionId) -> bool {
@@ -4993,24 +4987,6 @@ impl AIBlock {
         *self.selected_text.write() = text;
     }
 
-    /// Test-only helper that simulates a block-level text selection in this AI
-    /// block: it writes the selected text and emits the same
-    /// [`AIBlockEvent::SelectionChanged`] signal that
-    /// [`AIBlockAction::SelectText`] does, so the terminal view mirrors it into
-    /// the model's rich content selection (which the copy/insert paths read).
-    ///
-    /// This lets integration tests exercise the in-AI-block copy path without
-    /// depending on layout-sensitive pixel coordinates.
-    #[cfg(any(test, feature = "integration_tests"))]
-    pub fn simulate_text_selection_for_test(
-        &mut self,
-        text: Option<String>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        *self.selected_text.write() = text;
-        ctx.emit(AIBlockEvent::SelectionChanged);
-    }
-
     /// Start a selection at the top left corner of the block's SelectableArea.
     pub fn start_selection_at_min_point(&self, selection_type: SelectionType, x_pos: Option<f32>) {
         self.state_handles.selection_handle.start_selection_outside(
@@ -5511,35 +5487,8 @@ impl AIBlock {
             .find(|view| !view.as_ref(app).is_hidden())
     }
 
-    /// Inspects the state of the AI output stream and determines if we are currently at a point where
-    /// we should render the floating AI control panel. This is purely a UX decision.
-    pub fn should_show_ai_control_panel(&self, app: &AppContext) -> bool {
-        // Returns true if we're not blocked on user input at this moment.
-        // A stream of regular text output is not blocking. Generating a command is not blocking. Generating a code
-        // diff is not blocking. In those cases, we return true. Waiting for a user to accept a requested command
-        // is blocking. So is waiting for them to accept a file read. In those cases, we return false since the action
-        // takes responsiblity for showing a cancel option.
-        self.model
-            .status(app)
-            .output_to_render()
-            .is_none_or(|output| {
-                output.get().actions().last().is_none_or(|action| {
-                    let is_streaming = self.model.status(app).is_streaming();
-                    let status = self.action_model.as_ref(app).get_action_status(&action.id);
-                    is_streaming || status.is_some_and(|status| status.is_running())
-                })
-            })
-    }
-
     pub fn saved_position_id(&self) -> String {
         get_rich_content_position_id(&self.view_id)
-    }
-
-    pub fn get_pending_action_type(&self, app: &AppContext) -> Option<AIAgentActionType> {
-        self.action_model
-            .as_ref(app)
-            .get_pending_action(app)
-            .map(|action| action.action.clone())
     }
 
     pub fn status(&self, app: &AppContext) -> AIBlockOutputStatus {
@@ -5556,41 +5505,6 @@ impl AIBlock {
                     .is_some_and(|status| status.is_running())
                     && requested_command.view.as_ref(app).is_header_expanded()
             })
-    }
-
-    pub fn output_model_display_name(&self, app: &AppContext) -> String {
-        let Some(base_model_id) = self.model.base_model(app) else {
-            log::warn!("No base model found for output model display name");
-            return String::default();
-        };
-
-        // Get the model name from the input metadata.
-        let mut model_name = LLMPreferences::as_ref(app)
-            .get_llm_info(base_model_id, app)
-            .map(|info| info.display_name.clone())
-            .unwrap_or_default();
-
-        // If the input model is "auto", always display that, otherwise use the actual output model if available.
-        if model_name != "auto" {
-            let model_id = self.model.model_id(app);
-            if let Some(model_id) = model_id
-                && let Some(output_model_name) = LLMPreferences::as_ref(app)
-                    .get_llm_info(&model_id, app)
-                    .map(|info| info.display_name.clone())
-            {
-                model_name = output_model_name;
-            }
-        }
-        model_name
-    }
-
-    #[cfg(feature = "agent_mode_debug")]
-    pub fn set_diffs(&self, diffs: Vec<FileDiff>, ctx: &mut ViewContext<Self>) {
-        if let Some(edit) = self.requested_edits.values().next() {
-            edit.view.update(ctx, |view, ctx| {
-                view.set_candidate_diffs(diffs, ctx);
-            });
-        }
     }
 
     /// Gets the prompt text for copying
