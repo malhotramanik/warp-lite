@@ -989,10 +989,6 @@ impl BlockListElement {
         self
     }
 
-    pub fn with_hide_cursor_cell(mut self) -> Self {
-        self.hide_cursor_cell = true;
-        self
-    }
 
     pub fn with_rich_content<I>(mut self, content: I) -> Self
     where

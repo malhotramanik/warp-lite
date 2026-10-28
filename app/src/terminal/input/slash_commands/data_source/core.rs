@@ -71,7 +71,7 @@ pub struct CommonCommandGates {
 pub(super) fn subscribe_to_shared_dependencies<T>(
     active_session: &ModelHandle<ActiveSession>,
     cli_subagent_controller: &ModelHandle<CLISubagentController>,
-    terminal_view_id: EntityId,
+    _terminal_view_id: EntityId,
     recompute_active_commands: fn(&mut T, &mut ModelContext<T>),
     ctx: &mut ModelContext<T>,
 ) where
@@ -494,7 +494,7 @@ pub trait SlashCommandDataSource {
             .as_ref(app)
             .get_skills_for_working_directory(cwd_path.as_ref(), app);
 
-        let skill_manager = SkillManager::as_ref(app);
+        let _skill_manager = SkillManager::as_ref(app);
         let mut results = Vec::new();
         for skill in skills {
             let Some(fuzzy_result) = SlashCommandFuzzyMatchResult::try_match(

@@ -397,7 +397,7 @@ impl PaneContent for TerminalPane {
         // (and that any active views are no longer active). On a `HiddenForClose` detach,
         // `attach` will re-register via `register_agent_view_controller` when the tab is
         // restored, so this is safe to run unconditionally.
-        let terminal_view_id = self.terminal_view(ctx).id();
+        let _terminal_view_id = self.terminal_view(ctx).id();
         ActiveAgentViewsModel::handle(ctx).update(ctx, |model, ctx| {
             for terminal_view_id in terminal_view_ids {
                 model.unregister_agent_view_controller(terminal_view_id, ctx);

@@ -195,7 +195,7 @@ use super::ssh::util::{InteractiveSshCommand, SshWarpifyCommand, parse_interacti
 use super::warpify::WarpificationSource;
 use super::warpify::success_block::{WarpifySuccessBlock, WarpifySuccessBlockEvent};
 use super::warpify::trigger_state::{SshBlockState, WarpifyState};
-use super::{CLIAgent, GridType, cli_agent, should_right_click_paste};
+use super::{GridType, cli_agent, should_right_click_paste};
 #[cfg(any(test, feature = "integration_tests"))]
 use crate::ai::agent::UserQueryMode;
 use crate::ai::agent::api::ServerConversationToken;
@@ -236,7 +236,6 @@ use crate::ai::blocklist::codebase_index_speedbump_banner::{
 use crate::ai::blocklist::diff_storage::DiffStorageHelper;
 use crate::ai::blocklist::diff_types::FileDiff;
 use crate::ai::blocklist::inline_action::code_diff_view::CodeDiffView;
-use crate::ai::blocklist::local_agent_task_sync_model::LocalAgentTaskSyncModel;
 use crate::ai::blocklist::model::{
     AIBlockModel, AIBlockModelHelper, AIBlockModelImpl, AIBlockOutputStatus,
 };
@@ -2983,13 +2982,6 @@ impl TerminalView {
         false
     }
 
-    fn detect_cli_agent_from_model(
-        &self,
-        _model: &TerminalModel,
-        _ctx: &AppContext,
-    ) -> Option<(CLIAgent, Option<String>)> {
-        None
-    }
 
     /// Returns the path to the current repository, if any.
     pub fn current_repo_path(&self) -> Option<&LocalOrRemotePath> {
@@ -7960,18 +7952,6 @@ impl TerminalView {
         &self.sessions
     }
 
-    /// Returns `None` for local sessions, `Some("user@hostname")` for remote.
-    /// Used to key per-host plugin install failure tracking.
-    fn active_session_remote_host<C: ModelAsRef>(&self, ctx: &C) -> Option<String> {
-        self.active_block_session_id().and_then(|session_id| {
-            let session = self.sessions.as_ref(ctx).get(session_id)?;
-            if session.is_local() {
-                None
-            } else {
-                Some(format!("{}@{}", session.user(), session.hostname()))
-            }
-        })
-    }
 
     /// Returns whether a specific session is local, treating shared-session
     /// viewers and conversation transcript viewers as non-local even when
@@ -13534,50 +13514,6 @@ impl TerminalView {
 
 
 
-    /// Resolves the conversation this pane's CLI agent status updates should
-    /// be written to: the conversation whose `task_id` matches the ambient
-    /// task this pane's CLI-harness session is registered under (see
-    /// `LocalAgentTaskSyncModel::register_cli_session`). Prefers the pane's
-    /// active conversation; otherwise falls back to this terminal surface's
-    /// sole live conversation with a matching task_id, if unambiguous.
-    ///
-    /// Returns `None` when this pane has no registered ambient task — e.g. a
-    /// purely interactive CLI agent session with no orchestration/ambient
-    /// run behind it — since there is no `AIConversation` to bridge status
-    /// into in that case. The task_id match also guards against writing
-    /// into an unrelated conversation that happens to be live in the same
-    /// pane (e.g. an earlier native Agent Mode conversation).
-    ///
-    /// Not scoped to child (orchestration) conversations: nothing else in
-    /// the codebase keeps a CLI-harness conversation's `ConversationStatus`
-    /// in sync with the harness's own lifecycle hooks, so a root/standalone
-    /// CLI-harness conversation needs this bridge just as much as a child
-    /// one does (e.g. for orchestration event delivery, which reads
-    /// `ConversationStatus` directly).
-    fn conversation_id_for_cli_agent_status_updates(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<AIConversationId> {
-        let task_id = LocalAgentTaskSyncModel::as_ref(ctx)
-            .cli_harness_task_id_for_terminal_view(self.view_id)?;
-        let matches_task = |conversation: &&AIConversation| conversation.task_id() == Some(task_id);
-
-        let history_model = BlocklistAIHistoryModel::as_ref(ctx);
-        if let Some(conversation_id) = history_model
-            .active_conversation(self.view_id)
-            .filter(matches_task)
-            .map(|conversation| conversation.id())
-        {
-            return Some(conversation_id);
-        }
-
-        let mut conversation_ids = history_model
-            .all_live_conversations_for_terminal_surface(self.view_id)
-            .filter(matches_task)
-            .map(|conversation| conversation.id());
-        let conversation_id = conversation_ids.next()?;
-        conversation_ids.next().is_none().then_some(conversation_id)
-    }
 
 
 
@@ -22490,13 +22426,6 @@ impl TerminalView {
 
 
 
-    /// Appends `text` to CLI agent rich input and focuses it.
-    fn append_to_rich_input(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
-        self.input.update(ctx, |input, ctx| {
-            input.append_to_buffer(text, ctx);
-        });
-        self.focus_input_box(ctx);
-    }
 
     /// Sends `text` to the active CLI agent, routing to rich input when it is open
     /// or directly to the PTY when it is closed.

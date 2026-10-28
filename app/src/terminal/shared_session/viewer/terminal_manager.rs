@@ -5,7 +5,7 @@ use async_broadcast::InactiveReceiver;
 use parking_lot::FairMutex;
 use pathfinder_geometry::vector::Vector2F;
 use session_sharing_protocol::common::{
-    ActivePrompt, AddGuestsResponse, CLIAgentSessionState, CommandExecutionFailureReason,
+    ActivePrompt, AddGuestsResponse, CommandExecutionFailureReason,
     LinkAccessLevelUpdateResponse, LongRunningCommandAgentInteraction, RemoveGuestResponse,
     SelectedAgentModel, SessionId, TeamAccessLevelUpdateResponse,
     UniversalDeveloperInputContextUpdate, UpdatePendingUserRoleResponse,

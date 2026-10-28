@@ -167,10 +167,6 @@ impl AltScreenElement {
         self
     }
 
-    pub fn with_hide_cursor_cell(mut self) -> Self {
-        self.grid_render_params.hide_cursor_cell = true;
-        self
-    }
 
     pub fn with_shared_session_presence(
         mut self,

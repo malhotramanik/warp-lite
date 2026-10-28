@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use input_classifier::InputType;
 use session_sharing_protocol::common::{
-    CLIAgentSessionState, InputMode, InputType as ProtocolInputType, SelectedAgentModel,
+    InputMode, InputType as ProtocolInputType, SelectedAgentModel,
     SelectedConversation, ServerConversationToken, UniversalDeveloperInputContextUpdate,
 };
 use warp_core::features::FeatureFlag;
@@ -12,7 +12,7 @@ use warpui::{AppContext, ModelHandle, SingletonEntity, WeakViewHandle};
 use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin};
 use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIHistoryModel, InputConfig};
 use crate::ai::llms::{LLMId, LLMPreferences};
-use crate::terminal::{CLIAgent, TerminalView};
+use crate::terminal::TerminalView;
 use crate::workspaces::user_workspaces::{ResolvedTeamScope, UserWorkspaces};
 
 /// Handles updating the local LLM preferences when a selected agent model update is received.

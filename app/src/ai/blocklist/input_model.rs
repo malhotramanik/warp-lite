@@ -238,7 +238,7 @@ impl BlocklistAIInputModel {
         conversation_selection: ConversationSelectionHandle,
         ai_context_model: ModelHandle<BlocklistAIContextModel>,
         policy: InputModePolicyHandle,
-        terminal_surface_id: EntityId,
+        _terminal_surface_id: EntityId,
         ctx: &mut ModelContext<Self>,
     ) -> Self {
         ctx.subscribe_to_model(&AISettings::handle(ctx), move |me, _, event, ctx| {
@@ -484,19 +484,6 @@ impl BlocklistAIInputModel {
         self.was_lock_set_with_empty_buffer = self.is_input_type_locked() && is_input_buffer_empty;
     }
 
-    /// Restores a previous input config without recomputing whether the lock was set while the
-    /// buffer was empty.
-    fn restore_input_config(
-        &mut self,
-        new_config: InputConfig,
-        was_lock_set_with_empty_buffer: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.temporarily_disable_autodetection();
-        self.set_input_config_internal(new_config, None, ctx);
-        self.abort_in_progress_detection();
-        self.was_lock_set_with_empty_buffer = was_lock_set_with_empty_buffer;
-    }
 
     /// Returns `false` if the input type is locked and we will not attempt to automatically detect
     /// and change the input type.

@@ -3,13 +3,7 @@ pub mod editor;
 mod environment_selector;
 pub mod toolbar_item;
 
-#[cfg(not(target_family = "wasm"))]
-use std::env;
-#[cfg(not(target_family = "wasm"))]
-use std::path::PathBuf;
 use std::sync::Arc;
-#[cfg(not(target_family = "wasm"))]
-use std::time::Duration;
 
 use ai::document::{AIDocumentId, AIDocumentVersion};
 use chrono::{DateTime, Local};
@@ -19,8 +13,6 @@ use pathfinder_geometry::vector::{Vector2F, vec2f};
 #[cfg(feature = "voice_input")]
 use settings::Setting;
 use settings::ToggleableSetting;
-#[cfg(not(target_family = "wasm"))]
-use tokio::fs;
 use toolbar_item::AgentToolbarItemKind;
 #[cfg(feature = "voice_input")]
 use voice_input::{
@@ -33,8 +25,6 @@ use warp_core::ui::color::blend::Blend;
 use warp_core::ui::color::contrast::MinimumAllowedContrast;
 use warp_core::ui::theme::color::internal_colors;
 use warp_core::ui::theme::{AnsiColorIdentifier, Fill};
-#[cfg(any(not(target_family = "wasm"), feature = "voice_input"))]
-use warp_errors::report_error;
 use warp_errors::report_if_error;
 use warpui::r#async::{SpawnedFutureHandle, Timer};
 use warpui::elements::{
@@ -75,20 +65,14 @@ use crate::send_telemetry_from_ctx;
 use crate::server::server_api::TranscribeError;
 #[cfg(feature = "voice_input")]
 use crate::server::team_scope::RequestTeamScope;
-#[cfg(not(target_family = "wasm"))]
-use crate::server::telemetry::PluginChipTelemetryAction;
 use crate::server::telemetry::{PluginChipTelemetryKind, TelemetryEvent};
 use crate::settings::{
     AISettings, AISettingsChangedEvent, CodeSettings, CodeSettingsChangedEvent, PrivacySettings,
     PrivacySettingsChangedEvent,
 };
 use crate::settings_view::SettingsSection;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::ShellLaunchData;
 use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::input::{HandoffComposeState, MenuPositioning, MenuPositioningProvider};
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::local_shell::LocalShellState;
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
@@ -101,14 +85,10 @@ use crate::terminal::view::{CloudRoutingIndicator, TerminalAction, resolve_ai_qu
 use crate::terminal::{CLIAgent, TerminalModel};
 use crate::ui_components::icons::Icon;
 use crate::view_components::DismissibleToast;
-#[cfg(not(target_family = "wasm"))]
-use crate::view_components::ToastLink;
 use crate::view_components::action_button::{
     ActionButton, ActionButtonTheme, AdjoinedSide, ButtonSize, KeystrokeSource, TooltipAlignment,
 };
 use crate::workspace::ToastStack;
-#[cfg(not(target_family = "wasm"))]
-use crate::workspace::WorkspaceAction;
 use crate::workspace::view::TOGGLE_PROJECT_EXPLORER_BINDING_NAME;
 use crate::workspaces::user_workspaces::{UserWorkspaces, UserWorkspacesEvent};
 use crate::workspaces::workspace::ChargeUnit;
@@ -132,35 +112,19 @@ const CLOUD_MODE_V2_FOOTER_GAP: f32 = 4.;
 /// id for the conversation usage popover's trigger button to anchor the popover overlay
 const USAGE_BUTTON_SAVE_POSITION_ID: &str = "agent_input_footer::usage_button";
 
-/// How long to wait after session creation before showing the install chip.
-/// Gives the plugin time to connect and send its `SessionStart` event.
-#[cfg(not(target_family = "wasm"))]
-const PLUGIN_CHIP_DEBOUNCE: Duration = Duration::from_secs(3);
 
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum PluginChipKind {
-    Install,
-    Update,
 }
 
 impl From<PluginChipKind> for PluginChipTelemetryKind {
     fn from(kind: PluginChipKind) -> Self {
         match kind {
-            PluginChipKind::Install => PluginChipTelemetryKind::Install,
-            PluginChipKind::Update => PluginChipTelemetryKind::Update,
         }
     }
 }
 
-/// Builds a composite key for per-agent, per-host plugin chip dismissal.
-/// Returns `"<agent_prefix>"` for local sessions or `"<agent_prefix>@<host>"` for remote.
-fn plugin_chip_key(agent_prefix: &str, remote_host: &Option<String>) -> String {
-    match remote_host {
-        Some(host) => format!("{agent_prefix}@{host}"),
-        None => agent_prefix.to_owned(),
-    }
-}
 
 fn is_conversation_transcript_context(
     terminal_view_id: EntityId,
