@@ -22003,15 +22003,6 @@ impl TerminalView {
             .then_some(&self.environment_setup_mode_selector)
     }
 
-    pub fn auth_secret_delete_confirmation_dialog_element(
-        &self,
-        ctx: &AppContext,
-    ) -> Option<Box<dyn Element>> {
-        self.input
-            .as_ref(ctx)
-            .auth_secret_delete_confirmation_dialog_element(ctx)
-    }
-
     pub fn summarization_cancel_dialog_handle(
         &self,
         ctx: &AppContext,
