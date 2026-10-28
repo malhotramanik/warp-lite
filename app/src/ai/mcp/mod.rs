@@ -25,23 +25,11 @@ use crate::drive::items::mcp_server::WarpDriveMCPServer;
 use crate::server::ids::SyncId;
 use crate::server::sync_queue::QueueItem;
 
-cfg_if::cfg_if! {
-    if #[cfg(not(feature = "local_fs"))] {
-        mod dummy_file_based_manager;
-        pub use dummy_file_based_manager::FileBasedMCPManager;
-        mod dummy_file_mcp_watcher;
-        pub use dummy_file_mcp_watcher::FileMCPWatcher;
-    }
-}
-
-cfg_if::cfg_if! {
-    if #[cfg(feature = "local_fs")] {
-        pub mod file_based_manager;
-        pub use file_based_manager::FileBasedMCPManager;
-        pub mod file_mcp_watcher;
-        pub use file_mcp_watcher::{FileMCPWatcher, FileMCPWatcherEvent};
-    }
-}
+// warp-lite: MCP config files are never watched; the dummy implementations are used everywhere.
+mod dummy_file_based_manager;
+pub use dummy_file_based_manager::FileBasedMCPManager;
+mod dummy_file_mcp_watcher;
+pub use dummy_file_mcp_watcher::FileMCPWatcher;
 
 pub mod gallery;
 pub use gallery::MCPGalleryManager;
