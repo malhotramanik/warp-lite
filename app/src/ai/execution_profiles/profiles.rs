@@ -880,12 +880,6 @@ impl AIExecutionProfilesModel {
             .unwrap_or_else(|| self.default_profile(ctx))
     }
 
-    pub fn default_profile_id(&self) -> ExecutionProfileId {
-        if self.settings_are_authoritative() {
-            return ExecutionProfileId::default_profile();
-        }
-        self.default_profile_state.id()
-    }
 
     pub fn default_profile(&self, ctx: &AppContext) -> AIExecutionProfileInfo {
         if self.settings_are_authoritative() {

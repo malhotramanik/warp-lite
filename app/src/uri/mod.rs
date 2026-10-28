@@ -48,7 +48,6 @@ use crate::util::openable_file_type::{
     renders_in_warp_notebook_viewer, starts_with_shebang,
 };
 use crate::view_components::DismissibleToast;
-use crate::workspace::auto_handoff::trigger_auto_handoff_to_cloud;
 use crate::workspace::util::PaneViewLocator;
 use crate::workspace::{
     AutoCloudHandoffTrigger, ToastStack, Workspace, WorkspaceAction, WorkspaceRegistry,
@@ -1206,8 +1205,7 @@ impl Action {
                     ctx,
                 );
             }
-            Action::AutoHandoffToCloud { trigger } => {
-                trigger_auto_handoff_to_cloud(*trigger, ctx);
+            Action::AutoHandoffToCloud { trigger: _ } => {
             }
         }
     }

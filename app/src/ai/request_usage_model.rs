@@ -670,9 +670,6 @@ impl AIRequestUsageModel {
 
 
 
-    pub fn bonus_grants(&self) -> &[BonusGrant] {
-        &self.bonus_grants
-    }
 
     fn ambient_only_grants(&self) -> impl Iterator<Item = &BonusGrant> {
         self.bonus_grants

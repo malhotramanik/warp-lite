@@ -1606,20 +1606,6 @@ impl LLMPreferences {
     }
 
 
-    /// Returns the preferred Codex model, if set by the server.
-    pub fn get_preferred_codex_model<'a>(
-        &self,
-        scope: &(impl TeamScope + ?Sized),
-        app: &'a AppContext,
-    ) -> Option<&'a LLMInfo> {
-        let agent_mode = &UserWorkspaces::as_ref(app)
-            .feature_model_choice_for_scope(scope)
-            .agent_mode;
-        agent_mode
-            .preferred_codex_model_id
-            .as_ref()
-            .and_then(|id| agent_mode.info_for_id(id))
-    }
 
 
 

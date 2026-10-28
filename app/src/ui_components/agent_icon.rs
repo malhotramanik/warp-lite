@@ -13,7 +13,7 @@ use warpui::{AppContext, SingletonEntity};
 
 use crate::ai::agent::conversation::ConversationStatus;
 use crate::ai::agent_conversations_model::{
-    AgentConversationEntry, AgentConversationsModel, AgentRunDisplayStatus,
+    AgentConversationsModel, AgentRunDisplayStatus,
 };
 use crate::terminal::CLIAgent;
 use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
@@ -97,16 +97,6 @@ pub(crate) fn terminal_view_agent_icon_variant(
     agent_icon_variant_from_terminal_inputs(&inputs)
 }
 
-pub(crate) fn agent_conversation_entry_icon_variant(
-    entry: &AgentConversationEntry,
-) -> IconWithStatusVariant {
-    let status = entry.display.status.to_conversation_status();
-    agent_icon_variant_for_run(
-        entry.display.harness.unwrap_or(Harness::Oz),
-        status,
-        entry.is_cloud_agent_run(),
-    )
-}
 
 /// Primitive inputs to the terminal-view waterfall, gathered once from the live
 /// [`TerminalView`] / [`AppContext`].

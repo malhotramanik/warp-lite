@@ -9,7 +9,6 @@ use chrono::{DateTime, Utc};
 use clap::ValueEnum;
 pub use entry::{
     AgentConversationEntry, AgentConversationEntryId, AgentConversationNavigationSubject,
-    AgentConversationProvenance,
 };
 use futures::stream::AbortHandle;
 use fuzzy_match::FuzzyMatchResult;
@@ -1083,44 +1082,7 @@ impl AgentConversationsModel {
         );
     }
 
-    /// Called when a view that consumes this model's data becomes visible.
-    /// Uses view_id to make registration idempotent.
-    pub fn register_view_open(
-        &mut self,
-        window_id: WindowId,
-        view_id: EntityId,
-        team_context_resolver: TeamContextResolver,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        self.active_data_consumers_per_window
-            .entry(window_id)
-            .or_default()
-            .insert(view_id, team_context_resolver);
-        self.update_polling_state(ctx);
 
-        // Flush dirty tasks accumulated while no list surface was open.
-        if let Some(dirty_since) = self.dirty_since.take() {
-            self.fetch_tasks_updated_after(dirty_since, ctx);
-        }
-    }
-
-    /// Called when a view that consumes this model's data becomes hidden.
-    /// Uses view_id to make unregistration idempotent.
-    pub fn register_view_closed(
-        &mut self,
-        window_id: WindowId,
-        view_id: EntityId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        if let Some(views) = self.active_data_consumers_per_window.get_mut(&window_id) {
-            views.remove(&view_id);
-            if views.is_empty() {
-                self.active_data_consumers_per_window.remove(&window_id);
-            }
-        }
-        self.abort_existing_poll();
-        self.update_polling_state(ctx);
-    }
 
     /// Updates the polling state based on whether the active window has the view open.
     fn update_polling_state(&mut self, ctx: &mut ModelContext<Self>) {

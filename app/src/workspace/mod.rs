@@ -1,22 +1,16 @@
 mod action;
 mod active_session;
-pub(crate) mod auto_handoff;
-pub mod bonus_grant_notification_model;
 #[cfg(target_os = "macos")]
 pub(crate) mod cli_install;
 mod close_session_confirmation_dialog;
 pub(crate) mod cross_window_tab_drag;
-pub mod delete_conversation_confirmation_dialog;
 mod global_actions;
 pub mod header_toolbar_editor;
 pub mod header_toolbar_item;
-pub mod hoa_onboarding;
-mod home;
 mod lightbox_view;
 mod native_modal;
 mod one_time_modal_model;
 mod registry;
-pub mod rewind_confirmation_dialog;
 pub mod sync_inputs;
 pub mod tab_group;
 pub mod tab_settings;
@@ -83,23 +77,10 @@ pub fn init(app: &mut AppContext) {
     modal::init(app);
     native_modal::init(app);
     lightbox_view::init(app);
-    rewind_confirmation_dialog::init(app);
-    delete_conversation_confirmation_dialog::init(app);
     crate::tab_configs::remove_confirmation_dialog::init(app);
-    hoa_onboarding::init(app);
     tab_configs::session_config_modal::init(app);
-    view::launch_modal::oz_launch::init(app);
-    view::openwarp_launch_modal::init(app);
-    view::orchestration_launch_modal::init(app);
-    view::agent_cli_launch_modal::init(app);
-    view::auto_handoff_sleep_modal::init(app);
-    view::chatgpt_plan_modal::init(app);
-    view::cloud_agent_capacity_modal::init(app);
-    view::codex_modal::init(app);
-    view::free_ai_removal_modal::init(app);
     view::global_search::view::GlobalSearchView::init(app);
     header_toolbar_editor::init(app);
-    view::conversation_list::view::register_conversation_list_view_bindings(app);
 
     settings_view::init_actions_from_parent_view(app, &id!("Workspace"), |settings_action| {
         WorkspaceAction::DispatchToSettingsTab(settings_action)
