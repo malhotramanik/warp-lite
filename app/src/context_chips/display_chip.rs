@@ -46,7 +46,6 @@ use crate::context_chips::node_version_popup::{NodeVersionPopupEvent, NodeVersio
 use crate::context_chips::spacing;
 use crate::settings::{AISettings, AISettingsChangedEvent};
 use crate::settings_view::keybindings::{KeybindingChangedEvent, KeybindingChangedNotifier};
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::input::{MenuPositioning, MenuPositioningProvider};
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model_events::ModelEventDispatcher;
@@ -1177,13 +1176,6 @@ impl DisplayChip {
         }
     }
 
-    /// Returns `true` when a CLI agent session is active for this chip's terminal,
-    /// meaning interactive behaviors (menus, hover, click) should be suppressed.
-    fn is_cli_agent_session_active(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.terminal_view_id)
-            .is_some()
-    }
 
     fn close_node_version_popup(&mut self, ctx: &mut ViewContext<'_, DisplayChip>) {
         if let DisplayChipKind::NodeVersion { popup_open, .. } = &mut self.display_chip_kind {
@@ -1384,8 +1376,7 @@ impl DisplayChip {
             appearance.theme().ansi_fg_green()
         };
 
-        let is_interactive =
-            !self.is_shared_session_viewer && !self.is_cli_agent_session_active(app);
+        let is_interactive = !self.is_shared_session_viewer;
         let is_in_agent_view = self.is_in_agent_view;
         let chip_text = self.text.clone();
         let hover = Hoverable::new(self.mouse_state.clone(), move |state| {
@@ -1510,8 +1501,7 @@ impl DisplayChip {
             appearance.monospace_font_family()
         };
         let font_size = udi_font_size(appearance);
-        let is_interactive =
-            !self.is_shared_session_viewer && !self.is_cli_agent_session_active(app);
+        let is_interactive = !self.is_shared_session_viewer;
         let fallback_branch = self.text.clone();
         let tracking_status = tracking_status
             .clone()
@@ -1782,9 +1772,8 @@ impl DisplayChip {
         let mut stack = Stack::new();
 
         // Menu is only allowed when the caller requests it and we're not in an active ambient
-        // agent session or CLI agent session.
-        let is_cli_agent_active = self.is_cli_agent_session_active(app);
-        let allow_show_menu = show_menu && !is_in_active_ambient_agent && !is_cli_agent_active;
+        // agent session.
+        let allow_show_menu = show_menu && !is_in_active_ambient_agent;
 
         let button = if allow_show_menu {
             let chip_text = self.text.clone();
@@ -1854,7 +1843,7 @@ impl DisplayChip {
                 let chip_element = render_udi_chip(config, appearance);
                 let mut stack = Stack::new().with_child(chip_element);
 
-                if state.is_hovered() && !is_cli_agent_active {
+                if state.is_hovered() {
                     let tool_tip = appearance
                         .ui_builder()
                         .tool_tip("Working directory".to_string())
@@ -2168,13 +2157,6 @@ impl TypedActionView for DisplayChip {
                 }
             },
             DisplayChipAction::ToggleMenu => {
-                // All ToggleMenu consumers (WorkingDirectory, GitBranch,
-                // GitBranchStatus, NodeVersion) route through shell commands
-                // (cd, git checkout, nvm use) that don't work in CLI agent
-                // context, so we suppress all of them.
-                if self.is_cli_agent_session_active(ctx) {
-                    return;
-                }
                 match &mut self.display_chip_kind {
                     DisplayChipKind::GitBranch { menu, menu_open }
                     | DisplayChipKind::GitBranchStatus {

@@ -39,7 +39,6 @@ use crate::pane_group::{self, Direction, PaneGroup};
 use crate::persistence::{BlockCompleted, ModelEvent};
 use crate::server::telemetry::CloudAgentShellRecoveryFailureClass;
 use crate::session_management::SessionNavigationData;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::shared_session::SharedSessionSource;
@@ -405,14 +404,6 @@ impl PaneContent for TerminalPane {
                 model.unregister_ambient_session(terminal_view_id, ctx);
             }
         });
-
-        // Clean up any active CLI agent session so its notification is removed.
-        // Skip this for moves — the session is still running and will re-register in the new tab.
-        if !matches!(detach_type, DetachType::Moved) {
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.remove_session(terminal_view_id, ctx);
-            });
-        }
 
         ctx.unsubscribe_to_model(&pane_stack);
 
@@ -1028,10 +1019,6 @@ fn handle_terminal_view_event(
                 ctx.emit(pane_group::Event::OpenAutoReloadModal {
                     purchased_credits: *purchased_credits,
                 });
-            }
-            #[cfg(not(target_family = "wasm"))]
-            Event::OpenPluginInstructionsPane(agent, kind) => {
-                ctx.emit(pane_group::Event::OpenPluginInstructionsPane(*agent, *kind));
             }
             Event::SyncInput(sync_event) => {
                 if SyncedInputState::as_ref(ctx)

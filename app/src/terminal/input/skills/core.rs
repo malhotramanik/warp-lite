@@ -6,7 +6,6 @@ use warp_util::local_or_remote_path::LocalOrRemotePath;
 use warpui::{AppContext, EntityId, SingletonEntity as _};
 
 use crate::ai::skills::SkillManager;
-use crate::terminal::cli_agent_sessions::{CLIAgentInputState, CLIAgentSessionsModel};
 pub const LOCAL_SKILLS_REMOTE_EXECUTION_ERROR_MESSAGE: &str = "Local skills cannot run on a remote machine. Try forking the conversation locally and running the skill.";
 
 /// Surface-neutral skill selection result shared by GUI and TUI menus.
@@ -33,27 +32,14 @@ pub fn query_selectable_skills(
     query_text: &str,
     app: &AppContext,
 ) -> Vec<SelectableSkill> {
-    let cli_agent_providers = CLIAgentSessionsModel::as_ref(app)
-        .session(terminal_view_id)
-        .filter(|session| matches!(session.input_state, CLIAgentInputState::Open { .. }))
-        .map(|session| session.agent.supported_skill_providers());
+    let _ = terminal_view_id;
     let skill_manager = SkillManager::as_ref(app);
     let query_text = query_text.trim();
     let mut results = skill_manager
         .get_skills_for_working_directory(working_directory, app)
         .into_iter()
-        .filter(|skill| {
-            if let Some(providers) = &cli_agent_providers {
-                skill_manager.skill_exists_for_any_provider(skill, providers)
-            } else {
-                include_bundled || skill.scope != SkillScope::Bundled
-            }
-        })
-        .filter_map(|mut skill| {
-            if let Some(providers) = &cli_agent_providers {
-                skill.provider = skill_manager.best_supported_provider(&skill, providers);
-            }
-
+        .filter(|skill| include_bundled || skill.scope != SkillScope::Bundled)
+        .filter_map(|skill| {
             let (name_match_result, score) = if query_text.is_empty() {
                 (None, OrderedFloat(f64::MIN))
             } else {

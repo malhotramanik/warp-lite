@@ -332,9 +332,6 @@ use crate::terminal::available_shells::AvailableShell;
 #[cfg(target_os = "windows")]
 use crate::terminal::available_shells::AvailableShells;
 use crate::terminal::block_list_viewport::InputMode;
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
-use crate::terminal::cli_agent_sessions::{CLIAgentSessionsModel, CLIAgentSessionsModelEvent};
 use crate::terminal::general_settings::GeneralSettings;
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::input::slash_commands::fork_button_action;
@@ -2734,9 +2731,6 @@ impl Workspace {
             &BlocklistAIHistoryModel::handle(ctx),
             Self::handle_history_model_event,
         );
-        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
-            me.handle_cli_agent_sessions_event(event, ctx);
-        });
 
 
         ctx.subscribe_to_model(
@@ -3191,22 +3185,6 @@ impl Workspace {
         })
     }
 
-    fn handle_cli_agent_sessions_event(
-        &mut self,
-        event: &CLIAgentSessionsModelEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        if matches!(
-            event,
-            CLIAgentSessionsModelEvent::Started { .. }
-                | CLIAgentSessionsModelEvent::StatusChanged { .. }
-                | CLIAgentSessionsModelEvent::Ended { .. }
-                | CLIAgentSessionsModelEvent::SessionUpdated { .. }
-        ) && self.workspace_contains_terminal_view(event.terminal_view_id(), ctx)
-        {
-            ctx.notify();
-        }
-    }
 
     /// Handle session settings changes.
     fn handle_session_settings_event(
@@ -14267,10 +14245,6 @@ impl Workspace {
                     .is_enable_auto_reload_modal_open = true;
                 ctx.notify();
             }
-            #[cfg(not(target_family = "wasm"))]
-            pane_group::Event::OpenPluginInstructionsPane(agent, kind) => {
-                self.open_plugin_instructions_pane(*agent, *kind, ctx);
-            }
             pane_group::Event::SyncInput(input_type) => {
                 self.process_sync_event_for_all_synced_pane_groups(input_type, ctx);
             }
@@ -15778,11 +15752,7 @@ impl Workspace {
             return;
         };
 
-        let prefix = CLIAgentSessionsModel::as_ref(ctx)
-            .session(terminal_view_handle.id())
-            .map(|session| session.agent.skill_command_prefix())
-            .unwrap_or("/");
-        let prompt = format!("{prefix}update-tab-config Update {} to...", path.display());
+        let prompt = format!("/update-tab-config Update {} to...", path.display());
 
         terminal_view_handle.update(ctx, |terminal_view, ctx| {
             terminal_view.input().update(ctx, |input, ctx| {
@@ -16837,84 +16807,6 @@ impl Workspace {
     }
 
 
-    #[cfg(not(target_family = "wasm"))]
-    fn open_plugin_instructions_pane(
-        &mut self,
-        agent: crate::terminal::CLIAgent,
-        kind: PluginModalKind,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        use crate::terminal::model::rich_content::RichContentType;
-        use crate::terminal::view::plugin_instructions_block::{
-            PluginInstructionsBlock, PluginInstructionsBlockEvent,
-        };
-        use crate::terminal::view::rich_content::{
-            RichContentInsertionPosition, RichContentMetadata,
-        };
-
-        let Some(manager) = plugin_manager_for(agent) else {
-            return;
-        };
-
-        let instructions = match kind {
-            PluginModalKind::Install => manager.install_instructions(),
-            PluginModalKind::Update => manager.update_instructions(),
-        };
-
-        // Read session metadata from the originating terminal before creating the instructions pane.
-        let active_view = self
-            .active_tab_pane_group()
-            .as_ref(ctx)
-            .active_session_view(ctx);
-
-        let is_remote_session = active_view
-            .as_ref()
-            .and_then(|view| view.as_ref(ctx).active_session_is_local(ctx))
-            .is_some_and(|is_local| !is_local);
-
-        let custom_command_prefix = active_view.and_then(|view| {
-            CLIAgentSessionsModel::as_ref(ctx)
-                .session(view.id())
-                .and_then(|s| s.custom_command_prefix.clone())
-        });
-
-        self.active_tab_pane_group().update(ctx, |pane_group, ctx| {
-            let pane_id = pane_group.add_terminal_pane_ignoring_default_session_mode(
-                pane_group::Direction::Right,
-                None,
-                ctx,
-            );
-
-            if let Some(terminal_view) = pane_group.terminal_view_from_pane_id(pane_id, ctx) {
-                terminal_view.update(ctx, |view, ctx| {
-                    let custom_command_prefix = custom_command_prefix.clone();
-                    let block = ctx.add_typed_action_view(|ctx| {
-                        PluginInstructionsBlock::new(
-                            instructions,
-                            agent,
-                            custom_command_prefix,
-                            is_remote_session,
-                            ctx,
-                        )
-                    });
-                    ctx.subscribe_to_view(&block, |view, block, event, ctx| match event {
-                        PluginInstructionsBlockEvent::Close => {
-                            view.remove_plugin_instructions_block(block.clone(), ctx);
-                        }
-                    });
-                    view.insert_rich_content(
-                        Some(RichContentType::PluginInstructionsBlock),
-                        block,
-                        Some(RichContentMetadata::PluginInstructionsBlock),
-                        RichContentInsertionPosition::Append {
-                            insert_below_long_running_block: false,
-                        },
-                        ctx,
-                    );
-                });
-            }
-        });
-    }
 
 
     /// Opens a new tab and enters agent view with a prompt from a Linear deeplink.

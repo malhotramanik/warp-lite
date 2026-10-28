@@ -24,7 +24,6 @@ use super::context_chip::{
 use super::logging::{ChipCommandLogEntry, PromptChipExecutionPhase, PromptChipLogger};
 use super::prompt::Prompt;
 use super::{ChipResult, ChipValue, ContextChipKind, chips_to_string};
-use crate::CLIAgentSessionsModel;
 use crate::ai::blocklist::agent_view::AgentViewController;
 use crate::code_review::git_repo_model::{GitRepoStatusEvent, GitRepoStatusModel};
 use crate::code_review::github_repo_model::{GitHubRepoEvent, GitHubRepoModel};
@@ -293,14 +292,6 @@ impl CurrentPrompt {
             me.update_states_with_new_context(ctx);
         });
 
-        ctx.subscribe_to_model(
-            &CLIAgentSessionsModel::handle(ctx),
-            move |me, _, event, ctx| {
-                if event.terminal_view_id() == terminal_view_id {
-                    me.update_states_with_new_context(ctx);
-                }
-            },
-        );
         ctx.subscribe_to_model(&AISettings::handle(ctx), |me, _, event, ctx| {
             if matches!(
                 event,
@@ -1127,12 +1118,7 @@ impl CurrentPrompt {
                 .as_ref()
                 .and_then(|controller| controller.upgrade(ctx))
                 .is_some_and(|controller| controller.as_ref(ctx).is_active());
-        let cli_agent_footer = self.terminal_view_id.is_some_and(|terminal_view_id| {
-            *AISettings::as_ref(ctx).should_render_cli_agent_footer
-                && CLIAgentSessionsModel::as_ref(ctx)
-                    .session(terminal_view_id)
-                    .is_some_and(|session| session.agent.supports_cli_agent_footer())
-        });
+        let cli_agent_footer = false;
 
         ActiveChipSurfaces {
             prompt,

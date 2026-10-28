@@ -9,7 +9,6 @@ use super::super::input_model::{InputConfig, InputType, InputTypeAutoDetectionSo
 use super::super::{BlocklistAIContextModel, ConversationSelectionHandle};
 use super::AgentViewEntryOrigin;
 use crate::settings::{AISettings, AISettingsChangedEvent};
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 
 /// GUI input-mode policy. The surface is either a fullscreen agent view or a
 /// top-level terminal (when `FeatureFlag::AgentView` is enabled), each with its
@@ -61,7 +60,7 @@ impl InputModePolicy for GuiInputModePolicy {
                 .conversation_selection
                 .as_ref(app)
                 .is_conversation_active(app)
-            || CLIAgentSessionsModel::as_ref(app).is_input_open(self.terminal_surface_id)
+            || false
     }
 
     fn is_autodetection_enabled(&self, app: &AppContext) -> bool {

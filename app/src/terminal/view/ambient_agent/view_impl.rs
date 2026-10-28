@@ -27,7 +27,6 @@ use crate::ai::blocklist::BlocklistAIHistoryModel;
 use crate::ai::blocklist::agent_view::AgentViewEntryOrigin;
 use crate::pane_group::TerminalViewResources;
 use crate::terminal::CLIAgent;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::view::rich_content::{RichContentInsertionPosition, RichContentMetadata};
 use crate::terminal::view::{
     ConversationDetailsPanelAutoOpenPolicy, Event as TerminalViewEvent, TerminalView,
@@ -531,15 +530,9 @@ impl TerminalView {
             .ambient_agent_view_model
             .as_ref()
             .is_some_and(|model| model.as_ref(ctx).is_third_party_harness());
-        let has_cli_agent_session = FeatureFlag::AgentHarness.is_enabled() && {
-            CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.view_id)
-                .is_some()
-        };
         let is_shared_ambient_agent_session = self.is_shared_ambient_agent_session();
 
-        (has_ambient_third_party_harness || has_cli_agent_session)
-            && is_shared_ambient_agent_session
+        has_ambient_third_party_harness && is_shared_ambient_agent_session
     }
 
     /// Syncs agent view for a live shared-session viewer of a non-oz cloud run, so every

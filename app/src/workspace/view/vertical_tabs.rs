@@ -58,7 +58,6 @@ use crate::tab::{
     SelectedTabColor, TAB_INDICATOR_SYNCED_COLOR, TabData, reveals_tab_shortcut_hints,
     tab_activate_binding_name, tab_position_id,
 };
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::session_settings::SessionSettings;
 use crate::terminal::view::TerminalViewState;
 use crate::terminal::{CLIAgent, TerminalView};
@@ -1052,14 +1051,6 @@ fn summary_conversation_status_for_terminal(
     terminal_view: &TerminalView,
     app: &AppContext,
 ) -> Option<ConversationStatus> {
-    let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
-    if let Some(session) = cli_agent_session
-        .filter(|s| s.supports_rich_status())
-        .filter(|s| !matches!(s.agent, CLIAgent::Unknown))
-    {
-        return Some(session.status.to_conversation_status());
-    }
-
     let is_ambient = terminal_view.is_ambient_agent_session(app);
     let has_conversation = terminal_view
         .selected_conversation_display_title(app)
@@ -1453,15 +1444,6 @@ fn render_detail_kind_badge_icon(
         TypedPane::Terminal(terminal_pane) => {
             let terminal_view = terminal_pane.terminal_view(app);
             let terminal_view = terminal_view.as_ref(app);
-            let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
-            if let Some(icon) = cli_agent_session.and_then(|session| session.agent.icon()) {
-                let color = cli_agent_session
-                    .and_then(|session| session.agent.brand_color())
-                    .map(WarpThemeFill::Solid)
-                    .unwrap_or_else(|| theme.accent());
-                return icon.to_warpui_icon(color).finish();
-            }
-
             let icon = if terminal_view.is_ambient_agent_session(app) {
                 WarpIcon::CloudFilled
             } else if terminal_view
@@ -4281,30 +4263,18 @@ fn preferred_agent_tab_titles(
 }
 
 fn terminal_agent_text(terminal_view: &TerminalView, app: &AppContext) -> TerminalAgentText {
-    let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
-    let is_plugin_backed = cli_agent_session.is_some_and(|session| session.listener.is_some());
     let is_ambient_agent = terminal_view.is_ambient_agent_session(app);
 
     let mut agent_text = TerminalAgentText {
         is_oz_agent: is_ambient_agent,
-        cli_agent: cli_agent_session.map(|session| session.agent),
         ..Default::default()
     };
-
-    if cli_agent_session.is_some() && !is_plugin_backed {
-        return agent_text;
-    }
 
     agent_text.conversation_display_title = terminal_view.selected_conversation_display_title(app);
     agent_text.conversation_latest_user_prompt =
         terminal_view.selected_conversation_latest_user_prompt_for_tab_name(app);
     agent_text.is_oz_agent =
         agent_text.conversation_display_title.is_some() || agent_text.is_oz_agent;
-
-    if let Some(session) = cli_agent_session {
-        agent_text.cli_agent_title = session.session_context.title_like_text();
-        agent_text.cli_agent_latest_user_prompt = session.session_context.latest_user_prompt();
-    }
 
     agent_text
 }
@@ -6779,14 +6749,11 @@ fn render_terminal_detail_section(
     let text_colors = detail_sidecar_text_colors(theme);
     let working_directory = resolved_terminal_working_directory(terminal_view, app);
     let git_branch = terminal_view.current_git_branch(app);
-    let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
     let agent_text = terminal_agent_text(terminal_view, app);
     let (conversation_display_title, cli_agent_title) =
         preferred_agent_tab_titles(&agent_text, agent_tab_text_preference(app));
     let kind_label = terminal_kind_badge_label(agent_text.is_oz_agent, agent_text.cli_agent);
-    let status = if let Some(session) = cli_agent_session.filter(|s| s.supports_rich_status()) {
-        Some(session.status.to_conversation_status())
-    } else if agent_text.is_oz_agent {
+    let status = if agent_text.is_oz_agent {
         terminal_view.selected_conversation_status_for_display(app)
     } else {
         None

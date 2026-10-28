@@ -16,7 +16,6 @@ use crate::ai::agent_conversations_model::{
     AgentConversationsModel, AgentRunDisplayStatus,
 };
 use crate::terminal::CLIAgent;
-use crate::terminal::cli_agent_sessions::CLIAgentSessionsModel;
 use crate::terminal::view::TerminalView;
 use crate::ui_components::icon_with_status::IconWithStatusVariant;
 
@@ -35,8 +34,6 @@ pub(crate) fn terminal_view_agent_icon_variant(
     terminal_view: &TerminalView,
     app: &AppContext,
 ) -> Option<IconWithStatusVariant> {
-    let cli_agent_session = CLIAgentSessionsModel::as_ref(app).session(terminal_view.id());
-
     // Ambient task id from a restored cloud transcript's server metadata. This is a genuine
     // cloud signal (unlike an orchestrator task id on a `User` share's `source_task_id`).
     let server_ambient_task_id = terminal_view
@@ -65,9 +62,7 @@ pub(crate) fn terminal_view_agent_icon_variant(
         && !is_local_child;
 
     // Defer to the card helper when we have task data and no CLI session takes precedence.
-    if cli_agent_session.is_none()
-        && let Some(task) = task_data.as_ref()
-    {
+    if let Some(task) = task_data.as_ref() {
         let status = AgentRunDisplayStatus::from_task(task, app).to_conversation_status();
         let harness = task
             .agent_config_snapshot
@@ -80,12 +75,7 @@ pub(crate) fn terminal_view_agent_icon_variant(
 
     let inputs = TerminalIconInputs {
         is_ambient: is_cloud,
-        cli_session: cli_agent_session.map(|session| CLISessionInputs {
-            agent: session.agent,
-            has_listener: session.listener.is_some(),
-            status: session.status.to_conversation_status(),
-            supports_rich_status: session.supports_rich_status(),
-        }),
+        cli_session: None,
         selected_third_party_cli_agent: terminal_view
             .ambient_agent_view_model()
             .and_then(|model| model.as_ref(app).selected_third_party_cli_agent()),

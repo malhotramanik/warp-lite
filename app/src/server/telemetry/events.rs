@@ -57,7 +57,6 @@ use crate::settings::import::config::ParsedTerminalSetting;
 use crate::settings::import::model::TerminalType;
 use crate::tab::TabTelemetryAction;
 use crate::terminal::block_list_viewport::InputMode;
-use crate::terminal::cli_agent_sessions::{CLIAgentInputEntrypoint, CLIAgentRichInputCloseReason};
 use crate::terminal::input::TelemetryInputSuggestionsMode;
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::session::SessionId;
@@ -2651,20 +2650,6 @@ pub enum TelemetryEvent {
         /// The CLI agent being shown.
         cli_agent: CLIAgent,
     },
-    /// Emitted when the user opens the CLI agent rich input editor.
-    CLIAgentRichInputOpened {
-        /// The CLI agent being used.
-        cli_agent: CLIAgent,
-        /// How the editor was opened (Ctrl-G or footer button).
-        entrypoint: CLIAgentInputEntrypoint,
-    },
-    /// Emitted when the CLI agent rich input editor is closed.
-    CLIAgentRichInputClosed {
-        /// The CLI agent being used.
-        cli_agent: CLIAgent,
-        /// Why the editor was closed.
-        reason: CLIAgentRichInputCloseReason,
-    },
     /// Emitted when the user submits a prompt via the CLI agent rich input editor.
     CLIAgentRichInputSubmitted {
         /// The CLI agent being used.
@@ -4589,17 +4574,6 @@ impl TelemetryEvent {
             TelemetryEvent::CLIAgentToolbarShown { cli_agent } => Some(json!({
                 "agent_name": cli_agent.telemetry_name(),
             })),
-            TelemetryEvent::CLIAgentRichInputOpened {
-                cli_agent,
-                entrypoint,
-            } => Some(json!({
-                "agent_name": cli_agent.telemetry_name(),
-                "entrypoint": entrypoint,
-            })),
-            TelemetryEvent::CLIAgentRichInputClosed { cli_agent, reason } => Some(json!({
-                "agent_name": cli_agent.telemetry_name(),
-                "reason": reason,
-            })),
             TelemetryEvent::CLIAgentRichInputSubmitted {
                 cli_agent,
                 prompt_length,
@@ -5153,8 +5127,6 @@ impl TelemetryEvent {
             | TelemetryEvent::CLIAgentPluginOperationFailed { .. }
             | TelemetryEvent::CLIAgentPluginDetected { .. }
             | TelemetryEvent::AgentNotificationShown { .. }
-            | TelemetryEvent::CLIAgentRichInputOpened { .. }
-            | TelemetryEvent::CLIAgentRichInputClosed { .. }
             | TelemetryEvent::CLIAgentRichInputSubmitted { .. }
             | TelemetryEvent::ToggleCLIAgentToolbarSetting { .. }
             | TelemetryEvent::ToggleUseAgentToolbarSetting { .. }
@@ -5698,8 +5670,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentNotificationShown { .. } => {
                 EnablementState::Flag(FeatureFlag::HOANotifications)
             }
-            Self::CLIAgentRichInputOpened { .. }
-            | Self::CLIAgentRichInputClosed { .. }
             | Self::CLIAgentRichInputSubmitted { .. } => {
                 EnablementState::Flag(FeatureFlag::CLIAgentRichInput)
             }
@@ -6251,8 +6221,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::CLIAgentPluginOperationFailed { .. } => "CLIAgentPlugin.OperationFailed",
             Self::CLIAgentPluginDetected { .. } => "CLIAgentPlugin.Detected",
             Self::AgentNotificationShown { .. } => "AgentNotification.Shown",
-            Self::CLIAgentRichInputOpened { .. } => "CLIAgentRichInput.Opened",
-            Self::CLIAgentRichInputClosed { .. } => "CLIAgentRichInput.Closed",
             Self::CLIAgentRichInputSubmitted { .. } => "CLIAgentRichInput.Submitted",
             Self::ToggleCLIAgentToolbarSetting { .. } => "CLIAgentFooter.SettingToggled",
             Self::ToggleUseAgentToolbarSetting { .. } => "UseAgentToolbar.SettingToggled",
@@ -7070,8 +7038,6 @@ impl TelemetryEventDesc for TelemetryEventDiscriminants {
             Self::AgentNotificationShown { .. } => {
                 "An agent notification was shown to the user (toast or mailbox)"
             }
-            Self::CLIAgentRichInputOpened { .. } => "User opened CLI agent Rich Input",
-            Self::CLIAgentRichInputClosed { .. } => "CLI agent Rich Input was closed",
             Self::CLIAgentRichInputSubmitted { .. } => {
                 "User submitted a prompt via CLI agent Rich Input"
             }

@@ -53,9 +53,6 @@ use crate::pane_group::TerminalViewResources;
 use crate::persistence::ModelEvent;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::telemetry::{TelemetryAgentViewEntryOrigin, TelemetryEvent};
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
 use crate::terminal::safe_mode_settings::get_secret_obfuscation_mode;
 use crate::terminal::session_settings::{SessionSettings, SessionSettingsChangedEvent};
 use crate::terminal::shared_session::manager::Manager;
@@ -64,7 +61,7 @@ use crate::terminal::shared_session::presence_manager::PresenceManager;
 use crate::terminal::shared_session::replay_agent_conversations::reconstruct_response_events_from_conversations;
 use crate::terminal::shared_session::settings::SharedSessionSettings;
 use crate::terminal::shared_session::shared_handlers::{
-    RemoteUpdateGuard, apply_auto_approve_agent_actions_update, apply_cli_agent_state_update,
+    RemoteUpdateGuard, apply_auto_approve_agent_actions_update,
     apply_input_mode_update, apply_selected_agent_model_update, apply_selected_conversation_update,
     build_selected_conversation_update,
 };
@@ -137,20 +134,6 @@ fn accept_agent_prompt(
     ctx: &mut AppContext,
 ) {
     let terminal_view_id = terminal_view.id();
-    let has_active_cli_agent = CLIAgentSessionsModel::as_ref(ctx)
-        .session(terminal_view_id)
-        .is_some();
-    if has_active_cli_agent {
-        log::info!(
-            "event=prompt_routed terminal_id={terminal_view_id:?} participant_id={participant_id} destination=live_cli",
-        );
-        // Reuse the rich input submit pipeline so agent-specific
-        // strategies are applied. Bypasses the rich-input-UI side effects
-        // (telemetry, draft clear, editor buffer clear, pending-image consumption).
-        terminal_view.update(ctx, |_view, _ctx| {
-        });
-        return;
-    }
 
     // `register_cli_session` runs at harness setup time, before the harness process is
     // launched (see its call site in `AgentDriver::subscribe_to_cli_agent_session_events`), so
@@ -971,19 +954,7 @@ impl TerminalManager<TerminalView> {
                     }
                 };
 
-                // Include CLI agent session state in initial context so
-                // late-joining viewers see the footer immediately.
-                let terminal_view_id = terminal_view.id();
-                let cli_agent_session = {
-                    let sessions_model = CLIAgentSessionsModel::as_ref(ctx);
-                    match sessions_model.session(terminal_view_id) {
-                        Some(session) => CLIAgentSessionState::Active {
-                            cli_agent: session.agent.to_serialized_name(),
-                            is_rich_input_open: sessions_model.is_input_open(terminal_view_id),
-                        },
-                        None => CLIAgentSessionState::Inactive,
-                    }
-                };
+                let cli_agent_session = CLIAgentSessionState::Inactive;
 
                 let universal_developer_input_context = UniversalDeveloperInputContext {
                     input_mode: Some(input_config.into()),
@@ -1784,17 +1755,6 @@ impl TerminalManager<TerminalView> {
                     );
                 }
 
-                // Apply CLI agent rich input state from the viewer.
-                if let Some(ref cli_agent_session) = context_update.cli_agent_session {
-                    let weak_view_handle = terminal_view.downgrade();
-                    apply_cli_agent_state_update(
-                        &weak_view_handle,
-                        cli_agent_session,
-                        &active_remote_update,
-                        ctx,
-                    );
-                }
-
                 // Only apply agent control / tagged-in updates if there is an active long-running command.
                 if model
                     .lock()
@@ -1947,8 +1907,6 @@ impl TerminalManager<TerminalView> {
             Lifetime::Ephemeral
         };
 
-        // Clone before the subscribe_to_view closure moves the original.
-        let sharer_remote_update_guard_for_cli = sharer_remote_update_guard.clone();
         ctx.subscribe_to_view(terminal_view, move |view, event, ctx| match event {
             TerminalViewEvent::StartSharingCurrentSession {
                 scrollback_type,
@@ -2128,53 +2086,6 @@ impl TerminalManager<TerminalView> {
             _ => (),
         });
 
-        // Broadcast CLI agent session lifecycle events to viewers.
-        let session_sharer_for_cli = shared_session_model.clone();
-        let cli_guard = sharer_remote_update_guard_for_cli;
-        let terminal_view_id = terminal_view.id();
-        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), move |_, event, ctx| {
-            if event.terminal_view_id() != terminal_view_id || !cli_guard.should_broadcast() {
-                return;
-            }
-            let Some(network) = session_sharer_for_cli.borrow().as_ref().cloned() else {
-                return;
-            };
-            let update = match event {
-                CLIAgentSessionsModelEvent::Started { agent, .. } => {
-                    UniversalDeveloperInputContextUpdate {
-                        cli_agent_session: Some(CLIAgentSessionState::Active {
-                            cli_agent: agent.to_serialized_name(),
-                            is_rich_input_open: false,
-                        }),
-                        ..Default::default()
-                    }
-                }
-                CLIAgentSessionsModelEvent::InputSessionChanged {
-                    agent,
-                    new_input_state,
-                    ..
-                } => UniversalDeveloperInputContextUpdate {
-                    cli_agent_session: Some(CLIAgentSessionState::Active {
-                        cli_agent: agent.to_serialized_name(),
-                        is_rich_input_open: matches!(
-                            new_input_state,
-                            &CLIAgentInputState::Open { .. }
-                        ),
-                    }),
-                    ..Default::default()
-                },
-                CLIAgentSessionsModelEvent::Ended { .. } => UniversalDeveloperInputContextUpdate {
-                    cli_agent_session: Some(CLIAgentSessionState::Inactive),
-                    ..Default::default()
-                },
-                // StatusChanged / SessionUpdated are enriched by OSC events;
-                // no protocol send needed.
-                _ => return,
-            };
-            network.update(ctx, |network, _| {
-                network.send_universal_developer_input_context_update(update);
-            });
-        });
     }
 
     fn handle_network_status_events(

@@ -30,7 +30,6 @@ mod pane_impl;
 mod passive_suggestions;
 mod pending_user_query;
 #[cfg(not(target_family = "wasm"))]
-pub(crate) mod plugin_instructions_block;
 pub mod rich_content;
 mod shared_session;
 mod shell_terminated_banner;
@@ -375,18 +374,6 @@ use crate::terminal::block_list_viewport::{
     ScrollState, ViewportState,
 };
 use crate::terminal::bootstrap::init_subshell_command;
-use crate::terminal::cli_agent_sessions::event::{
-    CLI_AGENT_NOTIFICATION_SENTINEL, CLIAgentEvent, CLIAgentEventPayload, CLIAgentEventSource,
-    CLIAgentEventType, parse_event,
-};
-use crate::terminal::cli_agent_sessions::listener::{CLIAgentSessionListener, is_agent_supported};
-#[cfg(not(target_family = "wasm"))]
-use crate::terminal::cli_agent_sessions::plugin_manager::{PluginModalKind, plugin_manager_for};
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputState, CLIAgentSession,
-    CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
-    CLIAgentSessionsModelEvent,
-};
 use crate::terminal::color::List;
 use crate::terminal::command_corrections_denylist::COMMAND_CORRECTIONS_PREFERRED_DENYLIST;
 use crate::terminal::event::{
@@ -1976,8 +1963,6 @@ pub enum Event {
     OpenAutoReloadModal {
         purchased_credits: i32,
     },
-    #[cfg(not(target_family = "wasm"))]
-    OpenPluginInstructionsPane(CLIAgent, PluginModalKind),
     ShowToast {
         message: String,
         flavor: ToastFlavor,
@@ -3873,19 +3858,6 @@ impl TerminalView {
         );
         ctx.subscribe_to_model(&ai_input_model, Self::handle_ai_input_model_event);
         ctx.subscribe_to_model(&ai_action_model, Self::handle_ai_action_model_event);
-        ctx.subscribe_to_model(&CLIAgentSessionsModel::handle(ctx), |me, _, event, ctx| {
-            if let CLIAgentSessionsModelEvent::Ended {
-                terminal_view_id, ..
-            } = event
-                && *terminal_view_id == me.view_id
-                && me.auto_stop_sharing_on_cli_end
-                && me.model.lock().shared_session_status().is_active_sharer()
-            {
-                me.auto_stop_sharing_on_cli_end = false;
-                me.stop_sharing_session(SharedSessionActionSource::NonUser, ctx);
-            }
-            me.handle_cli_agent_sessions_event(event, ctx)
-        });
         ctx.subscribe_to_model(
             &ai_action_model.as_ref(ctx).shell_command_executor(ctx),
             Self::handle_shell_command_executor_event,
@@ -5135,18 +5107,6 @@ impl TerminalView {
                     .all_chips(),
             );
         }
-        // CLI-agent footer: subscribe only while a CLI-agent session is active,
-        // so normal terminal panes do not subscribe just because of CLI footer defaults.
-        if self.has_active_cli_agent_session(ctx)
-            && Self::uses_git_status_chips(
-                SessionSettings::as_ref(ctx)
-                    .cli_agent_footer_chip_selection
-                    .all_chips(),
-            )
-        {
-            return true;
-        }
-
         // Terminal prompt path: the Warp prompt is active when honor_ps1 is
         // off, or when UDI overrides PS1. The prompt must include a chip backed
         // by git status.
@@ -5175,15 +5135,6 @@ impl TerminalView {
                 .all_chips()
                 .contains(&ContextChipKind::GithubPullRequest);
         }
-        if self.has_active_cli_agent_session(ctx)
-            && SessionSettings::as_ref(ctx)
-                .cli_agent_footer_chip_selection
-                .all_chips()
-                .contains(&ContextChipKind::GithubPullRequest)
-        {
-            return true;
-        }
-
         let is_using_warp_prompt = !*SessionSettings::as_ref(ctx).honor_ps1
             || InputSettings::as_ref(ctx).is_universal_developer_input_enabled(ctx);
         is_using_warp_prompt
@@ -8201,9 +8152,6 @@ impl TerminalView {
         let agent_view_state = self.agent_view_controller.as_ref(app).agent_view_state();
         agent_view_state.is_fullscreen()
             || agent_view_state.is_inline()
-            || CLIAgentSessionsModel::as_ref(app)
-                .session(self.view_id)
-                .is_some()
     }
 
     fn can_attach_file(&self, app: &AppContext) -> bool {
@@ -9749,24 +9697,8 @@ impl TerminalView {
     }
 
     /// Writes a shared session viewer's bytes to the pty.
-    ///
-    /// A lone Ctrl-C byte that is actually forwarded to the PTY is
-    /// additionally observed by `CLIAgentSessionsModel` so that an interrupt
-    /// which silently kills a third-party harness turn (no plugin hook fires
-    /// on user interrupt) can still resolve the session, and its task, to
-    /// Cancelled. See `CLIAgentSessionsModel::observe_ctrl_c_write`.
-    /// Observation never delays or drops the write itself, and never arms a
-    /// window for a byte that `write_user_bytes_to_pty` rejected (e.g. the
-    /// active block is under agent control).
     pub fn write_viewer_bytes_to_pty(&mut self, bytes: Vec<u8>, ctx: &mut ViewContext<Self>) {
-        let is_ctrl_c = bytes == [0x03];
-        let forwarded = self.write_user_bytes_to_pty(bytes, ctx);
-        if forwarded && is_ctrl_c && FeatureFlag::CtrlCCancelsThirdPartyHarness.is_enabled() {
-            let terminal_view_id = self.view_id;
-            CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions, ctx| {
-                sessions.observe_ctrl_c_write(terminal_view_id, ctx);
-            });
-        }
+        self.write_user_bytes_to_pty(bytes, ctx);
     }
 
     /// Ends the current line before writing the given bytes to the PTY.
@@ -12336,12 +12268,6 @@ impl TerminalView {
                     self.on_user_block_completed(&block_completed_event.block_id, ctx);
                 }
 
-                if matches!(block_completed_event.block_type, BlockType::User(_)) {
-                    CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
-                        sessions_model.remove_session(self.view_id, ctx);
-                    });
-                }
-
                 let next_block_index = block_completed_event.block_index + BlockIndex::from(1);
 
                 // Don't populate mouse states for In-Band blocks. In-band blocks are hidden to the
@@ -12507,64 +12433,6 @@ impl TerminalView {
                                     LONG_RUNNING_COMMAND_DURATION_MS,
                                 )),
                                 move |me, _, ctx| {
-                                    // Detect CLI agent and create session before
-                                    // showing the footer, so the session drives
-                                    // the footer rather than the other way around.
-                                    let detection = {
-                                        let model = me.model.lock();
-                                        me.detect_cli_agent_from_model(&model, ctx)
-                                    };
-                                    let view_id = me.view_id;
-                                    CLIAgentSessionsModel::handle(ctx).update(
-                                        ctx,
-                                        |sessions_model, ctx| match detection {
-                                            Some((agent, ref custom_command_prefix))
-                                                if !sessions_model
-                                                    .session(view_id)
-                                                    .is_some_and(|s| s.agent == agent) =>
-                                            {
-                                                let remote_host =
-                                                    me.active_session_remote_host(ctx);
-                                                let should_auto_toggle_input = agent
-                                                    .supports_cli_agent_footer()
-                                                    && *AISettings::as_ref(ctx)
-                                                        .auto_open_rich_input_on_cli_agent_start;
-                                                sessions_model.set_session(
-                                                    view_id,
-                                                    CLIAgentSession {
-                                                        agent,
-                                                        status: CLIAgentSessionStatus::InProgress,
-                                                        session_context:
-                                                            CLIAgentSessionContext::default(),
-                                                        input_state: CLIAgentInputState::Closed,
-                                                        should_auto_toggle_input,
-                                                        listener: None,
-                                                        plugin_version: None,
-                                                        remote_host,
-                                                        draft_text: None,
-                                                        custom_command_prefix:
-                                                            custom_command_prefix.clone(),
-                                                        received_rich_notification: false,
-                                                    },
-                                                    ctx,
-                                                );
-                                            }
-                                            _ => {}
-                                        },
-                                    );
-
-                                    // Codex and Grok use OSC 9 (and optional rich OSC 777)
-                                    // without requiring a SessionStart sentinel first, so
-                                    // create the listener proactively on command detection.
-                                    if let Some((agent @ (CLIAgent::Codex | CLIAgent::Grok), _)) =
-                                        detection
-                                    {
-                                        me.register_cli_agent_listener_without_session_start_event(
-                                            agent, ctx,
-                                        );
-                                    }
-
-                                    me.maybe_auto_open_cli_agent_rich_input(ctx);
                                     me.input.update(ctx, |input, ctx| {
                                         input.universal_developer_input_button_bar().update(
                                             ctx,
@@ -13309,25 +13177,6 @@ impl TerminalView {
                 });
             }
             ModelEvent::PluggableNotification { title, body } => {
-                // Intercept structured CLI agent notifications (e.g. from Claude Code plugin).
-                // The listener's own subscription handles subsequent events; we just
-                // suppress the raw JSON from becoming a toast/desktop notification.
-                if title.as_deref() == Some(CLI_AGENT_NOTIFICATION_SENTINEL) {
-                    self.handle_cli_agent_notification(title.as_deref(), body, ctx);
-                    return;
-                }
-
-                // Suppress OSC 9 notifications when a Codex listener is active.
-                // The listener's subscription handles these via CodexSessionHandler.
-                if title.is_none() {
-                    let has_codex_listener = CLIAgentSessionsModel::as_ref(ctx)
-                        .session(self.view_id)
-                        .is_some_and(|s| s.agent == CLIAgent::Codex && s.listener.is_some());
-                    if has_codex_listener {
-                        return;
-                    }
-                }
-
                 if self.is_navigated_away_from_window(ctx) {
                     let notification_title =
                         title.clone().unwrap_or_else(|| "Notification".to_string());
@@ -13682,125 +13531,8 @@ impl TerminalView {
         ctx.notify();
     }
 
-    /// Handles an OSC 777 event with the `warp://cli-agent` sentinel title.
-    /// On `session_start`, creates a `CLIAgentSessionListener` that subscribes
-    /// to subsequent events from this terminal's PTY.
-    fn handle_cli_agent_notification(
-        &mut self,
-        title: Option<&str>,
-        body: &str,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let Some(notification) = parse_event(title, body) else {
-            return;
-        };
 
-        if !is_agent_supported(&notification.agent) {
-            return;
-        }
 
-        if notification.agent == CLIAgent::Codex && !FeatureFlag::CodexPlugin.is_enabled() {
-            return;
-        }
-
-        if !self.register_cli_agent_listener_from_event(&notification, ctx) {
-            return;
-        }
-
-        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
-            sessions_model.update_from_event(self.view_id, &notification, ctx);
-        });
-
-        if notification.event == CLIAgentEventType::SessionStart {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::CLIAgentPluginDetected {
-                    cli_agent: notification.agent,
-                },
-                ctx
-            );
-            self.maybe_auto_open_cli_agent_rich_input(ctx);
-        }
-    }
-
-    fn register_cli_agent_listener_from_event(
-        &mut self,
-        notification: &CLIAgentEvent,
-        ctx: &mut ViewContext<Self>,
-    ) -> bool {
-        if !is_agent_supported(&notification.agent) {
-            return false;
-        }
-        let has_listener = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some_and(|s| s.listener.is_some());
-        if has_listener {
-            return false;
-        }
-
-        let model_events_handle = self.model_events_handle.clone();
-        let view_id = self.view_id;
-        let agent = notification.agent;
-        let listener = ctx.add_model(|ctx| {
-            CLIAgentSessionListener::new(view_id, agent, &model_events_handle, ctx)
-        });
-        let remote_host = self.active_session_remote_host(ctx);
-        let should_auto_toggle_input = agent.supports_cli_agent_footer()
-            && *AISettings::as_ref(ctx).auto_open_rich_input_on_cli_agent_start;
-        // Seed context from the event that caused registration before the
-        // listener subscribes to future events.
-        CLIAgentSessionsModel::handle(ctx).update(ctx, |sessions_model, ctx| {
-            sessions_model.register_listener(
-                view_id,
-                agent,
-                notification.cwd.clone(),
-                notification.project.clone(),
-                notification.session_id.clone(),
-                notification.payload.plugin_version.clone(),
-                remote_host,
-                should_auto_toggle_input,
-                listener,
-                ctx,
-            );
-        });
-        true
-    }
-
-    /// Creates and registers a listener for flows without a `SessionStart` event.
-    fn register_cli_agent_listener_without_session_start_event(
-        &mut self,
-        agent: CLIAgent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        #[cfg(not(target_family = "wasm"))]
-        let plugin_version = if matches!(agent, CLIAgent::Codex) {
-            // We use the lack of a plugin version for codex to differentiate between
-            // OSC 9 notification fallback and real plugin.
-            None
-        } else {
-            // No SessionStart event in this path (mid-session install/update).
-            // Assume the just-installed plugin meets the minimum version for this agent
-            // so the update chip doesn't flash before the user runs /reload-plugins.
-            plugin_manager_for(agent).map(|m| m.minimum_plugin_version().to_owned())
-        };
-        #[cfg(target_family = "wasm")]
-        let plugin_version = None;
-        let notification = CLIAgentEvent {
-            source: CLIAgentEventSource::RichPlugin,
-            v: 1,
-            agent,
-            event: CLIAgentEventType::SessionStart,
-            session_id: None,
-            cwd: None,
-            project: None,
-            payload: CLIAgentEventPayload {
-                plugin_version,
-                ..Default::default()
-            },
-        };
-        if self.register_cli_agent_listener_from_event(&notification, ctx) {
-            self.maybe_auto_open_cli_agent_rich_input(ctx);
-        }
-    }
 
     /// Resolves the conversation this pane's CLI agent status updates should
     /// be written to: the conversation whose `task_id` matches the ambient
@@ -13847,159 +13579,7 @@ impl TerminalView {
         conversation_ids.next().is_none().then_some(conversation_id)
     }
 
-    /// If the startup auto-open setting is enabled, auto-opens rich input for a
-    /// CLI agent session. Called after creating a command-detected session or
-    /// registering a listener so rich input is shown immediately.
-    fn maybe_auto_open_cli_agent_rich_input(&mut self, ctx: &mut ViewContext<Self>) {
-        let ai_settings = AISettings::as_ref(ctx);
-        if !*ai_settings.auto_open_rich_input_on_cli_agent_start
-            || !ai_settings.is_any_ai_enabled(ctx)
-            || !*ai_settings.should_render_cli_agent_footer
-            || !is_rich_input_chip_in_cli_toolbar(ctx)
-        {
-            return;
-        }
-        let should_open = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some_and(|s| s.agent.supports_cli_agent_footer() && s.should_auto_toggle_input);
-        if should_open && !self.has_active_cli_agent_input_session(ctx) {
-        }
-    }
 
-    /// Handles CLI agent session status changes from the singleton model.
-    /// Sends a desktop notification when a CLI agent reaches a completed state
-    /// (blocked or succeeded) and the user is in a different window.
-    /// Also handles auto-show/hide of CLI agent rich input based on the
-    /// `auto_toggle_rich_input` setting: closes rich input when blocked
-    /// (agent requires keyboard interaction) and opens it when the agent resumes.
-    fn handle_cli_agent_sessions_event(
-        &mut self,
-        event: &CLIAgentSessionsModelEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            CLIAgentSessionsModelEvent::Started {
-                terminal_view_id, ..
-            } if *terminal_view_id == self.view_id => {
-                let mut model = self.model.lock();
-                let active_block = model.block_list_mut().active_block_mut();
-                active_block.enable_full_grid_clear_behavior();
-                if FeatureFlag::TrimTrailingBlankLines.is_enabled() {
-                    active_block.set_trim_trailing_blank_rows(true);
-                }
-            }
-            CLIAgentSessionsModelEvent::Ended {
-                terminal_view_id, ..
-            } if *terminal_view_id == self.view_id => {
-                let mut model = self.model.lock();
-                let active_block = model.block_list_mut().active_block_mut();
-                if FeatureFlag::TrimTrailingBlankLines.is_enabled() {
-                    active_block.set_trim_trailing_blank_rows(false);
-                }
-            }
-            _ => {}
-        }
-        if event.terminal_view_id() == self.view_id
-            && matches!(
-                event,
-                CLIAgentSessionsModelEvent::Started { .. }
-                    | CLIAgentSessionsModelEvent::StatusChanged { .. }
-                    | CLIAgentSessionsModelEvent::SessionUpdated { .. }
-                    | CLIAgentSessionsModelEvent::Ended { .. }
-            )
-        {
-            self.update_pane_configuration(ctx);
-            ctx.notify();
-        }
-        if event.terminal_view_id() == self.view_id
-            && matches!(
-                event,
-                CLIAgentSessionsModelEvent::Started { .. }
-                    | CLIAgentSessionsModelEvent::Ended { .. }
-            )
-        {
-            self.update_git_status_subscription(ctx);
-        }
-
-        let CLIAgentSessionsModelEvent::StatusChanged {
-            terminal_view_id,
-            agent,
-            status,
-            session_context,
-            ..
-        } = event
-        else {
-            return;
-        };
-
-        if *terminal_view_id != self.view_id {
-            return;
-        }
-
-        if let Some(conversation_id) = self.conversation_id_for_cli_agent_status_updates(ctx) {
-            BlocklistAIHistoryModel::handle(ctx).update(ctx, |history_model, ctx| {
-                history_model.update_conversation_status(
-                    self.view_id,
-                    conversation_id,
-                    status.to_conversation_status(),
-                    ctx,
-                );
-            });
-        }
-
-        // Auto-show/hide rich input based on the setting.
-        // Only applies when the session has a plugin listener (rich status info).
-        let ai_settings = AISettings::as_ref(ctx);
-        if *ai_settings.auto_toggle_rich_input
-            && ai_settings.is_any_ai_enabled(ctx)
-            && *ai_settings.should_render_cli_agent_footer
-            && is_rich_input_chip_in_cli_toolbar(ctx)
-        {
-            let should_auto_toggle_input = CLIAgentSessionsModel::as_ref(ctx)
-                .session(self.view_id)
-                .is_some_and(|s| {
-                    s.agent.supports_cli_agent_footer()
-                        && s.supports_rich_status()
-                        && s.should_auto_toggle_input
-                });
-            let _ = should_auto_toggle_input;
-        }
-
-        // Desktop notifications — only when navigated away and not in-progress.
-        if !self.is_navigated_away_from_window(ctx)
-            || matches!(status, CLIAgentSessionStatus::InProgress)
-        {
-            return;
-        }
-
-        let title = session_context
-            .query
-            .as_deref()
-            .filter(|q| !q.is_empty())
-            .or(session_context.summary.as_deref().filter(|s| !s.is_empty()))
-            .unwrap_or(agent.command_prefix())
-            .to_owned();
-        let description = if let CLIAgentSessionStatus::Blocked { message, .. } = status {
-            message.clone().unwrap_or_default()
-        } else {
-            session_context.response.clone().unwrap_or_default()
-        };
-
-        let trigger = if matches!(status, CLIAgentSessionStatus::Blocked { .. }) {
-            NotificationsTrigger::NeedsAttention
-        } else if matches!(status, CLIAgentSessionStatus::Failed { .. }) {
-            NotificationsTrigger::AgentTaskCompleted(false)
-        } else {
-            NotificationsTrigger::AgentTaskCompleted(true)
-        };
-        self.send_agent_desktop_notification_or_show_banner(
-            trigger,
-            title,
-            description,
-            Some(NotificationAgentVariant::CLIAgent(*agent)),
-            ctx,
-        );
-    }
 
     /// Handles the initialization of a session within this terminal pane.
     ///
@@ -15122,21 +14702,6 @@ impl TerminalView {
         ctx.notify();
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn remove_plugin_instructions_block(
-        &mut self,
-        block_handle: ViewHandle<plugin_instructions_block::PluginInstructionsBlock>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let block_id = block_handle.id();
-        self.rich_content_views
-            .retain(|rich_content| rich_content.view_id() != block_id);
-        self.model
-            .lock()
-            .block_list_mut()
-            .remove_rich_content(block_id);
-        ctx.notify();
-    }
 
     /// Removes AI blocks from `rich_content_views` that match the given conversation and exchange IDs.
     /// This handles cleanup of the block, removal from the block list model, and notifying the
@@ -16239,42 +15804,11 @@ impl TerminalView {
             )
         };
 
-        let is_cli_agent_paste =
-            !should_paste_in_input && !middle_click && self.has_active_cli_agent_session(ctx);
-
-        // If we're pasting into a CLI coding agent (e.g. Claude Code) that has its own native
-        // handling for pasted file paths and images, skip shell-escaping and let the agent
-        // see https://github.com/anthropics/claude-code/issues/18590.
-        let shell_family = if is_cli_agent_paste {
-            None
-        } else {
-            Some(self.shell_family(ctx))
-        };
+        let shell_family = Some(self.shell_family(ctx));
         let mut copied = if middle_click {
             TerminalView::middle_click_paste_content(shell_family, ctx)
         } else {
             let clipboard_content = ctx.clipboard().read();
-
-            if is_cli_agent_paste && clipboard_content.has_image_data() {
-                if !cfg!(windows) {
-                    self.write_user_bytes_to_pty(vec![escape_sequences::C0::SYN], ctx);
-                    return;
-                }
-
-                // On Windows, Claude Code uses Alt+V for native image paste.
-                let is_claude = CLIAgentSessionsModel::as_ref(ctx)
-                    .session(self.view_id)
-                    .is_some_and(|s| s.agent == CLIAgent::Claude);
-                if is_claude {
-                    self.write_user_bytes_to_pty(vec![escape_sequences::C0::ESC, b'v'], ctx);
-                    return;
-                }
-
-                // For all other agents on Windows, fall through to the normal paste path. When
-                // bracketed paste is enabled (true for TUI-based CLI agents), the empty-text paste
-                // sends \x1b[200~\x1b[201~ to the PTY. The agent interprets this as a "paste
-                // happened" signal and reads the Windows clipboard directly for image data.
-            }
 
             clipboard_content_with_escaped_paths(clipboard_content, shell_family, false)
         };
@@ -16305,11 +15839,6 @@ impl TerminalView {
         }
     }
 
-    fn has_active_cli_agent_session(&self, ctx: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some()
-    }
 
     fn is_inverted_blocklist(&self, ctx: &ViewContext<Self>) -> bool {
         let input_mode = *InputModeSettings::as_ref(ctx).input_mode.value();
@@ -17225,23 +16754,12 @@ impl TerminalView {
             }))
             .into_item();
 
-        let has_cli_agent_session = CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .is_some();
         let is_agent_view_active = self
             .agent_view_controller
             .as_ref(ctx)
             .agent_view_state()
             .is_active();
-        let edit_menu_item = if has_cli_agent_session {
-            FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
-                MenuItemFields::new("Edit CLI agent toolbelt")
-                    .with_on_select_action(TerminalAction::ContextMenu(
-                        ContextMenuAction::EditCLIAgentToolbar,
-                    ))
-                    .into_item()
-            })
-        } else if is_agent_view_active {
+        let edit_menu_item = if is_agent_view_active {
             FeatureFlag::AgentToolbarEditor.is_enabled().then(|| {
                 MenuItemFields::new("Edit agent toolbelt")
                     .with_on_select_action(TerminalAction::ContextMenu(
@@ -21687,13 +21205,7 @@ impl TerminalView {
             InputEvent::TriggerEnvironmentSetup { repos } => {
                 self.enter_environment_setup_selector(repos.clone(), ctx);
             }
-            InputEvent::RegisterPluginListener(agent) => {
-                self.register_cli_agent_listener_without_session_start_event(*agent, ctx);
-            }
-            #[cfg(not(target_family = "wasm"))]
-            InputEvent::OpenPluginInstructionsPane(agent, kind) => {
-                ctx.emit(Event::OpenPluginInstructionsPane(*agent, *kind));
-            }
+            InputEvent::RegisterPluginListener(_) => {}
             InputEvent::OpenShareSessionModal => {
                 self.open_share_session_modal(SharedSessionActionSource::FooterChip, ctx);
             }
@@ -22976,20 +22488,7 @@ impl TerminalView {
         Ok(())
     }
 
-    /// Returns the CLI agent currently active in this terminal, if any.
-    pub fn active_cli_agent(&self, ctx: &AppContext) -> Option<super::CLIAgent> {
-        if !FeatureFlag::HoaCodeReview.is_enabled() {
-            return None;
-        }
-        CLIAgentSessionsModel::as_ref(ctx)
-            .session(self.view_id)
-            .map(|s| s.agent)
-    }
 
-    /// Returns `true` if CLI agent rich input is currently open.
-    pub fn is_cli_agent_rich_input_open(&self, ctx: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.view_id)
-    }
 
     /// Appends `text` to CLI agent rich input and focuses it.
     fn append_to_rich_input(&mut self, text: &str, ctx: &mut ViewContext<Self>) {
@@ -23009,15 +22508,9 @@ impl TerminalView {
         text: String,
         ctx: &mut ViewContext<Self>,
     ) -> Option<CliAgentRouting> {
-        self.active_cli_agent(ctx)?;
-        if self.is_cli_agent_rich_input_open(ctx) {
-            self.append_to_rich_input(&text, ctx);
-            Some(CliAgentRouting::RichInput)
-        } else {
-            self.write_to_pty(text.into_bytes(), ctx);
-            self.focus_terminal(ctx);
-            Some(CliAgentRouting::Pty)
-        }
+        // No CLI agent sessions are tracked in warp-lite.
+        let _ = (text, ctx);
+        None
     }
 
     /// Sends code review comments to a running CLI agent, routing to the
@@ -23918,9 +23411,6 @@ impl TerminalView {
         if should_use_ligature_rendering(app) {
             alt_screen_element = alt_screen_element.with_ligature_rendering();
         }
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            alt_screen_element = alt_screen_element.with_hide_cursor_cell();
-        }
         alt_screen_element =
             alt_screen_element.with_shared_session_presence(self.shared_session_presence_manager());
 
@@ -24018,13 +23508,6 @@ impl TerminalView {
         .finish()
     }
 
-    /// Returns true when cursor rendering should be suppressed because the
-    /// CLI agent rich input is open.
-    fn should_hide_cli_agent_cursor_cell(&self, app: &AppContext) -> bool {
-        CLIAgentSessionsModel::as_ref(app)
-            .session(self.view_id)
-            .is_some_and(|s| matches!(s.input_state, CLIAgentInputState::Open { .. }))
-    }
 
     fn render_block_list_element(
         &self,
@@ -24186,10 +23669,6 @@ impl TerminalView {
 
         if should_use_ligature_rendering(app) {
             element = element.with_ligature_rendering();
-        }
-
-        if self.should_hide_cli_agent_cursor_cell(app) {
-            element = element.with_hide_cursor_cell();
         }
 
         // Pass voice input toggle key if the CLI agent footer should be rendered
@@ -25625,24 +25104,6 @@ impl TerminalView {
 
         let image_filepaths = get_image_filepaths_from_paths(paths);
 
-        // CLI-agent paste path: when a CLI agent (e.g. Claude Code) is the
-        // foreground long-running process and the user is interacting with its
-        // TUI directly (rich input closed), hand image drops to the agent the
-        // same way Cmd+V does at `TerminalView::paste` — write each image to
-        // the system clipboard and send the agent's paste keystroke to the
-        // PTY. Without this branch the path string would be shell-escaped and
-        // typed into the agent's prompt. When the rich input is open we leave
-        // the existing chip-attach flow alone, since that's where the user
-        // explicitly asked the drop to land.
-        if !image_filepaths.is_empty()
-            && image_filepaths.len() == paths.len()
-            && is_in_long_running_command
-            && self.has_active_cli_agent_session(ctx)
-            && !CLIAgentSessionsModel::as_ref(ctx).is_input_open(self.view_id)
-        {
-            return;
-        }
-
         if !is_in_long_running_command {
             // Check for image file paths to be auto-attached
             let num_images = image_filepaths.len();
@@ -26908,12 +26369,6 @@ impl TypedActionView for TerminalView {
                 // view is focused (rich input open via Ctrl-G), the parent's
                 // CLI_AGENT_SESSION_ACTIVE_KEY flag isn't visible to the
                 // keybinding matcher.
-                if CLIAgentSessionsModel::as_ref(ctx)
-                    .session(self.view_id)
-                    .is_some()
-                {
-                    return;
-                }
                 if self
                     .model
                     .lock()
@@ -26955,12 +26410,6 @@ impl TypedActionView for TerminalView {
                 ctx.notify();
             }
             SetInputModeTerminal => {
-                if CLIAgentSessionsModel::as_ref(ctx)
-                    .session(self.view_id)
-                    .is_some()
-                {
-                    return;
-                }
                 if self
                     .model
                     .lock()
@@ -28201,28 +27650,6 @@ impl View for TerminalView {
         // Add keyboard protocol context if enabled.
         if model_lock.is_term_mode_set(TermMode::KEYBOARD_PROTOCOL) {
             context.set.insert(init::KEYBOARD_PROTOCOL_ENABLED_KEY);
-        }
-
-        if let Some(session) = CLIAgentSessionsModel::as_ref(app).session(self.view_id) {
-            context.set.insert(init::CLI_AGENT_SESSION_ACTIVE_KEY);
-            if session.agent.supports_cli_agent_footer()
-                && *AISettings::as_ref(app).should_render_cli_agent_footer
-            {
-                context.set.insert(flags::CLI_AGENT_FOOTER_ENABLED);
-
-                if is_rich_input_chip_in_cli_toolbar(app) {
-                    context.set.insert(flags::CLI_AGENT_RICH_INPUT_CHIP_ENABLED);
-                }
-            }
-
-            // Mirror the rich-input-open flag onto the terminal context so the
-            // Ctrl+G toggle binding can close rich input regardless of which
-            // descendant view currently holds focus, and even when the
-            // active block has transitioned out of `LongRunningCommand`
-            // (e.g., the CLI agent has paused waiting for user input). See #9916.
-            if CLIAgentSessionsModel::as_ref(app).is_input_open(self.view_id) {
-                context.set.insert(flags::CLI_AGENT_RICH_INPUT_OPEN);
-            }
         }
 
         if FeatureFlag::AgentView.is_enabled() {

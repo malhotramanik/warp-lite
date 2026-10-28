@@ -17,9 +17,6 @@ use crate::ai::agent::{AIAgentOutputStatus, FinishedAIAgentOutput, RenderableAIE
 use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::server::server_api::ServerApiProvider;
 use crate::server::server_api::ai::{AIClient, TaskStatusUpdate};
-use crate::terminal::cli_agent_sessions::{
-    CLIAgentSessionStatus, CLIAgentSessionsModel, CLIAgentSessionsModelEvent,
-};
 
 /// Syncs locally-owned conversation state to the server `ai_tasks` row via
 /// `AIClient::update_agent_task`. This includes task state, status message,
@@ -94,11 +91,6 @@ impl LocalAgentTaskSyncModel {
         let history_model = BlocklistAIHistoryModel::handle(ctx);
         ctx.subscribe_to_model(&history_model, |me, _, event, ctx| {
             me.handle_history_event(event, ctx);
-        });
-
-        let cli_sessions_model = CLIAgentSessionsModel::handle(ctx);
-        ctx.subscribe_to_model(&cli_sessions_model, |me, _, event, ctx| {
-            me.handle_cli_session_event(event, ctx);
         });
 
         Self {
@@ -208,33 +200,6 @@ impl LocalAgentTaskSyncModel {
         }
     }
 
-    fn handle_cli_session_event(
-        &mut self,
-        event: &CLIAgentSessionsModelEvent,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        match event {
-            CLIAgentSessionsModelEvent::StatusChanged {
-                terminal_view_id,
-                status,
-                is_prompt_submit,
-                ..
-            } => {
-                self.on_cli_session_status_changed(
-                    *terminal_view_id,
-                    status,
-                    *is_prompt_submit,
-                    ctx,
-                );
-            }
-            // Pane-scoped CLI agent sessions can end between preflight, the
-            // harness, and follow-ups, but the mapping belongs to the driver run.
-            CLIAgentSessionsModelEvent::Started { .. }
-            | CLIAgentSessionsModelEvent::InputSessionChanged { .. }
-            | CLIAgentSessionsModelEvent::Ended { .. }
-            | CLIAgentSessionsModelEvent::SessionUpdated { .. } => {}
-        }
-    }
 
     fn on_conversation_status_updated(
         &mut self,
@@ -304,29 +269,6 @@ impl LocalAgentTaskSyncModel {
         self.enqueue_update(task_id, update, ctx);
     }
 
-    fn on_cli_session_status_changed(
-        &mut self,
-        terminal_view_id: EntityId,
-        status: &CLIAgentSessionStatus,
-        is_prompt_submit: bool,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let Some(&task_id) = self.cli_session_task_ids.get(&terminal_view_id) else {
-            return;
-        };
-
-        let (task_state, status_message) = map_cli_session_status(status);
-        self.enqueue_update(
-            task_id,
-            LocalTaskUpdate {
-                task_state: Some(task_state),
-                force_task_state: is_prompt_submit,
-                status_message,
-                ..LocalTaskUpdate::default()
-            },
-            ctx,
-        );
-    }
 
     /// Enqueues a model-owned update without blocking the event producer.
     fn enqueue_update(
@@ -638,39 +580,6 @@ pub(crate) fn classify_renderable_error(
     }
 }
 
-/// Maps a `CLIAgentSessionStatus` to an `AgentTaskState` and optional status message.
-fn map_cli_session_status(
-    status: &CLIAgentSessionStatus,
-) -> (AgentTaskState, Option<TaskStatusUpdate>) {
-    match status {
-        CLIAgentSessionStatus::InProgress => (AgentTaskState::InProgress, None),
-        CLIAgentSessionStatus::Success => (AgentTaskState::Succeeded, None),
-        CLIAgentSessionStatus::Failed {
-            error_type,
-            message,
-        } => {
-            // User-actionable errors (bad credentials, org restrictions, billing) map to
-            // FAILED. Everything else (rate limits, server errors, model errors, etc.)
-            // maps to ERROR since they are typically Anthropic's or Warp's fault.
-            // The list of error types on Claude Code comes from https://code.claude.com/docs/en/hooks#stopfailure-input
-            let task_state = match error_type.as_deref() {
-                Some("authentication_failed" | "oauth_org_not_allowed" | "billing_error") => {
-                    AgentTaskState::Failed
-                }
-                _ => AgentTaskState::Error,
-            };
-            (task_state, message.as_ref().map(TaskStatusUpdate::message))
-        }
-        CLIAgentSessionStatus::Blocked { message, .. } => (
-            AgentTaskState::Blocked,
-            message.as_ref().map(TaskStatusUpdate::message),
-        ),
-        CLIAgentSessionStatus::Cancelled => (
-            AgentTaskState::Cancelled,
-            Some(TaskStatusUpdate::message("Cancelled by user")),
-        ),
-    }
-}
 
 #[cfg(test)]
 #[path = "local_agent_task_sync_model_tests.rs"]
