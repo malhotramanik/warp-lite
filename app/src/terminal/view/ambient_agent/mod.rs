@@ -1,7 +1,5 @@
 mod block;
 mod footer;
-mod harness_selector;
-mod host_selector;
 mod loading_screen;
 mod model;
 mod model_selector;
@@ -13,10 +11,6 @@ mod view_impl;
 
 pub use block::*;
 pub use footer::{ render_loading_footer};
-pub use harness_selector::{HarnessSelector, HarnessSelectorEvent};
-pub use host_selector::{
-    HostSelector, HostSelectorEvent, NakedHeaderButtonTheme,
-};
 pub use model::{AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
 pub use model_selector::{
     ModelSelector, ModelSelectorEvent,

@@ -301,7 +301,6 @@ use crate::terminal::package_installers::command_at_cursor_has_common_package_in
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
 use crate::terminal::view::ambient_agent::{
-    HarnessSelector, HarnessSelectorEvent, HostSelector, HostSelectorEvent, NakedHeaderButtonTheme,
     cloud_agent_team_required_toast_message,
 };
 use crate::terminal::view::init::CAN_ATTACH_FILE_KEY;
@@ -388,28 +387,6 @@ pub fn get_input_box_top_border_width() -> f32 {
     } else {
         1.0
     }
-}
-
-/// The host the cloud-mode selector defaults to: the `WARP_CLOUD_MODE_DEFAULT_HOST` override when
-/// set, otherwise the window's team default.
-///
-/// Takes the selector's handle, not `Input`'s: this runs inside `Input::new` before `Input` is in
-/// `view_to_window`, so an `Input` handle would resolve no window here while the already-built
-/// selector's does.
-fn effective_default_host(
-    host_selector: &WeakViewHandle<HostSelector>,
-    app: &AppContext,
-) -> Option<String> {
-    if let Some(slug) = std::env::var("WARP_CLOUD_MODE_DEFAULT_HOST")
-        .ok()
-        .filter(|slug| !slug.is_empty())
-    {
-        return Some(slug);
-    }
-    let workspaces = UserWorkspaces::as_ref(app);
-    workspaces
-        .default_host_slug(&workspaces.team_context(host_selector, app))
-        .map(String::from)
 }
 
 pub const OPEN_COMPLETIONS_KEYBINDING_NAME: &str = "input:open_completion_suggestions";
@@ -1882,9 +1859,6 @@ impl PendingShellWidgetHandoff {
 
 struct AmbientAgentViewState {
     view_model: ModelHandle<AmbientAgentViewModel>,
-    #[allow(dead_code)]
-    harness_selector: ViewHandle<HarnessSelector>,
-    host_selector: Option<ViewHandle<HostSelector>>,
 }
 
 impl AmbientAgentViewState {
@@ -2430,121 +2404,6 @@ impl Input {
         });
     }
 
-    /// Builds the cloud-mode harness selector for an ambient agent view model. Shared by
-    /// [`Self::new`] and [`Self::attach_ambient_agent_view_model`] so construction and late
-    /// attach produce the same selector wiring.
-    fn build_harness_selector(
-        view_model: ModelHandle<AmbientAgentViewModel>,
-        menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<HarnessSelector> {
-        let harness_selector = ctx.add_typed_action_view(|ctx| {
-            HarnessSelector::new(menu_positioning_provider.clone(), view_model.clone(), ctx)
-        });
-        if FeatureFlag::CloudModeInputV2.is_enabled() {
-            harness_selector.update(ctx, |selector, ctx| {
-                selector.set_button_theme(NakedHeaderButtonTheme, ctx);
-            });
-        }
-        // Mirror the V2 model selector / host selector refocus path: when the
-        // harness selector menu closes (item picked or dismissed via Esc /
-        // click-outside), restore focus to the input editor so typing resumes
-        // immediately. This powers the "input is focused after the harness
-        // selector closes" UX for the `/harness` slash command.
-        ctx.subscribe_to_view(&harness_selector, |me, _, event, ctx| {
-            let HarnessSelectorEvent::MenuVisibilityChanged { open } = event;
-            if !*open {
-                me.focus_input_box(ctx);
-            }
-        });
-        harness_selector
-    }
-
-    /// Builds the cloud-mode host selector for an ambient agent view model. Composer-only
-    /// (a viewer of an existing run does not choose a host). Shared by
-    /// [`Self::attach_ambient_agent_view_model`], which is the single wiring point for both the
-    /// eager (`Input::new`) and lazy (`SessionJoined`) paths.
-    fn build_host_selector(
-        view_model: ModelHandle<AmbientAgentViewModel>,
-        menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
-        ctx: &mut ViewContext<Self>,
-    ) -> ViewHandle<HostSelector> {
-        let view = ctx
-            .add_typed_action_view(|ctx| HostSelector::new(menu_positioning_provider.clone(), ctx));
-        let weak_view = view.downgrade();
-        let effective_host = effective_default_host(&weak_view, ctx);
-        if let Some(slug) = &effective_host {
-            view.update(ctx, |selector, ctx| {
-                selector.set_default_host(slug.clone(), ctx);
-            });
-        }
-        if let Some(slug) = effective_host {
-            view_model.update(ctx, |model, _ctx| {
-                model.set_worker_host(Some(slug));
-            });
-        }
-        // When the host selector menu closes (item picked or dismissed via Esc / click-outside),
-        // restore focus to the input editor so typing resumes immediately.
-        ctx.subscribe_to_view(&view, |me, _, event, ctx| {
-            if matches!(
-                event,
-                HostSelectorEvent::MenuVisibilityChanged { open: false }
-            ) {
-                me.focus_input_box(ctx);
-            }
-        });
-        // Propagate host selection changes to the view model when a host is explicitly selected,
-        // rather than on menu close, to avoid a race where the menu closes before the selection
-        // updates.
-        let vm_for_host = view_model.clone();
-        ctx.subscribe_to_view(&view, move |_me, handle, event, ctx| {
-            if matches!(event, HostSelectorEvent::HostSelected) {
-                let selected = handle.as_ref(ctx).selected().clone();
-                vm_for_host.update(ctx, |model, _ctx| {
-                    model.set_worker_host(selected.worker_host_value());
-                });
-            }
-        });
-        // Keep the host selector and view model in sync when the host this window should
-        // default to changes: because the admin edited the team's `default_host_slug`, or
-        // because the window moved to a team that configures a different one.
-        let view_for_ws = view.clone();
-        let vm_for_ws = view_model.clone();
-        ctx.subscribe_to_model(&UserWorkspaces::handle(ctx), move |_me, _, event, ctx| {
-            // Windows are independent, so a sibling window switching team must not retarget
-            // this one.
-            let affects_this_window = matches!(event, UserWorkspacesEvent::TeamsChanged)
-                || matches!(
-                    event,
-                    UserWorkspacesEvent::WindowTeamChanged { window_id }
-                        if *window_id == ctx.window_id()
-                );
-            if !affects_this_window {
-                return;
-            }
-            let scope = UserWorkspaces::as_ref(ctx).team_context_for_operation(ctx);
-            ConnectedSelfHostedWorkersModel::handle(ctx).update(ctx, |model, ctx| {
-                model.refresh(&scope, ctx);
-            });
-            // `None` has to be applied, not skipped: it means the window's team configures no
-            // self-hosted default, and leaving the previous value in place would keep the
-            // selector and the run config pointed at another team's worker.
-            let effective_host = effective_default_host(&weak_view, ctx);
-            match effective_host.clone() {
-                Some(slug) => view_for_ws.update(ctx, |selector, ctx| {
-                    selector.set_default_host(slug, ctx);
-                }),
-                None => view_for_ws.update(ctx, |selector, ctx| {
-                    selector.clear_default_host(ctx);
-                }),
-            }
-            vm_for_ws.update(ctx, |model, _ctx| {
-                model.set_worker_host(effective_host);
-            });
-        });
-        view
-    }
-
     /// Wires an ambient agent view model into this input. This is the SINGLE wiring point,
     /// invoked by both `Input::new` (eager/composer, when a model is supplied at construction)
     /// and the shared-session viewer's `SessionJoined` path (lazy, e.g. a raw `shared_session`
@@ -2560,11 +2419,6 @@ impl Input {
             return;
         }
         Self::subscribe_to_ambient_agent_view_model(&view_model, ctx);
-        let harness_selector = Self::build_harness_selector(
-            view_model.clone(),
-            self.menu_positioning_provider.clone(),
-            ctx,
-        );
         // Push the model down to the footer (parent -> child) so its environment selector
         // reflects the cloud run. On this link-join path the footer captured `None` at
         // construction, so it must be given the model now to render the environment chip.
@@ -2622,34 +2476,7 @@ impl Input {
         //
         // The host / auth-secret / FTUX selectors are composer-only: a viewer of an existing run
         // does not compose a new run, so they stay `None` for a shared-session viewer.
-        let is_cloud_mode_composer = self.model.lock().is_dummy_cloud_mode_session();
-        let host_selector = if is_cloud_mode_composer
-            && FeatureFlag::CloudModeInputV2.is_enabled()
-        {
-            let host_selector = Self::build_host_selector(
-                view_model.clone(),
-                self.menu_positioning_provider.clone(),
-                ctx,
-            );
-            // Re-render when connected workers change so the host selector shows/hides
-            // (it isn't mounted while hidden to drive this itself).
-            ctx.subscribe_to_model(
-                &ConnectedSelfHostedWorkersModel::handle(ctx),
-                |_me, _, event, ctx| {
-                    if matches!(event, ConnectedSelfHostedWorkersEvent::Changed) {
-                        ctx.notify();
-                    }
-                },
-            );
-            Some(host_selector)
-        } else {
-            None
-        };
-        self.ambient_agent_view_state = Some(AmbientAgentViewState {
-            view_model,
-            harness_selector,
-            host_selector,
-        });
+        self.ambient_agent_view_state = Some(AmbientAgentViewState { view_model });
         ctx.notify();
     }
 
@@ -4204,38 +4031,6 @@ impl Input {
         !pending_attachments.is_empty() && FeatureFlag::CloudModeImageContext.is_enabled()
     }
 
-
-    fn harness_selector(&self) -> Option<&ViewHandle<HarnessSelector>> {
-        self.ambient_agent_view_state
-            .as_ref()
-            .map(|state| &state.harness_selector)
-    }
-
-    fn host_selector(&self) -> Option<&ViewHandle<HostSelector>> {
-        self.ambient_agent_view_state
-            .as_ref()
-            .and_then(|state| state.host_selector.as_ref())
-    }
-
-    /// Opens the V2 cloud-mode host selector popover, if the feature is enabled and the
-    /// selector is constructed. No-op otherwise. Used by the `/host` slash command to
-    /// programmatically open the same popover that the V2 footer's host button toggles.
-    pub(super) fn open_v2_host_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(host_selector) = self.host_selector().cloned() else {
-            return;
-        };
-        host_selector.update(ctx, |selector, ctx| selector.open_menu(ctx));
-    }
-
-    /// Opens the V2 cloud-mode harness selector popover, if the feature is enabled and the
-    /// selector is constructed. No-op otherwise. Used by the `/harness` slash command to
-    /// programmatically open the same popover that the V2 footer's harness button toggles.
-    pub(super) fn open_v2_harness_selector(&mut self, ctx: &mut ViewContext<Self>) {
-        let Some(harness_selector) = self.harness_selector().cloned() else {
-            return;
-        };
-        harness_selector.update(ctx, |selector, ctx| selector.open_menu(ctx));
-    }
 
     pub(super) fn open_v2_environment_selector(&mut self, ctx: &mut ViewContext<Self>) {
         self.agent_input_footer
@@ -15991,12 +15786,6 @@ impl View for Input {
             .agent_input_footer
             .as_ref(app)
             .is_v2_model_selector_open(app);
-        let _is_v2_host_selector_open = self
-            .host_selector()
-            .is_some_and(|view| view.as_ref(app).is_menu_open());
-        let _is_v2_harness_selector_open = self
-            .harness_selector()
-            .is_some_and(|view| view.as_ref(app).is_menu_open());
         let _is_v2_environment_selector_open = self
             .agent_input_footer
             .as_ref(app)

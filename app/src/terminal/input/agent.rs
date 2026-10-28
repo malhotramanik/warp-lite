@@ -30,7 +30,6 @@ use crate::features::FeatureFlag;
 use crate::settings::InputModeSettings;
 use crate::terminal::settings::TerminalSettings;
 use crate::terminal::view::TerminalAction;
-use crate::terminal::view::ambient_agent::HostSelector;
 
 pub(super) const CLOUD_MODE_V2_MAX_WIDTH: f32 = 720.;
 
@@ -112,30 +111,6 @@ impl Input {
             column.add_child(
                 Container::new(images)
                     .with_margin_top(spacing::UDI_CHIP_MARGIN)
-                    .finish(),
-            );
-        }
-
-        let show_harness_row = FeatureFlag::CloudMode.is_enabled()
-            && HarnessAvailabilityModel::as_ref(app).should_show_harness_selector()
-            && self
-                .ambient_agent_view_model()
-                .is_some_and(|ambient_agent_model| {
-                    ambient_agent_model
-                        .as_ref(app)
-                        .is_configuring_ambient_agent()
-                });
-        if show_harness_row && let Some(harness_selector) = self.harness_selector() {
-            // Temporarily render the harness selector in the cloud mode UDI until we fully
-            // implement the new designs.
-            let harness_row = Flex::row()
-                .with_main_axis_size(MainAxisSize::Min)
-                .with_child(ChildView::new(harness_selector).finish())
-                .finish();
-            column.add_child(
-                Container::new(harness_row)
-                    .with_padding_top(spacing::UDI_CHIP_MARGIN)
-                    .with_padding_bottom(4.)
                     .finish(),
             );
         }
@@ -507,32 +482,11 @@ impl Input {
         Some(ChildView::new(view).finish())
     }
 
-    /// Returns the composer-only Execution host dropdown when it should be shown.
-    pub(super) fn visible_host_selector(
-        &self,
-        app: &AppContext,
-    ) -> Option<&ViewHandle<HostSelector>> {
-        let host_selector = self.host_selector()?;
-        let scope = self.team_scope(app);
-        let should_show = host_selector.as_ref(app).has_default_host()
-            || !ConnectedSelfHostedWorkersModel::as_ref(app)
-                .worker_hosts_excluding(&scope, None)
-                .is_empty();
-        should_show.then_some(host_selector)
-    }
-
     fn render_cloud_mode_v2_top_row(&self, app: &AppContext) -> Box<dyn Element> {
         let mut row = Flex::row()
             .with_main_axis_size(MainAxisSize::Min)
             .with_cross_axis_alignment(CrossAxisAlignment::Center)
             .with_spacing(CLOUD_MODE_V2_TOP_ROW_INNER_GAP);
-
-        if let Some(host) = self.visible_host_selector(app) {
-            row.add_child(ChildView::new(host).finish());
-        }
-        if let Some(harness_selector) = self.harness_selector() {
-            row.add_child(ChildView::new(harness_selector).finish());
-        }
 
         row.finish()
     }
