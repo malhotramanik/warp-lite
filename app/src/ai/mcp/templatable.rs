@@ -7,7 +7,7 @@ use warp_core::ui::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
+     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
     Revision, UniquePer,
 };
 use crate::drive::items::WarpDriveItem;
@@ -16,11 +16,6 @@ use crate::server::sync_queue::QueueItem;
 
 const UNIQUENESS_KEY_PREFIX: &str = "templatable_mcp_server";
 
-impl CloudObjectUuid for TemplatableMCPServer {
-    fn uuid(&self) -> uuid::Uuid {
-        self.uuid
-    }
-}
 
 impl StringModel for TemplatableMCPServer {
     type CloudObjectType = CloudTemplatableMCPServer;

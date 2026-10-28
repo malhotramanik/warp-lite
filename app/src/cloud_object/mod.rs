@@ -18,9 +18,7 @@ use warpui::{AppContext, SingletonEntity};
 
 use self::breadcrumbs::ContainingObject;
 use self::model::actions::ObjectActions;
-use self::model::generic_string_model::{
-    GenericStringModel, GenericStringObjectId, Serializer, StringModel,
-};
+use self::model::generic_string_model::StringModel;
 use self::model::persistence::CloudModel;
 use crate::appearance::Appearance;
 use crate::auth::UserUid;
@@ -560,30 +558,8 @@ where
     }
 }
 
-/// Marks string model payloads that can be looked up by UUID.
-pub trait CloudObjectUuid {
-    fn uuid(&self) -> uuid::Uuid;
-}
 
-/// Provides app-local UUID lookups for cloud objects whose payload exposes a UUID.
-pub trait CloudObjectUuidLookup: Sized {
-    fn get_by_uuid<'a>(uuid: &'a uuid::Uuid, app: &'a AppContext) -> Option<&'a Self>;
-}
 
-impl<T, S> CloudObjectUuidLookup
-    for GenericCloudObject<GenericStringObjectId, GenericStringModel<T, S>>
-where
-    T: StringModel<
-            CloudObjectType = GenericCloudObject<GenericStringObjectId, GenericStringModel<T, S>>,
-        > + CloudObjectUuid,
-    S: Serializer<T>,
-{
-    fn get_by_uuid<'a>(uuid: &'a uuid::Uuid, app: &'a AppContext) -> Option<&'a Self> {
-        CloudModel::as_ref(app)
-            .get_all_objects_of_type::<GenericStringObjectId, GenericStringModel<T, S>>()
-            .find(|object| object.model().string_model.uuid() == *uuid)
-    }
-}
 
 lazy_static! {
     static ref SPACE_DETECT_RE: Regex = Regex::new(r"\s+").expect("Expect regex to be valid");

@@ -5,8 +5,6 @@ pub mod templatable_manager;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-#[cfg(not(target_family = "wasm"))]
-use diesel::{QueryDsl, RunQueryDsl, SqliteConnection};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 #[cfg(not(target_family = "wasm"))]
@@ -18,14 +16,12 @@ use warp_core::ui::appearance::Appearance;
 use crate::cloud_object::model::generic_string_model::StringModel;
 use crate::cloud_object::model::json_model::JsonModel;
 use crate::cloud_object::{
-    CloudObjectUuid, GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
+     GenericStringObjectFormat, GenericStringObjectUniqueKey, JsonObjectType,
     Revision,
 };
 use crate::drive::CloudObjectTypeAndId;
 use crate::drive::items::WarpDriveItem;
 use crate::drive::items::mcp_server::WarpDriveMCPServer;
-#[cfg(not(target_family = "wasm"))]
-use crate::persistence::model::MCPEnvironmentVariables;
 use crate::server::ids::SyncId;
 use crate::server::sync_queue::QueueItem;
 
@@ -54,30 +50,21 @@ pub mod builtin;
 pub mod templatable;
 #[cfg(not(target_family = "wasm"))]
 pub use cloud_object_models::{
-    CLIServer, JSONMCPServer, JSONTransportType, ServerSentEvents, StaticEnvVar, StaticHeader,
+    JSONMCPServer, JSONTransportType, StaticEnvVar, StaticHeader,
 };
 pub use cloud_object_models::{
-    CloudMCPServer, CloudMCPServerModel, MCPServer, MCPServerState, TransportType,
+    CloudMCPServer, CloudMCPServerModel, MCPServer, MCPServerState,
 };
-pub use templatable::{JsonTemplate, TemplatableMCPServer, TemplateVariable};
+pub use templatable::{TemplatableMCPServer, TemplateVariable};
 pub mod logs;
 pub mod templatable_installation;
 pub use templatable_installation::TemplatableMCPServerInstallation;
-#[cfg(not(target_family = "wasm"))]
-pub use templatable_installation::{VariableType, VariableValue};
 pub mod parsing;
 #[cfg(not(target_family = "wasm"))]
 pub use parsing::ParsedTemplatableMCPServerResult;
 #[cfg(not(target_family = "wasm"))]
-use warp_errors::report_error;
-#[cfg(not(target_family = "wasm"))]
 pub mod reconnecting_peer;
 
-impl CloudObjectUuid for MCPServer {
-    fn uuid(&self) -> uuid::Uuid {
-        self.uuid
-    }
-}
 
 impl StringModel for MCPServer {
     type CloudObjectType = CloudMCPServer;
@@ -154,9 +141,6 @@ impl JsonModel for MCPServer {
 trait NameValuePair {
     fn name(&self) -> &str;
     fn value(&self) -> &str;
-    fn new(name: String, value: String) -> Self;
-    #[cfg(not(target_family = "wasm"))]
-    fn set_value(&mut self, value: String);
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -167,13 +151,6 @@ impl NameValuePair for StaticEnvVar {
     fn value(&self) -> &str {
         &self.value
     }
-    fn new(name: String, value: String) -> Self {
-        Self { name, value }
-    }
-    #[cfg(not(target_family = "wasm"))]
-    fn set_value(&mut self, value: String) {
-        self.value = value;
-    }
 }
 #[cfg(not(target_family = "wasm"))]
 impl NameValuePair for StaticHeader {
@@ -183,22 +160,8 @@ impl NameValuePair for StaticHeader {
     fn value(&self) -> &str {
         &self.value
     }
-    fn new(name: String, value: String) -> Self {
-        Self { name, value }
-    }
-    #[cfg(not(target_family = "wasm"))]
-    fn set_value(&mut self, value: String) {
-        self.value = value;
-    }
 }
 
-/// Converts a HashMap to a Vec of name/value pair items.
-#[cfg(not(target_family = "wasm"))]
-fn items_from_hashmap<T: NameValuePair>(map: &HashMap<String, String>) -> Vec<T> {
-    map.iter()
-        .map(|(name, value)| T::new(name.to_owned(), value.to_owned()))
-        .collect()
-}
 
 /// Converts a slice of name/value pair items to a HashMap.
 #[cfg(not(target_family = "wasm"))]
@@ -210,266 +173,10 @@ fn items_to_hashmap<T: NameValuePair>(items: &[T]) -> HashMap<String, String> {
         .collect()
 }
 
-/// Processes name/value pair items for template conversion.
-/// Returns a tuple of:
-/// - HashMap with template placeholders (e.g., `{{name}}`)
-/// - Vec of TemplateVariables
-/// - HashMap of VariableValues
-#[cfg(not(target_family = "wasm"))]
-fn extract_template_variables<T: NameValuePair>(
-    items: &[T],
-) -> (
-    HashMap<String, String>,
-    Vec<TemplateVariable>,
-    HashMap<String, VariableValue>,
-) {
-    let mut template_map = HashMap::new();
-    let mut variables = Vec::new();
-    let mut variable_values = HashMap::new();
 
-    for item in items {
-        let name = item.name().to_owned();
-        // Map the name to {{name}} template placeholder
-        template_map.insert(name.clone(), format!("{{{{{name}}}}}"));
-        variables.push(TemplateVariable {
-            key: name.clone(),
-            allowed_values: None,
-        });
-        variable_values.insert(
-            name,
-            VariableValue {
-                variable_type: VariableType::Text,
-                value: item.value().to_owned(),
-            },
-        );
-    }
 
-    (template_map, variables, variable_values)
-}
 
-/// Applies values from a persisted HashMap to a collection of name/value pairs.
-#[cfg(not(target_family = "wasm"))]
-fn apply_values<T: NameValuePair>(items: &mut [T], values: &HashMap<String, String>) {
-    for item in items.iter_mut() {
-        if let Some(value) = values.get(item.name()) {
-            item.set_value(value.clone());
-        }
-    }
-}
 
-#[cfg(not(target_family = "wasm"))]
-fn find_server_map(
-    config: serde_json::Value,
-) -> serde_json::Result<HashMap<String, JSONMCPServer>> {
-    // We want to be quite permissive in parsing user input. They may specify more than one
-    // server. They might paste things in Claude Desktop style or VSCode style. All are
-    // accepted here.
-    //
-    // VSCode:
-    // {
-    //   "mcp": {
-    //     "servers": {
-    //          [map of mcp servers]
-    //     }
-    //   }
-    // }
-    //   ---  OR  ---
-    // {
-    //   "servers": {
-    //     [map of mcp servers]
-    //   }
-    // }
-    //
-    // Claude Desktop:
-    // {
-    //   "mcpServers": {
-    //     [map of mcp servers]
-    //   }
-    // }
-    // Also allowed:
-    // {
-    //   [map of mcp servers]
-    // }
-
-    let pointers = ["/mcp/servers", "/servers", "/mcpServers"];
-    for pointer in pointers.into_iter() {
-        if let Some(value) = config.pointer(pointer)
-            && let Ok(servers) =
-                serde_json::from_value::<HashMap<String, JSONMCPServer>>(value.clone())
-        {
-            return Ok(servers);
-        }
-    }
-    serde_json::from_value::<HashMap<String, JSONMCPServer>>(config)
-}
-
-#[cfg(not(target_family = "wasm"))]
-pub trait MCPServerExt {
-    fn from_user_json(json: &str) -> serde_json::Result<Vec<MCPServer>>;
-    #[cfg(test)]
-    fn to_user_json(&self) -> String;
-    fn to_parsed_templatable_mcp_server_result(&self) -> ParsedTemplatableMCPServerResult;
-    fn fill_environment_variables(&mut self, conn: &mut SqliteConnection);
-}
-
-#[cfg(not(target_family = "wasm"))]
-impl MCPServerExt for MCPServer {
-    fn from_user_json(json: &str) -> serde_json::Result<Vec<MCPServer>> {
-        // Some docs don't show curly braces around the json object, so add them if necessary.
-        let json = json.trim();
-        let json = if json.starts_with("{") {
-            json.to_owned()
-        } else {
-            format!("{{{json}}}")
-        };
-
-        let config: serde_json::Value = serde_json::from_str(&json)?;
-
-        let servers = find_server_map(config)?;
-        Ok(servers
-            .iter()
-            .map(|(name, server)| {
-                let transport_type = match &server.transport_type {
-                    JSONTransportType::CLIServer {
-                        command,
-                        args,
-                        env,
-                        working_directory,
-                    } => TransportType::CLIServer(CLIServer {
-                        command: command.clone(),
-                        args: args.clone(),
-                        cwd_parameter: working_directory.to_owned(),
-                        static_env_vars: items_from_hashmap(env),
-                    }),
-                    JSONTransportType::SSEServer { url, headers } => {
-                        TransportType::ServerSentEvents(ServerSentEvents {
-                            url: url.to_owned(),
-                            headers: items_from_hashmap(headers),
-                        })
-                    }
-                };
-                MCPServer {
-                    name: name.to_owned(),
-                    transport_type,
-                    uuid: uuid::Uuid::new_v4(),
-                }
-            })
-            .collect())
-    }
-
-    /// Includes the environment variable values, should only be shown to users,
-    /// not sent to our servers.
-    #[cfg(test)]
-    fn to_user_json(&self) -> String {
-        let transport_type = match &self.transport_type {
-            TransportType::CLIServer(cli_server) => JSONTransportType::CLIServer {
-                command: cli_server.command.clone(),
-                args: cli_server.args.clone(),
-                env: items_to_hashmap(&cli_server.static_env_vars),
-                working_directory: cli_server.cwd_parameter.to_owned(),
-            },
-            TransportType::ServerSentEvents(sse_server) => JSONTransportType::SSEServer {
-                url: sse_server.url.to_owned(),
-                headers: items_to_hashmap(&sse_server.headers),
-            },
-        };
-        serde_json::to_string_pretty(
-            &std::iter::once((self.name.to_owned(), JSONMCPServer { transport_type }))
-                .collect::<HashMap<_, _>>(),
-        )
-        // serde_json::to_string_pretty should never fail on our JSONMCPServer type, but better to
-        // not crash the app if it does.
-        .unwrap_or_else(|err| {
-            report_error!(
-                anyhow::Error::new(err).context("Could not serialize MCP server to user json")
-            );
-            Default::default()
-        })
-    }
-
-    fn to_parsed_templatable_mcp_server_result(&self) -> ParsedTemplatableMCPServerResult {
-        let (transport_type, variables, variable_values) = match &self.transport_type {
-            TransportType::CLIServer(cli_server) => {
-                let (env, vars, vals) = extract_template_variables(&cli_server.static_env_vars);
-                (
-                    JSONTransportType::CLIServer {
-                        command: cli_server.command.clone(),
-                        args: cli_server.args.clone(),
-                        env,
-                        working_directory: cli_server.cwd_parameter.to_owned(),
-                    },
-                    vars,
-                    vals,
-                )
-            }
-            TransportType::ServerSentEvents(sse_server) => {
-                let (headers, vars, vals) = extract_template_variables(&sse_server.headers);
-                (
-                    JSONTransportType::SSEServer {
-                        url: sse_server.url.to_owned(),
-                        headers,
-                    },
-                    vars,
-                    vals,
-                )
-            }
-        };
-
-        let json = serde_json::to_string_pretty(
-            &std::iter::once((self.name.to_owned(), JSONMCPServer { transport_type }))
-                .collect::<HashMap<_, _>>(),
-        )
-        // serde_json::to_string_pretty should never fail on our JSONMCPServer type, but better to
-        // not crash the app if it does.
-        .unwrap_or_else(|err| {
-            report_error!(
-                anyhow::Error::new(err).context("Could not serialize MCP server to user json")
-            );
-            Default::default()
-        });
-
-        let templatable_mcp_server = TemplatableMCPServer {
-            uuid: self.uuid, // UUIDs must be preserved so we can match legacy and (shared) templatable MCP servers
-            name: self.name.clone(),
-            description: None,
-            template: JsonTemplate { json, variables },
-            version: chrono::Local::now().timestamp(),
-            gallery_data: None,
-        };
-        let templatable_mcp_server_installation: Option<TemplatableMCPServerInstallation> =
-            Some(TemplatableMCPServerInstallation::new(
-                uuid::Uuid::new_v4(),
-                templatable_mcp_server.clone(),
-                variable_values.clone(),
-            ));
-
-        ParsedTemplatableMCPServerResult {
-            templatable_mcp_server,
-            templatable_mcp_server_installation,
-            variable_values,
-        }
-    }
-
-    fn fill_environment_variables(&mut self, conn: &mut SqliteConnection) {
-        if let TransportType::CLIServer(ref mut cli_server) = self.transport_type {
-            let uuid = self.uuid.as_bytes().to_vec();
-            match crate::persistence::schema::mcp_environment_variables::dsl::mcp_environment_variables
-                .find(uuid)
-                .first::<MCPEnvironmentVariables>(conn)
-            {
-                Ok(mcp_env_vars) => {
-                    let env_vars: HashMap<String, String> =
-                        serde_json::from_str(&mcp_env_vars.environment_variables).unwrap();
-                    apply_values(&mut cli_server.static_env_vars, &env_vars);
-                }
-                Err(error) => {
-                    report_error!(anyhow::Error::new(error)
-                        .context("Could not read MCP server environment variables from sqlite"));
-                }
-            }
-        }
-    }
-}
 
 
 

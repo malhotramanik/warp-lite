@@ -1626,16 +1626,10 @@ impl AIExecutionProfilesModel {
     fn handle_templatable_mcp_server_manager_event(
         &mut self,
         event: &TemplatableMCPServerManagerEvent,
-        ctx: &mut ModelContext<Self>,
+        _ctx: &mut ModelContext<Self>,
     ) {
         match event {
-            TemplatableMCPServerManagerEvent::TemplatableMCPServersUpdated => {
-                self.remove_deleted_mcp_servers(ctx);
-            }
-            TemplatableMCPServerManagerEvent::LegacyServerConverted
-            | TemplatableMCPServerManagerEvent::StateChanged { uuid: _, state: _ }
-            | TemplatableMCPServerManagerEvent::AuthenticationRequired { uuid: _ }
-            | TemplatableMCPServerManagerEvent::CredentialsChanged { uuid: _ }
+            TemplatableMCPServerManagerEvent::StateChanged { uuid: _, state: _ }
             | TemplatableMCPServerManagerEvent::ServerInstallationAdded(_)
             | TemplatableMCPServerManagerEvent::ServerInstallationDeleted(_) => {}
         }
@@ -1760,28 +1754,6 @@ impl AIExecutionProfilesModel {
         }
     }
 
-    /// Handle deleted MCP servers by deleting its uuid from all profiles.
-    fn remove_deleted_mcp_servers(&mut self, ctx: &mut ModelContext<Self>) {
-        let all_valid_uuids = TemplatableMCPServerManager::get_all_cloud_synced_mcp_servers(ctx);
-        for profile_id in self.get_all_profile_ids() {
-            self.edit_profile_internal(
-                &profile_id,
-                |profile| {
-                    let original_allowlist_len = profile.mcp_allowlist.len();
-                    let original_denylist_len = profile.mcp_denylist.len();
-                    profile
-                        .mcp_allowlist
-                        .retain(|uuid| all_valid_uuids.contains_key(uuid));
-                    profile
-                        .mcp_denylist
-                        .retain(|uuid| all_valid_uuids.contains_key(uuid));
-                    profile.mcp_allowlist.len() != original_allowlist_len
-                        || profile.mcp_denylist.len() != original_denylist_len
-                },
-                ctx,
-            );
-        }
-    }
 
     /// Replaces a temporary client sync ID with the server ID assigned after object creation.
     ///

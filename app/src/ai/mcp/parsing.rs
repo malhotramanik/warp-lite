@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use handlebars::{get_arguments, render_template};
+use handlebars::get_arguments;
 #[cfg(feature = "local_fs")]
 use serde::Deserialize;
 
@@ -325,22 +325,6 @@ impl ParsedTemplatableMCPServerResult {
     }
 }
 
-pub fn resolve_json(installation: &TemplatableMCPServerInstallation) -> String {
-    // Collapse the variable values into a flat hashmap for easy replacement
-    fn variable_value_to_string(variable_value: &VariableValue) -> String {
-        match variable_value.variable_type {
-            VariableType::Text => variable_value.value.clone(),
-        }
-    }
-
-    let variable_values_strings: HashMap<String, String> = installation
-        .variable_values()
-        .iter()
-        .map(|(key, variable_value)| (key.clone(), variable_value_to_string(variable_value)))
-        .collect();
-
-    render_template(installation.template_json(), &variable_values_strings)
-}
 
 
 #[cfg(test)]

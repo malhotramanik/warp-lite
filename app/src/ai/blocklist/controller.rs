@@ -53,7 +53,7 @@ use crate::ai::agent::{
     AIAgentExchange, AIAgentExchangeId, AIAgentInput, AIAgentOutputStatus, AIIdentifiers,
     BaseUserQuery, CancellationOutcome, CancellationReason, DocumentContentAttachmentSource,
     EntrypointType, FinishedAIAgentOutput, PassiveSuggestionResultType,
-    PassiveSuggestionTrigger, PassiveSuggestionTriggerType, RenderableAIError,
+    PassiveSuggestionTrigger, RenderableAIError,
     RequestCommandOutputResult, RequestCost, RequestMetadata, RunningCommand, StaticQueryType,
     TransientNetworkErrorKind, UserQueryMode, extract_user_query_mode,
 };

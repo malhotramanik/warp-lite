@@ -2,7 +2,6 @@
 
 use std::future::Future;
 
-use mcp::tool_call::call_tool_with_deadline;
 use uuid::Uuid;
 use warpui::ModelSpawner;
 
@@ -55,38 +54,10 @@ impl ReconnectingPeer {
     async fn get_connected_peer(
         &self,
     ) -> Result<rmcp::Peer<rmcp::RoleClient>, ReconnectingPeerError> {
-        let installation_uuid = self.installation_uuid;
-
-        // First, check if we have a connected peer.
-        let peer_result = self
-            .spawner
-            .spawn(move |manager, _ctx| manager.get_peer_if_connected(installation_uuid))
-            .await
-            .map_err(|_| ReconnectingPeerError::ModelDropped)?;
-
-        if let Some(peer) = peer_result {
-            return Ok(peer);
-        }
-
-        // Peer is not connected, trigger reconnection.
-        log::debug!("Triggering reconnection for MCP server {installation_uuid}");
-        let (tx, rx) = tokio::sync::oneshot::channel();
-
-        self.spawner
-            .spawn(move |manager, ctx| {
-                manager.reconnect_server(installation_uuid, tx, ctx);
-            })
-            .await
-            .map_err(|_| ReconnectingPeerError::ModelDropped)?;
-
-        // Wait for reconnection to complete.
-        let peer = rx
-            .await
-            .map_err(|_| ReconnectingPeerError::ReconnectionFailed("Channel closed".to_string()))?
-            .map_err(|e| ReconnectingPeerError::ReconnectionFailed(e.to_string()))?;
-
-        log::debug!("Reconnection completed for MCP server {installation_uuid}");
-        Ok(peer)
+        let _ = (self.installation_uuid, &self.spawner);
+        Err(ReconnectingPeerError::ReconnectionFailed(
+            "MCP servers are not supported".to_string(),
+        ))
     }
 
     /// Executes a request with automatic retry on `TransportClosed` errors.
@@ -117,17 +88,6 @@ impl ReconnectingPeer {
         }
     }
 
-    /// Calls a tool on the MCP server.
-    pub async fn call_tool(
-        &self,
-        params: rmcp::model::CallToolRequestParams,
-        operation_id: Uuid,
-    ) -> Result<rmcp::model::CallToolResult, rmcp::ServiceError> {
-        call_tool_with_deadline(operation_id, self.installation_uuid, params, async {
-            self.get_connected_peer().await.map_err(Into::into)
-        })
-        .await
-    }
 
     /// Reads a resource from the MCP server.
     pub async fn read_resource(

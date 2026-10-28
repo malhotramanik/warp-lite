@@ -114,9 +114,6 @@ impl MCPGalleryManager {
         gallery_manager
     }
 
-    pub fn get_gallery(&self) -> Vec<GalleryMCPServer> {
-        self.gallery_items.values().cloned().collect()
-    }
 
 
 

@@ -1,7 +1,5 @@
-#[cfg(not(target_family = "wasm"))]
-mod native;
-#[cfg(target_family = "wasm")]
 mod wasm;
+pub use wasm::McpIntegration;
 
 use std::collections::{HashMap, HashSet};
 #[cfg(not(target_family = "wasm"))]
@@ -13,8 +11,6 @@ use futures_util::stream::AbortHandle;
 use mcp::TemplatableMCPServerInfo;
 #[cfg(not(target_family = "wasm"))]
 use mcp::oauth;
-#[cfg(not(target_family = "wasm"))]
-pub use native::McpIntegration;
 #[cfg(not(target_family = "wasm"))]
 use parking_lot::Mutex;
 #[cfg(not(target_family = "wasm"))]
@@ -28,8 +24,6 @@ use warpui::{Entity, SingletonEntity};
 use crate::ai::mcp::templatable::CloudTemplatableMCPServer;
 use crate::ai::mcp::templatable_installation::TemplatableMCPServerInstallation;
 use crate::ai::mcp::{FileBasedMCPManager, MCPServerState};
-#[cfg(not(target_family = "wasm"))]
-use crate::ai::mcp::{StaticEnvVar, TransportType};
 
 #[cfg(not(target_family = "wasm"))]
 type ReconnectResultSender =
@@ -140,32 +134,8 @@ pub enum FigmaMcpStatus {
 }
 
 impl TemplatableMCPServerManager {
-    #[cfg(not(target_family = "wasm"))]
-    fn apply_runtime_environment(&self, transport: &mut TransportType) {
-        if let TransportType::CLIServer(server) = transport {
-            server
-                .static_env_vars
-                .retain(|variable| !self.runtime_environment.contains_key(&variable.name));
-            server
-                .static_env_vars
-                .extend(
-                    self.runtime_environment
-                        .iter()
-                        .map(|(name, value)| StaticEnvVar {
-                            name: name.clone(),
-                            value: value.clone(),
-                        }),
-                );
-        }
-    }
 
 
-    pub fn get_installed_server(
-        &self,
-        installation_uuid: &Uuid,
-    ) -> Option<&TemplatableMCPServerInstallation> {
-        self.locally_installed_servers.get(installation_uuid)
-    }
 
     /// Returns the UUID of the locally-installed Figma MCP server installation, if any.
     pub fn get_figma_installation_uuid(&self) -> Option<Uuid> {
@@ -199,56 +169,10 @@ impl TemplatableMCPServerManager {
             .map(|server_installation| server_installation.template_uuid())
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub fn is_server_active(&self, installation_uuid: Uuid) -> bool {
-        self.active_servers.contains_key(&installation_uuid)
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub fn is_server_active_or_pending(&self, uuid: Uuid) -> bool {
-        self.is_server_active(uuid) || self.spawned_servers.contains_key(&uuid)
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    fn reconnectable_installation(
-        &self,
-        installation_uuid: Uuid,
-    ) -> Option<&TemplatableMCPServerInstallation> {
-        self.locally_installed_servers
-            .get(&installation_uuid)
-            .or_else(|| {
-                self.reconnectable_ephemeral_installations
-                    .get(&installation_uuid)
-            })
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    fn register_reconnect_waiter(
-        &mut self,
-        installation_uuid: Uuid,
-        result_tx: ReconnectResultSender,
-    ) -> bool {
-        let should_start_reconnect = !self.pending_reconnections.contains_key(&installation_uuid)
-            && !self.spawned_servers.contains_key(&installation_uuid);
-        self.pending_reconnections
-            .entry(installation_uuid)
-            .or_default()
-            .push(result_tx);
-        should_start_reconnect
-    }
 
-    #[cfg(not(target_family = "wasm"))]
-    fn notify_reconnect_waiters(
-        &mut self,
-        installation_uuid: Uuid,
-        result: Result<rmcp::Peer<rmcp::RoleClient>, String>,
-    ) {
-        if let Some(waiters) = self.pending_reconnections.remove(&installation_uuid) {
-            for tx in waiters {
-                let _ = tx.send(result.clone());
-            }
-        }
-    }
 
 
 
@@ -401,26 +325,12 @@ pub enum TemplatableMCPServerManagerEvent {
         uuid: Uuid,
         state: MCPServerState,
     },
-    /// A server managed by this shared runtime needs interactive OAuth.
-    /// Frontends choose how to present and receive the authorization flow.
-    AuthenticationRequired {
-        #[cfg_attr(not(feature = "tui"), allow(dead_code))]
-        uuid: Uuid,
-    },
-    /// The shared secure credential cache changed for an installation.
-    /// Frontends can refresh any authentication controls or status they expose.
-    CredentialsChanged {
-        #[cfg_attr(not(feature = "tui"), allow(dead_code))]
-        uuid: Uuid,
-    },
     // TODO(aeybel) Right now most of the app doesn't use these events to communicate
     // We should change them so this manager is source of truth and all communication goes through here
     #[allow(dead_code)]
     ServerInstallationAdded(Uuid),
     #[allow(dead_code)]
     ServerInstallationDeleted(Uuid),
-    TemplatableMCPServersUpdated,
-    LegacyServerConverted,
 }
 
 impl Entity for TemplatableMCPServerManager {
