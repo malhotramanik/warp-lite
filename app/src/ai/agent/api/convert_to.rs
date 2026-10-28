@@ -802,20 +802,6 @@ fn convert_context(context: &[AIAgentContext]) -> api::InputContext {
                     .selected_text
                     .push(api::input_context::SelectedText { text });
             }
-            AIAgentContext::ExecutionEnvironment(execution_ctx) => {
-                api_context.shell = Some(api::input_context::Shell {
-                    name: execution_ctx.shell_name,
-                    version: execution_ctx.shell_version.unwrap_or_default(),
-                });
-
-                if execution_ctx.os.category.is_none() && execution_ctx.os.distribution.is_none() {
-                    continue;
-                }
-                api_context.operating_system = Some(api::input_context::OperatingSystem {
-                    platform: execution_ctx.os.category.unwrap_or_default(),
-                    distribution: execution_ctx.os.distribution.unwrap_or_default(),
-                });
-            }
             AIAgentContext::CurrentTime { current_time } => {
                 let utc_time = current_time.to_utc();
                 api_context.current_time = Some(prost_types::Timestamp {

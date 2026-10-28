@@ -1,7 +1,6 @@
 #[path = "file_watchers/mod.rs"]
 mod file_watchers;
 use std::collections::{HashMap, HashSet};
-use std::path::{Path, PathBuf};
 
 use ai::skills::{
     ParsedSkill, SkillPathOrigin, SkillProvider, SkillReference, SkillScope, provider_rank,
@@ -197,16 +196,6 @@ impl SkillManager {
         skills
     }
 
-    /// Returns the currently-known home skill file paths.
-    pub fn home_skill_paths(&self) -> Vec<LocalOrRemotePath> {
-        let Some(home_dir) = self.home_directory_for_origin(&SkillPathOrigin::Local) else {
-            return vec![];
-        };
-        self.directory_skills
-            .get(&home_dir)
-            .map(|skills| skills.iter().cloned().collect())
-            .unwrap_or_default()
-    }
 
     /// Returns the parsed home skills currently cached by the local watcher.
     pub fn home_skills(&self) -> impl Iterator<Item = &ParsedSkill> + '_ {
@@ -218,46 +207,7 @@ impl SkillManager {
             .filter_map(|path| self.skills_by_path.get(path))
     }
 
-    /// Returns the currently-known directories which have skills registered.
-    /// This includes both repo roots and subdirectories with skills.
-    pub fn directories_with_skills(&self) -> Vec<PathBuf> {
-        let mut dirs: Vec<PathBuf> = self
-            .directory_skills
-            .keys()
-            .filter_map(|path| path.to_local_path().map(Path::to_path_buf))
-            .collect();
-        dirs.sort();
-        dirs
-    }
 
-    /// Returns skill file paths that are under `scope_dir`.
-    ///
-    /// This is used for skill resolution when the agent is invoked in a directory
-    /// above a series of repos—we need skills in those repos to be in scope.
-    ///
-    /// Example: If `scope_dir` is `/code` and there are skills at:
-    /// - `/code/repo-a/.agents/skills/deploy/SKILL.md`
-    /// - `/code/repo-b/.agents/skills/test/SKILL.md`
-    /// Both will be returned.
-    pub fn skill_paths_in_scope(&self, scope_dir: &Path) -> Vec<PathBuf> {
-        let mut paths = HashSet::new();
-        let scope_dir = LocalOrRemotePath::Local(scope_dir.to_path_buf());
-
-        for (dir, skill_paths) in &self.directory_skills {
-            // Include skills from directories that are under scope_dir
-            if dir.starts_with(&scope_dir) {
-                paths.extend(
-                    skill_paths
-                        .iter()
-                        .filter_map(|path| path.to_local_path().map(Path::to_path_buf)),
-                );
-            }
-        }
-
-        let mut paths: Vec<PathBuf> = paths.into_iter().collect();
-        paths.sort();
-        paths
-    }
 
     /// Returns true if the skill (or any of its provider-path variants) exists in
     /// a folder matching one of the given `providers`. This handles the deduplication
@@ -317,18 +267,6 @@ impl SkillManager {
             .filter_map(|path| self.skills_by_path.get(path).map(|skill| skill.provider))
     }
 
-    /// Returns skill file paths that have the given skill name.
-    /// A skill's name comes from the `name` field in its SKILL.md front matter.
-    pub fn skill_paths_by_name(&self, name: &str) -> Vec<LocalOrRemotePath> {
-        self.skills_by_name
-            .get(name)
-            .map(|paths| {
-                let mut paths: Vec<LocalOrRemotePath> = paths.iter().cloned().collect();
-                paths.sort_by_key(LocalOrRemotePath::display_path);
-                paths
-            })
-            .unwrap_or_default()
-    }
 
     /// Returns a reference to a parsed skill for a specific SKILL.md file path, if it is cached.
     /// Falls through to the remote bundled catalog, whose skills are addressed by path.
@@ -363,20 +301,6 @@ impl SkillManager {
         }
     }
 
-    /// Get the definition of a skill only if it is currently available for invocation.
-    ///
-    /// Path-based user skills are always controlled by normal path scoping. Bundled
-    /// skills (the local catalog's ID-addressed entries and remote catalogs'
-    /// path-addressed entries) additionally respect their runtime activation
-    /// state so stale references cannot invoke disabled bundled skills.
-    pub fn active_skill_by_reference(
-        &self,
-        reference: &SkillReference,
-        ctx: &AppContext,
-    ) -> Option<&ParsedSkill> {
-        self.active_skill_by_reference_with_origin(reference, &SkillPathOrigin::Local, ctx)
-            .ok()
-    }
 
     /// Get the definition of a skill for the selected execution host only if it is active.
     pub fn active_skill_by_reference_with_origin(

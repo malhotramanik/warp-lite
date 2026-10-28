@@ -16,12 +16,6 @@ use crate::ai::ambient_agents::AmbientAgentTaskId;
 use crate::server::server_api::ai::AIClient;
 use crate::terminal::model::BlockId;
 
-/// Returns the per-session directory for downloading file attachments,
-/// based on the agent's working directory.
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-pub(crate) fn attachments_download_dir(working_dir: &Path) -> PathBuf {
-    working_dir.join(".warp").join("attachments")
-}
 
 /// Extracts the filename component from a path, stripping any directory prefixes.
 pub(crate) fn sanitize_filename(raw: &str) -> &str {

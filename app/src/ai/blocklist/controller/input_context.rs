@@ -63,9 +63,6 @@ pub(super) fn input_context_for_request(
         current_time: Local::now(),
     });
 
-    if let Some(env) = active_session.ai_execution_environment(app) {
-        context.push(AIAgentContext::ExecutionEnvironment(env));
-    }
 
     if FeatureFlag::FullSourceCodeEmbedding.is_enabled()
         && FeatureFlag::CrossRepoContext.is_enabled()

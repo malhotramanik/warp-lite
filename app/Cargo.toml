@@ -499,7 +499,6 @@ default = [
     "richtext_multiselect",
     "kitty_keyboard_protocol",
     "inline_menu_headers",
-    "warpify_footer",
     "configurable_toolbar",
     "vertical_tabs",
     "tab_configs",

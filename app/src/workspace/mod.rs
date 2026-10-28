@@ -29,8 +29,7 @@ pub use global_actions::{
 use serde::{Deserialize, Serialize};
 pub use util::{PaneViewLocator, TabMovement, active_terminal_in_window};
 pub use view::{
-    PANEL_HEADER_HEIGHT,
-    TAB_BAR_HEIGHT, TOTAL_TAB_BAR_HEIGHT, WORKSPACE_PADDING, Workspace,
+    PANEL_HEADER_HEIGHT, TOTAL_TAB_BAR_HEIGHT, WORKSPACE_PADDING, Workspace,
 };
 use warp_core::context_flag::ContextFlag;
 use warpui::AppContext;
@@ -1307,7 +1306,6 @@ pub fn init(app: &mut AppContext) {
             *NEW_AGENT_PANE_LABEL,
             WorkspaceAction::NewPaneInAgentMode {
                 entrypoint: AgentModeEntrypoint::NewPaneBinding,
-                zero_state_prompt_suggestion_type: None,
             },
         )
         .with_enabled(|| FeatureFlag::AgentMode.is_enabled())

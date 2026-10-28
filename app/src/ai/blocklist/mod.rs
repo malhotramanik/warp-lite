@@ -67,19 +67,13 @@ pub use action_model::{RunAgentsExecutor, RunAgentsExecutorEvent, RunAgentsSpawn
 )]
 pub use action_model::{
     StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome, StartAgentRequest,
-    StartAgentRequestId, TEAM_CHANGED_DURING_CHILD_LAUNCH_ERROR,
+    StartAgentRequestId, 
 };
 #[cfg(any(test, feature = "integration_tests"))]
 pub(crate) use block::model::testing::FakeAIBlockModel;
 pub(crate) use block::{AIBlock, AIBlockEvent, RequestedEditResolution, init, model};
 pub use block::{keyboard_navigable_buttons, toggleable_items};
-pub use child_agent_launch::inherit_child_agent_settings;
 #[cfg(not(target_family = "wasm"))]
-#[cfg_attr(not(feature = "tui"), allow(unused_imports))]
-pub use child_agent_launch::{
-    PreparedLocalOzChildLaunch, apply_child_agent_model_override,
-    finish_local_oz_child_conversation, prepare_local_oz_child_launch,
-};
 #[cfg(feature = "tui")]
 pub use context_model::PendingAttachmentSummary;
 #[cfg(not(feature = "tui"))]

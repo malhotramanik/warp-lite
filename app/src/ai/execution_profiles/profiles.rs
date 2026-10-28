@@ -1083,16 +1083,6 @@ impl AIExecutionProfilesModel {
             })
     }
 
-    pub fn has_multiple_profiles(&self) -> bool {
-        if self.settings_are_authoritative() {
-            return self.last_settings_profiles.profile_ids().nth(1).is_some();
-        }
-        let default_profile_id = self.default_profile_state.id();
-
-        self.profile_id_to_sync_id
-            .keys()
-            .any(|id| id != &default_profile_id)
-    }
 
     pub fn set_base_model(
         &mut self,

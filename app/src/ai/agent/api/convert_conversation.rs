@@ -46,7 +46,6 @@ use crate::ai::agent::{
 use crate::ai::block_context::BlockContext;
 use crate::ai::document::ai_document_model::{AIDocumentId, AIDocumentVersion};
 use crate::ai::llms::LLMId;
-use crate::ai_assistant::execution_context::{WarpAiExecutionContext, WarpAiOsContext};
 use crate::terminal::model::block::BlockId;
 use crate::terminal::model::terminal_model::BlockIndex;
 
@@ -194,30 +193,6 @@ pub(crate) fn convert_input_context(context: Option<&api::InputContext>) -> Arc<
     }
 
     // Convert operating system and shell to execution environment
-    if let (Some(os), Some(shell)) = (&context.operating_system, &context.shell) {
-        result.push(AIAgentContext::ExecutionEnvironment(
-            WarpAiExecutionContext {
-                os: WarpAiOsContext {
-                    category: if os.platform.is_empty() {
-                        None
-                    } else {
-                        Some(os.platform.clone())
-                    },
-                    distribution: if os.distribution.is_empty() {
-                        None
-                    } else {
-                        Some(os.distribution.clone())
-                    },
-                },
-                shell_name: shell.name.clone(),
-                shell_version: if shell.version.is_empty() {
-                    None
-                } else {
-                    Some(shell.version.clone())
-                },
-            },
-        ));
-    }
 
     // Convert current time
     if let Some(current_time) = &context.current_time {

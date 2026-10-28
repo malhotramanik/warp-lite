@@ -116,7 +116,6 @@ mod workspaces;
 // in the warp::integration_testing::assertions module (or a sub-module).  These
 // functions will allow us to keep types internal to this crate and expose a
 // simpler API for integration tests to consume.
-pub(crate) mod ai_assistant;
 pub(crate) mod appearance;
 pub(crate) mod channel;
 pub(crate) mod editor;
@@ -2148,7 +2147,6 @@ pub(crate) fn initialize_app(
     ai::blocklist::block::status_bar::init(ctx);
     drive::index::init(ctx);
     drive::sharing::dialog::init(ctx);
-    ai_assistant::panel::init(ctx);
     env_vars::env_var_collection_block::init(ctx);
     context_chips::display_menu::init(ctx);
     context_chips::node_version_popup::init(ctx);

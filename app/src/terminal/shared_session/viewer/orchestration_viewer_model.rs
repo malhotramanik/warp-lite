@@ -24,7 +24,6 @@ use crate::ai::blocklist::history_model::BlocklistAIHistoryEvent;
 use crate::ai::blocklist::orchestration_event_streamer::{
     OrchestrationEventStreamer, OrchestrationEventStreamerEvent,
 };
-use crate::pane_group::{ChildPaneMaterialization, decide_child_pane_materialization};
 
 /// Refetch cadence for children whose claim-time `session_id` is not yet known.
 const PENDING_SESSION_ID_POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -495,10 +494,9 @@ impl OrchestrationViewerModel {
     }
 
     fn materialization_is_ready(task: &AmbientAgentTask) -> bool {
-        !matches!(
-            decide_child_pane_materialization(task),
-            ChildPaneMaterialization::Pending
-        )
+        // warp-lite: child agent panes are removed.
+        let _ = task;
+        true
     }
 
     fn entry_needs_materialization_metadata(entry: &ChildAgentEntry) -> bool {

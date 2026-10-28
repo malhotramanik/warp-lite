@@ -65,9 +65,6 @@ use crate::terminal::model::terminal_model::BlockSelectionCardinality;
 use crate::terminal::settings::AltScreenPaddingMode;
 use crate::terminal::shared_session::SharedSessionActionSource;
 use crate::terminal::shell::ShellType;
-use crate::terminal::view::inline_banner::{
-    ZeroStatePromptSuggestionTriggeredFrom, ZeroStatePromptSuggestionType,
-};
 use crate::terminal::view::{
     BlockEntity, BlockSelectionDetails, NotificationsDiscoveryBannerAction,
     NotificationsErrorBannerAction, NotificationsTrigger, PromptPart,
@@ -2034,8 +2031,6 @@ pub enum TelemetryEvent {
 
     /// Keeps track of number of times the user uses a zero state prompt suggestion & the type of suggestion used.
     ZeroStatePromptSuggestionUsed {
-        suggestion_type: ZeroStatePromptSuggestionType,
-        triggered_from: ZeroStatePromptSuggestionTriggeredFrom,
     },
 
     UnitTestSuggestionShown {
@@ -2968,6 +2963,7 @@ impl TelemetryEvent {
 
     pub fn payload(&self) -> Option<Value> {
         match self {
+            TelemetryEvent::ZeroStatePromptSuggestionUsed {} => None,
             TelemetryEvent::ShowedSuggestedAgentModeWorkflowChip { logging_id } => Some(json!({
                 "logging_id": logging_id,
             })),
@@ -3666,10 +3662,6 @@ impl TelemetryEvent {
                 "view": view,
                 "interaction_source": interaction_source,
             })),
-            TelemetryEvent::ZeroStatePromptSuggestionUsed {
-                suggestion_type,
-                triggered_from,
-            } => Some(json!({"type": suggestion_type, "triggered_from": triggered_from})),
             TelemetryEvent::UnitTestSuggestionShown { identifiers } => Some(json!({
                 "server_output_id": identifiers.server_output_id,
                 "exchange_id": identifiers.client_exchange_id,

@@ -147,41 +147,6 @@ impl TerminalManager {
         );
     }
 
-    /// Creates the live-session viewer for an orchestration child pane, with
-    /// both ambient-agent controls and the `FailedToJoin` recovery routing
-    /// that a known child conversation enables. Callers are responsible for
-    /// wiring ambient session events after construction.
-    #[allow(clippy::new_ret_no_self)]
-    pub fn new_for_ambient_orchestration_child(
-        session_id: SessionId,
-        conversation_id: AIConversationId,
-        resources: TerminalViewResources,
-        initial_size: Vector2F,
-        window_id: WindowId,
-        ctx: &mut AppContext,
-    ) -> TerminalManagerInit {
-        let TerminalManagerInit {
-            manager: mut terminal_manager,
-            view: terminal_view,
-        } = Self::new_internal(
-            resources,
-            initial_size,
-            window_id,
-            false,
-            true,
-            Some(conversation_id),
-            ctx,
-        );
-        terminal_manager.connect_session(
-            session_id,
-            SharedSessionInitialLoadMode::ReplaceFromSessionScrollback,
-            ctx,
-        );
-        TerminalManagerInit {
-            manager: terminal_manager,
-            view: terminal_view,
-        }
-    }
 
     fn current_network(
         current_network: &Arc<FairMutex<Option<ModelHandle<Network>>>>,

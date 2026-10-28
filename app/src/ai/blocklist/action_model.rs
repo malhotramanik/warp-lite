@@ -32,7 +32,7 @@ pub use execute::{
     RequestFileEditsTelemetryEvent, RunAgentsExecutor, RunAgentsExecutorEvent,
     RunAgentsSpawningSnapshot, ShellCommandExecutor, ShellCommandExecutorEvent,
     ShellRecoveryResult, StartAgentExecutor, StartAgentExecutorEvent, StartAgentOutcome,
-    StartAgentRequest, StartAgentRequestId, TEAM_CHANGED_DURING_CHILD_LAUNCH_ERROR,
+    StartAgentRequest, StartAgentRequestId, 
     read_local_file_context,
 };
 pub(crate) use execute::{

@@ -283,9 +283,6 @@ impl AIRequestUsageModel {
         }
     }
 
-    pub fn last_update_time(&self) -> Option<Instant> {
-        self.last_update_time
-    }
 
     /// Refreshes the latest AI request usage and bonus grants from the server.
     ///
@@ -794,3 +791,37 @@ impl SingletonEntity for AIRequestUsageModel {}
 #[cfg(test)]
 #[path = "request_usage_model_tests.rs"]
 mod tests;
+
+impl From<warp_graphql::ai::RequestLimitInfo> for RequestLimitInfo {
+    fn from(value: warp_graphql::ai::RequestLimitInfo) -> Self {
+        RequestLimitInfo {
+            is_unlimited: value.is_unlimited,
+            limit: value.request_limit as usize,
+            num_requests_used_since_refresh: value.requests_used_since_last_refresh as usize,
+            included_usage_cents: value.included_usage_cents,
+            usage_cents_used_since_last_refresh: value.usage_cents_used_since_last_refresh,
+            next_refresh_time: value.next_refresh_time,
+            request_limit_refresh_duration: value.request_limit_refresh_duration.into(),
+            is_unlimited_voice: value.is_unlimited_voice,
+            voice_request_limit: value.voice_request_limit as usize,
+            voice_requests_used_since_last_refresh: value.voice_requests_used_since_last_refresh
+                as usize,
+            is_unlimited_codebase_indices: value.is_unlimited_codebase_indices,
+            max_codebase_indices: value.max_codebase_indices as usize,
+            max_files_per_repo: value.max_files_per_repo as usize,
+            embedding_generation_batch_size: value.embedding_generation_batch_size as usize,
+        }
+    }
+}
+
+impl From<warp_graphql::ai::RequestLimitRefreshDuration> for RequestLimitRefreshDuration {
+    fn from(value: warp_graphql::ai::RequestLimitRefreshDuration) -> Self {
+        match value {
+            warp_graphql::ai::RequestLimitRefreshDuration::Monthly => RequestLimitRefreshDuration::Monthly,
+            warp_graphql::ai::RequestLimitRefreshDuration::Weekly => RequestLimitRefreshDuration::Weekly,
+            warp_graphql::ai::RequestLimitRefreshDuration::EveryTwoWeeks => {
+                RequestLimitRefreshDuration::EveryTwoWeeks
+            }
+        }
+    }
+}

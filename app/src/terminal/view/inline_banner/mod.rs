@@ -9,7 +9,6 @@ mod notifications_discovery;
 mod notifications_error;
 mod open_in_warp;
 mod passive_code_diff;
-pub(crate) mod prompt_suggestions;
 mod session_state;
 mod shared_sessions;
 mod shell_process_terminated;
@@ -38,7 +37,6 @@ use warpui::fonts::{FamilyId, Properties, Weight};
 use warpui::ui_components::button::ButtonVariant;
 use warpui::ui_components::components::{Coords, UiComponent, UiComponentStyles};
 
-pub use self::prompt_suggestions::*;
 use crate::appearance::Appearance;
 use crate::terminal::view::TerminalAction;
 use crate::themes::theme::Blend;

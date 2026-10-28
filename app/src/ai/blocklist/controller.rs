@@ -81,7 +81,6 @@ use crate::terminal::model::block::{
 use crate::terminal::model::session::SessionType;
 use crate::terminal::model::session::active_session::ActiveSession;
 use crate::terminal::model::terminal_model::TerminalModel;
-use crate::terminal::view::inline_banner::ZeroStatePromptSuggestionType;
 use crate::workspace::OneTimeModalModel;
 use crate::workspaces::update_manager::TeamUpdateManager;
 use crate::workspaces::user_workspaces::{
@@ -1488,31 +1487,6 @@ impl BlocklistAIController {
         true
     }
 
-    /// Sends a request triggered by a zero-state prompt suggestion.
-    pub fn send_zero_state_prompt_suggestion(
-        &mut self,
-        query_type: ZeroStatePromptSuggestionType,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let participant_id = self.get_sharer_participant_id();
-        self.send_query(
-            InputQuery {
-                which_task: WhichTask::NewConversation,
-                input_query: InputQueryType::UserSubmittedQueryFromInput {
-                    query: query_type.query().to_string(),
-                    static_query_type: query_type.static_query_type(),
-                    running_command: None,
-                    base: None,
-                },
-                additional_attachments: HashMap::new(),
-                queued_query_id: None,
-            },
-            EntrypointType::ZeroStateAgentModePromptSuggestion,
-            participant_id,
-            /*is_queued_prompt*/ false,
-            ctx,
-        );
-    }
 
     /// Sends a custom [`AIAgentInput`] query.
     pub fn send_custom_ai_input_query(

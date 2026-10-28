@@ -2579,15 +2579,6 @@ impl CompiledCommandsForCodingAgentToolbar {
         });
     }
 
-    /// Returns the CLI agent assigned to the first matching pattern, or `None`
-    /// if no pattern matches the command.
-    pub fn matched_agent(app: &AppContext, command: &str) -> Option<CLIAgent> {
-        Self::as_ref(app)
-            .regexes
-            .iter()
-            .find(|(regex, _)| regex.is_match(command))
-            .map(|(_, agent)| *agent)
-    }
 }
 
 impl Entity for CompiledCommandsForCodingAgentToolbar {

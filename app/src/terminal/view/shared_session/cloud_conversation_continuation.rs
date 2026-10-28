@@ -115,23 +115,7 @@ pub(crate) enum ConversationAccess {
     Unknown,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CompletedChildPresentation {
-    Continuation,
-    PassiveTranscript,
-}
 
-pub(crate) fn completed_child_presentation(
-    access: ConversationAccess,
-    blocks_cloud_followups: bool,
-) -> CompletedChildPresentation {
-    match (access, blocks_cloud_followups) {
-        (ConversationAccess::Edit, false) => CompletedChildPresentation::Continuation,
-        (ConversationAccess::Edit, true)
-        | (ConversationAccess::ViewOnly, _)
-        | (ConversationAccess::Unknown, _) => CompletedChildPresentation::PassiveTranscript,
-    }
-}
 
 pub(in crate::terminal::view) fn resolve_cloud_conversation_continuation_ui_state(
     terminal_view_id: EntityId,
@@ -413,18 +397,6 @@ pub(crate) fn conversation_access(
     }
 }
 
-pub(crate) fn completed_child_conversation_access(
-    metadata: Option<&ServerAIConversationMetadata>,
-    task: Option<&AmbientAgentTask>,
-    app: &AppContext,
-) -> ConversationAccess {
-    match metadata {
-        Some(metadata) => conversation_access(metadata, app),
-        None => task
-            .map(|task| task_ownership_access(task, app))
-            .unwrap_or(ConversationAccess::Unknown),
-    }
-}
 
 /// Whether the current principal may edit a task with no conversation yet: either its creator,
 /// or a member of the owning team, mirroring the team check `conversation_access` already

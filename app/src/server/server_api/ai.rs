@@ -25,9 +25,6 @@ use warp_graphql::mutations::confirm_file_artifact_upload::{
     ConfirmFileArtifactUpload, ConfirmFileArtifactUploadInput, ConfirmFileArtifactUploadResult,
     ConfirmFileArtifactUploadVariables,
 };
-use warp_graphql::mutations::create_agent_task::{
-    CreateAgentTask, CreateAgentTaskInput, CreateAgentTaskResult, CreateAgentTaskVariables,
-};
 use warp_graphql::mutations::create_file_artifact_upload_target::{
     CreateFileArtifactUploadTarget, CreateFileArtifactUploadTargetInput,
     CreateFileArtifactUploadTargetResult, CreateFileArtifactUploadTargetVariables,
@@ -39,15 +36,6 @@ use warp_graphql::mutations::delete_ai_conversation::{
 use warp_graphql::mutations::generate_code_embeddings::{
     GenerateCodeEmbeddings, GenerateCodeEmbeddingsInput, GenerateCodeEmbeddingsResult,
     GenerateCodeEmbeddingsVariables,
-};
-use warp_graphql::mutations::generate_commands::{
-    GenerateCommands, GenerateCommandsInput, GenerateCommandsResult, GenerateCommandsStatus,
-    GenerateCommandsVariables,
-};
-use warp_graphql::mutations::generate_dialogue::{
-    GenerateDialogue, GenerateDialogueInput,
-    GenerateDialogueResult as GenerateDialogueResultGraphql, GenerateDialogueStatus,
-    GenerateDialogueVariables, TranscriptPart as TranscriptPartGraphql,
 };
 use warp_graphql::mutations::generate_metadata_for_command::{
     GenerateMetadataForCommand, GenerateMetadataForCommandInput, GenerateMetadataForCommandResult,
@@ -136,10 +124,6 @@ use crate::ai::llms::{
 #[cfg(feature = "agent_mode_evals")]
 use crate::ai::request_usage_model::RequestLimitInfo;
 use crate::ai::{AICreditAvailability, RequestUsageInfo};
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
-use crate::ai_assistant::requests::GenerateDialogueResult;
-use crate::ai_assistant::utils::TranscriptPart;
-use crate::ai_assistant::{AIGeneratedCommand, GenerateCommandsFromNaturalLanguageError};
 use crate::drive::workflows::ai_assist::{GeneratedCommandMetadata, GeneratedCommandMetadataError};
 use crate::persistence::model::ConversationUsageMetadata;
 use crate::server::graphql::{get_request_context, get_user_facing_error_message};
@@ -764,19 +748,6 @@ pub(crate) const CONNECTED_SELF_HOSTED_WORKERS_PATH: &str = "agent/connected-sel
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 pub trait AIClient: 'static + Send + Sync {
-    async fn generate_commands_from_natural_language(
-        &self,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError>;
-
-    async fn generate_dialogue_answer(
-        &self,
-        transcript: Vec<TranscriptPart>,
-        prompt: String,
-        ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult>;
-
     async fn generate_metadata_for_command(
         &self,
         command: String,
@@ -823,15 +794,6 @@ pub trait AIClient: 'static + Send + Sync {
         request_ids: Vec<String>,
     ) -> anyhow::Result<i32, anyhow::Error>;
 
-    async fn create_agent_task(
-        &self,
-        prompt: String,
-        environment_uid: Option<String>,
-        parent_run_id: Option<String>,
-        config: Option<AgentConfigSnapshot>,
-        metadata: HashMap<String, String>,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<AmbientAgentTaskId, anyhow::Error>;
 
     /// Updates a run's server-side record. Every argument is independently optional; omitted
     /// fields are left untouched rather than cleared.
@@ -1137,98 +1099,7 @@ fn convert_upload_field(
 #[cfg_attr(not(target_family = "wasm"), async_trait)]
 #[cfg_attr(target_family = "wasm", async_trait(?Send))]
 impl AIClient for ServerApi {
-    async fn generate_commands_from_natural_language(
-        &self,
-        prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> Result<Vec<AIGeneratedCommand>, GenerateCommandsFromNaturalLanguageError> {
-        let default_err = GenerateCommandsFromNaturalLanguageError::Other;
 
-        let variables = GenerateCommandsVariables {
-            input: GenerateCommandsInput { prompt },
-            request_context: get_request_context(),
-        };
-
-        let operation = GenerateCommands::build(variables);
-        let response = self
-            .send_graphql_request(
-                operation,
-                Some(Duration::from_secs(AI_ASSISTANT_REQUEST_TIMEOUT_SECONDS)),
-            )
-            .await
-            .map_err(|_| default_err)?;
-
-        match response.generate_commands {
-            GenerateCommandsResult::GenerateCommandsOutput(output) => match output.status {
-                GenerateCommandsStatus::GenerateCommandsSuccess(success) => {
-                    Ok(success.commands.into_iter().map(Into::into).collect_vec())
-                }
-                GenerateCommandsStatus::GenerateCommandsFailure(failure) => {
-                    Err(failure.type_.into())
-                }
-                GenerateCommandsStatus::Unknown => {
-                    Err(GenerateCommandsFromNaturalLanguageError::Other)
-                }
-            },
-            _ => Err(GenerateCommandsFromNaturalLanguageError::Other),
-        }
-    }
-
-    async fn generate_dialogue_answer(
-        &self,
-        transcript: Vec<TranscriptPart>,
-        prompt: String,
-        // TODO: use relevant context from RequestContext and deprecate usage of ai_execution_context
-        _ai_execution_context: Option<WarpAiExecutionContext>,
-    ) -> anyhow::Result<GenerateDialogueResult> {
-        let graphql_transcript: Vec<TranscriptPartGraphql> = transcript
-            .into_iter()
-            .map(|part| TranscriptPartGraphql {
-                user: part.raw_user_prompt().to_string(),
-                assistant: part.raw_assistant_answer().to_string(),
-            })
-            .collect();
-        let variables = GenerateDialogueVariables {
-            input: GenerateDialogueInput {
-                transcript: graphql_transcript,
-                prompt,
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = GenerateDialogue::build(variables);
-        let response = self
-            .send_graphql_request(
-                operation,
-                Some(Duration::from_secs(AI_ASSISTANT_REQUEST_TIMEOUT_SECONDS)),
-            )
-            .await?;
-        match response.generate_dialogue {
-            GenerateDialogueResultGraphql::GenerateDialogueOutput(output) => match output.status {
-                GenerateDialogueStatus::GenerateDialogueSuccess(success) => {
-                    Ok(GenerateDialogueResult::Success {
-                        answer: success.answer,
-                        truncated: success.truncated,
-                        request_limit_info: success.request_limit_info.into(),
-                        transcript_summarized: success.transcript_summarized,
-                    })
-                }
-                GenerateDialogueStatus::GenerateDialogueFailure(failure) => {
-                    Ok(GenerateDialogueResult::Failure {
-                        request_limit_info: failure.request_limit_info.into(),
-                    })
-                }
-                GenerateDialogueStatus::Unknown => Err(anyhow!("failed to generate AI dialogue")),
-            },
-            GenerateDialogueResultGraphql::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            GenerateDialogueResultGraphql::Unknown => {
-                Err(anyhow!("failed to generate AI dialogue"))
-            }
-        }
-    }
 
     async fn generate_metadata_for_command(
         &self,
@@ -1543,69 +1414,6 @@ impl AIClient for ServerApi {
         }
     }
 
-    #[tracing::instrument(skip_all, err, fields(
-        tags.cloud_agent = true,
-        config.worker_host = tracing::field::Empty,
-        config.harness = tracing::field::Empty
-    ))]
-    async fn create_agent_task(
-        &self,
-        prompt: String,
-        environment_uid: Option<String>,
-        parent_run_id: Option<String>,
-        config: Option<AgentConfigSnapshot>,
-        metadata: HashMap<String, String>,
-        team_scope: RequestTeamScope,
-    ) -> anyhow::Result<AmbientAgentTaskId, anyhow::Error> {
-        if let Some(config) = &config {
-            if let Some(worker_host) = &config.worker_host {
-                tracing::Span::current().record("config.worker_host", worker_host);
-            }
-            if let Some(harness) = &config.harness {
-                let harness: Option<serde_json::Value> =
-                    serde_json::to_value(harness.harness_type).ok();
-                if let Some(serde_json::Value::String(harness)) = harness {
-                    tracing::Span::current().record("config.harness", harness);
-                }
-            }
-        }
-
-        // Serialize the config to JSON if provided
-        let agent_config_snapshot = config
-            .map(|c| serde_json::to_string(&c))
-            .transpose()
-            .map_err(|e| anyhow!("Failed to serialize agent config: {e}"))?;
-
-        let variables = CreateAgentTaskVariables {
-            input: CreateAgentTaskInput {
-                prompt,
-                environment_uid: environment_uid.map(|uid| uid.into()),
-                parent_run_id: parent_run_id.map(|run_id| run_id.into()),
-                agent_config_snapshot,
-                metadata: (!metadata.is_empty())
-                    .then(|| serde_json::to_string(&metadata))
-                    .transpose()?,
-            },
-            request_context: get_request_context(),
-        };
-
-        let operation = CreateAgentTask::build(variables);
-        let response = self
-            .send_graphql_request_for_team(operation, team_scope)
-            .await?;
-
-        match response.create_agent_task {
-            CreateAgentTaskResult::CreateAgentTaskOutput(output) => output
-                .task_id
-                .into_inner()
-                .parse()
-                .map_err(|e| anyhow!("Failed to parse task ID from server: {e}")),
-            CreateAgentTaskResult::UserFacingError(e) => {
-                Err(anyhow!(get_user_facing_error_message(e)))
-            }
-            CreateAgentTaskResult::Unknown => Err(anyhow!("failed to create agent task")),
-        }
-    }
 
     #[allow(clippy::too_many_arguments)]
     #[tracing::instrument(skip_all, err, fields(

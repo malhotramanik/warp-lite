@@ -36,26 +36,7 @@ pub fn init(app: &mut AppContext) {
     ]);
 }
 
-/// Builder for configuring how individual items should be displayed and selected.
-///
-/// # Type Parameters
-/// - `T`: The data type for each item
-pub struct ToggleableItemBuilder<T> {
-    label_fn: ItemLabelFn<T>,
-    is_selected_fn: Box<dyn Fn(&T) -> bool>,
-}
 
-impl<T> ToggleableItemBuilder<T> {
-    pub fn new(
-        label_fn: impl Fn(&T, &AppContext) -> Span + 'static,
-        is_selected_fn: impl Fn(&T) -> bool + 'static,
-    ) -> Self {
-        Self {
-            label_fn: Box::new(label_fn),
-            is_selected_fn: Box::new(is_selected_fn),
-        }
-    }
-}
 
 /// Internal action type for interacting with an item list.
 #[derive(Debug, Clone, Copy)]
@@ -81,30 +62,7 @@ pub struct ToggleableItemsView<T> {
 }
 
 impl<T> ToggleableItemsView<T> {
-    pub fn new(items: Vec<T>, builder: ToggleableItemBuilder<T>) -> Self {
-        let count = items.len();
-        let selected_states = items
-            .iter()
-            .map(|item| (builder.is_selected_fn)(item))
-            .collect();
 
-        Self {
-            items,
-            selected_states,
-            label_fn: builder.label_fn,
-            checkbox_mouse_states: (0..count).map(|_| MouseStateHandle::default()).collect(),
-            row_mouse_states: (0..count).map(|_| MouseStateHandle::default()).collect(),
-            selected_item_index: 0,
-        }
-    }
-
-    /// Get the currently selected items.
-    pub fn get_selected_items(&self) -> impl Iterator<Item = &T> + '_ {
-        self.items
-            .iter()
-            .zip(self.selected_states.iter())
-            .filter_map(|(item, selected)| selected.then_some(item))
-    }
 }
 
 pub enum ToggleableItemsEvent {

@@ -97,7 +97,6 @@ use crate::terminal::input::models::InlineModelSelectorTab;
 use crate::terminal::input::{HandoffComposeState, MenuPositioning, MenuPositioningProvider};
 #[cfg(not(target_family = "wasm"))]
 use crate::terminal::local_shell::LocalShellState;
-use crate::terminal::profile_model_selector::{ProfileModelSelector, ProfileModelSelectorEvent};
 use crate::terminal::session_settings::{
     SessionSettings, SessionSettingsChangedEvent, ToolbarChipSelection,
 };
@@ -208,7 +207,6 @@ pub struct AgentInputFooter {
     /// [`AIQueryRouting`].
     live_session_indicator: ViewHandle<ActionButton>,
     new_cloud_vm_indicator: ViewHandle<ActionButton>,
-    model_selector: ViewHandle<ProfileModelSelector>,
     environment_selector: Option<ViewHandle<EnvironmentSelector>>,
     handoff_environment_selector: ViewHandle<EnvironmentSelector>,
     prompt_alert: ViewHandle<PromptAlertView>,
@@ -298,10 +296,7 @@ impl AgentInputFooter {
         // Push the model into the model/harness selector chip too. It captured `None` at
         // construction on this link-join path, so without this it shows the local default model
         // instead of the viewed cloud run's harness/model.
-        let selector_model = ambient_agent_view_model.clone();
-        self.model_selector.update(ctx, |selector, ctx| {
-            selector.set_ambient_agent_view_model(selector_model, ctx);
-        });
+        let _selector_model = ambient_agent_view_model.clone();
 
         // Build the environment selector now that the model exists (mirrors `new`).
         let environment_selector = ctx.add_typed_action_view(|ctx| {
@@ -346,7 +341,7 @@ impl AgentInputFooter {
     pub fn new(
         menu_positioning_provider: Arc<dyn MenuPositioningProvider>,
         terminal_view_id: EntityId,
-        ai_input_model: ModelHandle<BlocklistAIInputModel>,
+        _ai_input_model: ModelHandle<BlocklistAIInputModel>,
         terminal_model: Arc<FairMutex<TerminalModel>>,
         ambient_agent_view_model: Option<ModelHandle<AmbientAgentViewModel>>,
         handoff_compose_state: ModelHandle<HandoffComposeState>,
@@ -735,25 +730,7 @@ impl AgentInputFooter {
                 .with_tooltip_alignment(TooltipAlignment::Left)
         });
 
-        let profile_model_selector_full = ctx.add_typed_action_view(|ctx| {
-            // Built without the ambient model; the footer's ambient setter attaches it (for both
-            // construction and the lazy viewer path) via `ProfileModelSelector::set_ambient_agent_view_model`.
-            let mut selector = ProfileModelSelector::new(
-                menu_positioning_provider.clone(),
-                terminal_view_id,
-                ai_input_model,
-                None,
-                terminal_model.clone(),
-                None,
-                ctx,
-            );
-            selector.set_render_compact(false, ctx);
-            selector
-        });
 
-        ctx.subscribe_to_view(&profile_model_selector_full, |me, _, event, ctx| {
-            me.handle_profile_model_selector_event(event, ctx);
-        });
 
         // Built by the ambient setter (construction + lazy viewer path share that single point).
         let environment_selector: Option<ViewHandle<EnvironmentSelector>> = None;
@@ -898,7 +875,6 @@ impl AgentInputFooter {
                         me.update_context_window_button(ctx);
                         me.update_usage_button(ctx);
                         me.retarget_usage_popover_if_open(ctx);
-                        me.model_selector.update(ctx, |_, ctx| ctx.notify());
                         ctx.notify();
                     }
                     BlocklistAIHistoryEvent::ConversationUsageMetadataUpdated {
@@ -919,15 +895,6 @@ impl AgentInputFooter {
                             me.update_usage_button(ctx);
                             ctx.notify();
                         }
-                    }
-                    BlocklistAIHistoryEvent::UpdatedTodoList { .. }
-                    | BlocklistAIHistoryEvent::UpdatedConversationStatus { .. }
-                    | BlocklistAIHistoryEvent::AppendedExchange { .. }
-                    | BlocklistAIHistoryEvent::UpdatedStreamingExchange { .. } => {
-                        me.update_context_window_button(ctx);
-                        me.update_usage_button(ctx);
-                        me.model_selector.update(ctx, |_, ctx| ctx.notify());
-                        ctx.notify();
                     }
                     _ => (),
                 }
@@ -985,7 +952,6 @@ impl AgentInputFooter {
             usage_button,
             live_session_indicator,
             new_cloud_vm_indicator,
-            model_selector: profile_model_selector_full,
             environment_selector,
             handoff_environment_selector,
             prompt_alert,
@@ -1821,43 +1787,7 @@ impl AgentInputFooter {
         has_open_display_chip || has_open_env_selector || has_open_handoff_env_selector
     }
 
-    pub fn is_model_selector_open(&self, app: &AppContext) -> bool {
-        self.model_selector.as_ref(app).is_open()
-    }
 
-    fn handle_profile_model_selector_event(
-        &mut self,
-        event: &ProfileModelSelectorEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ProfileModelSelectorEvent::MenuVisibilityChanged { open } => {
-                if *open {
-                    ctx.emit(AgentInputFooterEvent::ModelSelectorOpened);
-                } else {
-                    ctx.emit(AgentInputFooterEvent::ModelSelectorClosed);
-                }
-            }
-            ProfileModelSelectorEvent::OpenSettings(section) => {
-                ctx.emit(AgentInputFooterEvent::OpenSettings(*section));
-            }
-            ProfileModelSelectorEvent::ToggleInlineModelSelector => {
-                let initial_tab = if self
-                    .terminal_model
-                    .lock()
-                    .block_list()
-                    .active_block()
-                    .is_agent_in_control_or_tagged_in()
-                {
-                    InlineModelSelectorTab::FullTerminalUse
-                } else {
-                    InlineModelSelectorTab::BaseAgent
-                };
-
-                ctx.emit(AgentInputFooterEvent::ToggleInlineModelSelector { initial_tab });
-            }
-        }
-    }
 
     pub fn set_voice_is_active(&mut self, is_active: bool, ctx: &mut ViewContext<Self>) {
         self.mic_button.update(ctx, |button, ctx| {
@@ -2330,11 +2260,7 @@ impl AgentInputFooter {
                     .filter(|chip| chip.as_ref(app).should_render(app))
                     .map(|chip| ChildView::new(chip).finish())
             }
-            AgentToolbarItemKind::ModelSelector => {
-                let show = FeatureFlag::ProfilesDesignRevamp.is_enabled()
-                    || *SessionSettings::as_ref(app).show_model_selectors_in_prompt;
-                show.then(|| ChildView::new(&self.model_selector).finish())
-            }
+            AgentToolbarItemKind::ModelSelector => None,
             AgentToolbarItemKind::NLDToggle => Some(ChildView::new(&self.nld_button).finish()),
             AgentToolbarItemKind::VoiceInput => {
                 #[cfg(feature = "voice_input")]

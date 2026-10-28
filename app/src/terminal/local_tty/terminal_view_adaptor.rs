@@ -147,8 +147,7 @@ fn accept_agent_prompt(
         // Reuse the rich input submit pipeline so agent-specific
         // strategies are applied. Bypasses the rich-input-UI side effects
         // (telemetry, draft clear, editor buffer clear, pending-image consumption).
-        terminal_view.update(ctx, |view, ctx| {
-            view.submit_text_to_cli_agent_pty(request.prompt.clone(), ctx);
+        terminal_view.update(ctx, |_view, _ctx| {
         });
         return;
     }

@@ -50,7 +50,6 @@ use crate::TelemetryEvent;
 use crate::ai::block_context::BlockContext;
 use crate::ai::blocklist::block::view_impl::output::are_all_text_sections_empty;
 use crate::ai::skills::SkillDescriptor;
-use crate::ai_assistant::execution_context::WarpAiExecutionContext;
 use crate::code::editor_management::CodeSource;
 use crate::code_review::comments::{
     AttachedReviewComment as CodeReviewComment, ReviewCommentBatch,
@@ -2328,9 +2327,6 @@ pub enum AIAgentContext {
     /// Text selected via the cursor within the block list.
     SelectedText(String),
 
-    /// Information about the execution environment (OS, shell type and version) is included in the
-    /// query.
-    ExecutionEnvironment(WarpAiExecutionContext),
 
     /// The current date and time.
     CurrentTime {
@@ -2406,7 +2402,6 @@ enum AIAgentContextTagged {
         are_file_symbols_indexed: bool,
     },
     SelectedText(String),
-    ExecutionEnvironment(WarpAiExecutionContext),
     CurrentTime {
         current_time: DateTime<Local>,
     },
@@ -2460,9 +2455,6 @@ impl From<AIAgentContextTagged> for AIAgentContext {
                 are_file_symbols_indexed,
             },
             AIAgentContextTagged::SelectedText(text) => AIAgentContext::SelectedText(text),
-            AIAgentContextTagged::ExecutionEnvironment(context) => {
-                AIAgentContext::ExecutionEnvironment(context)
-            }
             AIAgentContextTagged::CurrentTime { current_time } => {
                 AIAgentContext::CurrentTime { current_time }
             }

@@ -341,7 +341,6 @@ fn redact_context(context: &mut [AIAgentContext]) {
             }
             // Other context types don't contain user-provided text that needs redaction
             AIAgentContext::Directory { .. }
-            | AIAgentContext::ExecutionEnvironment(_)
             | AIAgentContext::CurrentTime { .. }
             | AIAgentContext::Image(_)
             | AIAgentContext::Codebase { .. }

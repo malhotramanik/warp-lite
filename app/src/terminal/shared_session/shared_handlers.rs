@@ -13,7 +13,7 @@ use crate::ai::blocklist::agent_view::{AgentViewController, AgentViewEntryOrigin
 use crate::ai::blocklist::{BlocklistAIContextModel, BlocklistAIHistoryModel, InputConfig};
 use crate::ai::llms::{LLMId, LLMPreferences};
 use crate::terminal::cli_agent_sessions::{
-    CLIAgentInputEntrypoint, CLIAgentInputState, CLIAgentRichInputCloseReason, CLIAgentSession,
+    CLIAgentInputState, CLIAgentSession,
     CLIAgentSessionContext, CLIAgentSessionStatus, CLIAgentSessionsModel,
 };
 use crate::terminal::{CLIAgent, TerminalView};
@@ -429,14 +429,9 @@ pub(crate) fn apply_cli_agent_state_update(
             // Update the rich input state.
             let currently_open = CLIAgentSessionsModel::as_ref(ctx).is_input_open(view_id);
             if currently_open != effective_rich_input_open {
-                view.update(ctx, |view, ctx| {
+                view.update(ctx, |_view, _ctx| {
                     if effective_rich_input_open {
-                        view.open_cli_agent_rich_input(
-                            CLIAgentInputEntrypoint::SharedSessionSync,
-                            ctx,
-                        );
                     } else {
-                        view.close_cli_agent_rich_input(CLIAgentRichInputCloseReason::Other, ctx);
                     }
                 });
             }

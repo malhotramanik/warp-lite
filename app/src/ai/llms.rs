@@ -181,17 +181,6 @@ pub fn should_show_key_icon_for_model(
     byo_key_source_for_model(llm, conversation, scope, app).is_some()
 }
 
-/// Whether requests for `llm` in `conversation` are billed to the user's connected ChatGPT
-/// subscription.
-pub fn is_using_chatgpt_subscription_for_model(
-    llm: &LLMInfo,
-    conversation: Option<&AIConversation>,
-    scope: &dyn TeamScope,
-    app: &AppContext,
-) -> bool {
-    byo_key_source_for_model(llm, conversation, scope, app)
-        == Some(ByoKeySource::ChatGPTSubscription)
-}
 
 /// Whether `scope`'s team lets this member reach `llm` at all.
 ///
@@ -489,19 +478,6 @@ impl<'de> Deserialize<'de> for LLMInfo {
     }
 }
 
-/// Deduplicates a list of LLMInfo choices by base_model_name and returns an alphabetically sorted
-/// list of display names.
-pub fn dedupe_model_display_names<'a>(
-    choices: impl IntoIterator<Item = &'a LLMInfo>,
-) -> Vec<String> {
-    let names: HashSet<String> = choices
-        .into_iter()
-        .map(|choice| choice.base_model_name.clone())
-        .collect();
-    let mut sorted: Vec<String> = names.into_iter().collect();
-    sorted.sort();
-    sorted
-}
 
 impl LLMInfo {
     /// Returns the display name for the LLM, to be used in the LLM selector menu.
@@ -805,7 +781,6 @@ impl Default for ModelsByFeature {
 
 enum UpdatePopupVisibilityState {
     WaitingToBeShown,
-    Visible(EntityId),
     Hidden,
 }
 
@@ -1577,20 +1552,6 @@ impl LLMPreferences {
         }
     }
 
-    /// Returns the effective default base model as a fallback
-    /// (disable-aware, see [`Self::fallback_llm_info`]).
-    pub fn get_default_base_model<'a>(
-        &'a self,
-        scope: &(impl TeamScope + ?Sized),
-        app: &'a AppContext,
-    ) -> &'a LLMInfo {
-        self.fallback_llm_info(
-            &UserWorkspaces::as_ref(app)
-                .feature_model_choice_for_scope(scope)
-                .agent_mode,
-            app,
-        )
-    }
 
     pub fn get_default_base_model_for_team_uid<'a>(
         &'a self,
@@ -1683,36 +1644,6 @@ impl LLMPreferences {
     }
 
 
-    /// Pins an explicit child-run model independently of profile or TUI
-    /// defaults. Persist the pin whenever it changes, but notify active-model
-    /// subscribers only when the surface's effective selection changes.
-    #[cfg(not(target_family = "wasm"))]
-    pub(crate) fn set_agent_mode_llm_override(
-        &mut self,
-        scope: &(impl TeamScope + ?Sized),
-        terminal_view_id: EntityId,
-        model_id: LLMId,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let previous_effective_model_id = self
-            .get_active_base_model(scope, ctx, Some(terminal_view_id))
-            .id
-            .clone();
-        let stored_selection_changed = self
-            .base_llm_for_terminal_view
-            .insert(terminal_view_id, model_id.clone())
-            != Some(model_id);
-        if stored_selection_changed {
-            self.trigger_snapshot_save(ctx);
-            if self
-                .get_active_base_model(scope, ctx, Some(terminal_view_id))
-                .id
-                != previous_effective_model_id
-            {
-                ctx.emit(LLMPreferencesEvent::UpdatedActiveAgentModeLLM);
-            }
-        }
-    }
 
     /// Copies the raw per-pane Agent Mode override from `source_terminal_view_id`
     /// onto `new_terminal_view_id`, removing any existing override when the
@@ -1755,50 +1686,9 @@ impl LLMPreferences {
     }
 
 
-    pub fn new_choices_since_last_update(&self) -> Option<Vec<LLMInfo>> {
-        self.last_update.as_ref().map(|update| {
-            // We don't want to display new choices if they are warp branded.
-            let filter_choices: Vec<LLMInfo> = update
-                .new_choices
-                .clone()
-                .into_iter()
-                .filter(|choice| !choice.display_name.starts_with("lite"))
-                .collect();
 
-            filter_choices
-        })
-    }
 
-    pub fn should_show_new_choices_popup(&self, view_id: EntityId) -> bool {
-        self.last_update.as_ref().is_some_and(|update| {
-            let popup_state = &*update.popup_visibility_state.lock();
-            matches!(popup_state, UpdatePopupVisibilityState::WaitingToBeShown)
-                || matches!(
-                popup_state,
-                UpdatePopupVisibilityState::Visible(id) if *id == view_id)
-        })
-    }
 
-    pub fn mark_new_choices_popup_as_shown(&self, view_id: EntityId) {
-        if let Some(update) = self.last_update.as_ref()
-            && matches!(
-                &*update.popup_visibility_state.lock(),
-                UpdatePopupVisibilityState::WaitingToBeShown
-            )
-        {
-            *update.popup_visibility_state.lock() = UpdatePopupVisibilityState::Visible(view_id);
-        }
-    }
-
-    pub fn hide_llm_popup(&self, view_id: EntityId) {
-        if !self.should_show_new_choices_popup(view_id) {
-            return;
-        }
-        let Some(last_update) = self.last_update.as_ref() else {
-            return;
-        };
-        *last_update.popup_visibility_state.lock() = UpdatePopupVisibilityState::Hidden;
-    }
 
 
     fn refresh_authed_models_for_team_uid(

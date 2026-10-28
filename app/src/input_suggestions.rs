@@ -5,7 +5,6 @@ use std::{cmp, vec};
 
 use async_channel::Sender;
 use chrono::{DateTime, Local};
-use fuzzy_match::match_indices;
 use itertools::Itertools;
 use pathfinder_geometry::vector::vec2f;
 use warp_command_signatures::IconType;
@@ -409,44 +408,6 @@ impl InputSuggestions {
         ctx.notify();
     }
 
-    pub fn fuzzy_substring_search(
-        &mut self,
-        query: String,
-        options: Vec<String>,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        let trimmed_query = query.trim();
-
-        self.set_items(
-            options
-                .into_iter()
-                .filter_map(|text| {
-                    let trimmed_text = text.trim();
-                    match_indices(trimmed_text, trimmed_query).map(|result| {
-                        (
-                            result.score,
-                            Item {
-                                text: trimmed_text.to_string(),
-                                display: None,
-                                details: None,
-                                matches: Some(result.matched_indices),
-                                icon_type: None,
-                                match_type: MatchType::Fuzzy,
-                                is_ai_query: false,
-                                is_history_item: false,
-                            },
-                        )
-                    })
-                })
-                .sorted_by(|(score1, _), (score2, _)| score1.cmp(score2))
-                .map(|(_, item)| item)
-                .collect(),
-        );
-
-        self.select_last_item(ctx);
-        self.cycle = false;
-        ctx.notify();
-    }
 
     /// Given a list of matched items, set the items and ensure the first one is selected.
     pub fn set_enum_variants(&mut self, variants: Vec<String>, ctx: &mut ViewContext<Self>) {
