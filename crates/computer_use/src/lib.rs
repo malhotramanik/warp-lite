@@ -1,24 +1,6 @@
-#[cfg_attr(macos, path = "mac/mod.rs")]
-#[cfg_attr(linux, path = "linux/mod.rs")]
-#[cfg_attr(windows, path = "windows/mod.rs")]
-#[cfg(not(noop))]
-mod imp;
-// Env-var-gated mock recorder for exercising the recording UI on macOS,
-// where real capture is unsupported.
-#[cfg(macos)]
-mod mock;
+// warp-lite: only the no-op backend is compiled; platform backends were removed.
 mod noop;
 mod overlay;
-#[cfg(any(macos, linux, windows))]
-mod recording_metadata;
-#[cfg(any(macos, linux, windows))]
-mod recording_paths;
-#[cfg(any(linux, windows))]
-mod recording_post_process;
-#[cfg(any(macos, linux, windows))]
-mod screenshot_utils;
-#[cfg(any(macos, linux, windows))]
-mod thumbnail;
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
@@ -26,10 +8,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use async_trait::async_trait;
-// Clippy doesn't like us pulling in a file as two different modules,
-// so we add this alias instead of using another cfg_attr on the imp
-// module definition.
-#[cfg(noop)]
 use noop as imp;
 pub use overlay::{
     ActionLogEntry, PointerEvent, PointerEventKind, is_meaningful_action_group, overlay_labels_for,
@@ -132,11 +110,6 @@ pub fn background_supported() -> bool {
 ///
 /// Call this whenever a computer-use session ends — normal completion, cancellation, or teardown.
 pub fn end_background_session(owner: &str) {
-    #[cfg(any(macos, linux))]
-    {
-        imp::end_background_session(owner);
-    }
-    #[cfg(not(any(macos, linux)))]
     {
         let _ = owner;
     }
@@ -145,38 +118,14 @@ pub fn end_background_session(owner: &str) {
 /// Enumerates the on-screen windows, returning their metadata so a caller can pick one to
 /// target. Returns an empty list on platforms where window enumeration is unsupported.
 pub fn enumerate_windows() -> Vec<WindowInfo> {
-    #[cfg(any(macos, linux))]
-    {
-        imp::enumerate_windows()
-    }
-    #[cfg(not(any(macos, linux)))]
     {
         Vec::new()
     }
 }
 
-/// Experimental: lists on-screen windows as a formatted diagnostic string. macOS and Linux
-/// (X11) only.
-///
-/// Unlike [`enumerate_windows`], which returns slim [`WindowInfo`] records for window selection
-/// and wire serialization, this function returns richer data including window bounds, formatted
-/// as a human-readable table for CLI debugging. The two use separate types intentionally:
-/// [`WindowInfo`] is kept wire-safe and bounds-free; the diagnostic output carries bounds that
-/// are not part of the API representation.
-#[cfg(macos)]
-pub fn experimental_list_windows() -> Result<String, String> {
-    Ok(imp::list_windows())
-}
 
-/// Experimental: lists on-screen windows as a formatted diagnostic string. macOS and Linux
-/// (X11) only.
-#[cfg(linux)]
-pub fn experimental_list_windows() -> Result<String, String> {
-    imp::list_windows()
-}
 
 /// Experimental: lists on-screen windows. Unsupported on this platform.
-#[cfg(not(any(macos, linux)))]
 pub fn experimental_list_windows() -> Result<String, String> {
     Err("Window listing is only supported on macOS and Linux (X11).".to_string())
 }
@@ -279,10 +228,6 @@ pub trait Actor: Send + Sync + 'static {
 /// recorder. On macOS, setting `WARP_MOCK_RECORDER` opts into a mock recorder
 /// for UI testing (see `mock`).
 pub fn create_recorder() -> Box<dyn Recorder> {
-    #[cfg(macos)]
-    if std::env::var_os("WARP_MOCK_RECORDER").is_some() {
-        return Box::new(mock::Recorder::new());
-    }
     if cfg!(feature = "test-util") {
         Box::new(noop::Recorder::new())
     } else {
@@ -300,18 +245,6 @@ pub async fn post_process_recording(
     source_duration: Duration,
     frame_rate: u32,
 ) -> Result<PathBuf, RecordingError> {
-    #[cfg(all(any(linux, windows), not(noop)))]
-    {
-        recording_post_process::post_process_recording(
-            input,
-            entries,
-            dimensions,
-            source_duration,
-            frame_rate,
-        )
-        .await
-    }
-    #[cfg(not(all(any(linux, windows), not(noop))))]
     {
         let _ = (entries, dimensions, source_duration, frame_rate);
         Ok(input.to_path_buf())
@@ -319,11 +252,6 @@ pub async fn post_process_recording(
 }
 /// Reads the duration encoded in a finalized recording's media timeline.
 pub async fn finalized_video_duration(input: &Path) -> Result<Duration, RecordingError> {
-    #[cfg(any(macos, linux, windows))]
-    {
-        recording_metadata::video_duration(input).await
-    }
-    #[cfg(not(any(macos, linux, windows)))]
     {
         let _ = input;
         Err(RecordingError::Finalize {
@@ -348,16 +276,6 @@ pub async fn generate_video_thumbnail(
     video: &Path,
     artifact_uid: &str,
 ) -> Result<PathBuf, RecordingError> {
-    #[cfg(any(macos, linux, windows))]
-    {
-        thumbnail::generate_video_thumbnail(
-            video,
-            thumbnail::DEFAULT_THUMBNAIL_MAX_WIDTH,
-            artifact_uid,
-        )
-        .await
-    }
-    #[cfg(not(any(macos, linux, windows)))]
     {
         let _ = (video, artifact_uid);
         Err(RecordingError::Finalize {
@@ -427,19 +345,6 @@ pub struct RecordingHandle {
     height: u32,
     capture_origin: Vector2I,
     exit_state: RecordingExitState,
-    // The live capture process plus the fields used to finalize it are only
-    // populated by the real platform recorders; the no-op recorders never
-    // construct a handle.
-    #[cfg(any(linux, macos, windows))]
-    path: PathBuf,
-    #[cfg(any(linux, macos, windows))]
-    started_at: instant::Instant,
-    #[cfg(any(linux, macos, windows))]
-    process: Option<tokio::process::Child>,
-    // The handle owns and deletes partial output until `Recorder::stop`
-    // validates the file and transfers its path to `RecordingOutput`.
-    #[cfg(any(linux, macos, windows))]
-    cleanup_on_drop: bool,
 }
 
 impl RecordingHandle {
@@ -468,22 +373,6 @@ impl RecordingHandle {
             return Some(kind);
         }
 
-        #[cfg(any(linux, macos, windows))]
-        if let Some(process) = self.process.as_mut()
-            && let Ok(Some(status)) = process.try_wait()
-        {
-            let kind = if status.success() {
-                RecordingExitKind::LimitReached
-            } else {
-                RecordingExitKind::Crashed
-            };
-            *self
-                .exit_state
-                .lock()
-                .expect("recording exit state poisoned") = Some(kind);
-            return Some(kind);
-        }
-
         None
     }
 
@@ -495,37 +384,11 @@ impl RecordingHandle {
             height,
             capture_origin: Vector2I::new(0, 0),
             exit_state: exit_state.clone(),
-            #[cfg(any(linux, macos, windows))]
-            path: PathBuf::new(),
-            #[cfg(any(linux, macos, windows))]
-            started_at: instant::Instant::now(),
-            #[cfg(any(linux, macos, windows))]
-            process: None,
-            #[cfg(any(linux, macos, windows))]
-            cleanup_on_drop: false,
         };
         (handle, exit_state)
     }
 }
 
-#[cfg(any(linux, macos, windows))]
-impl Drop for RecordingHandle {
-    fn drop(&mut self) {
-        if self.cleanup_on_drop {
-            // Windows can't delete a file ffmpeg still has open, and `Drop` can't `.await` a
-            // process reap, so cleanup runs on a background thread there instead of blocking
-            // (or leaking the file) here; see `windows::recording::spawn_abandoned_cleanup`.
-            // POSIX allows unlinking a still-open file, so mac/Linux clean up synchronously.
-            #[cfg(windows)]
-            if let Some(process) = self.process.take() {
-                imp::spawn_abandoned_cleanup(process, self.path.clone());
-                return;
-            }
-            let _ = std::fs::remove_file(&self.path);
-            let _ = std::fs::remove_file(self.path.with_extension("log"));
-        }
-    }
-}
 
 /// The finalized output of a stopped recording. Carries the local file path and
 /// metadata only; callers are responsible for publishing and deleting the file.
@@ -545,10 +408,6 @@ pub enum RecordingCompletionStatus {
     Completed,
     StoppedEarly,
 }
-
-#[cfg(test)]
-#[path = "recording_tests.rs"]
-mod recording_tests;
 
 /// A key that can be pressed or released.
 #[derive(Debug, Clone, Eq, Hash, PartialEq, Serialize, Deserialize)]
