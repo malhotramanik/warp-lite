@@ -38,7 +38,7 @@ pub mod builtin;
 pub mod templatable;
 #[cfg(not(target_family = "wasm"))]
 pub use cloud_object_models::{
-    JSONMCPServer, JSONTransportType, StaticEnvVar, StaticHeader,
+    JSONTransportType, StaticEnvVar, StaticHeader,
 };
 pub use cloud_object_models::{
     CloudMCPServer, CloudMCPServerModel, MCPServer, MCPServerState,
@@ -48,8 +48,6 @@ pub mod logs;
 pub mod templatable_installation;
 pub use templatable_installation::TemplatableMCPServerInstallation;
 pub mod parsing;
-#[cfg(not(target_family = "wasm"))]
-pub use parsing::ParsedTemplatableMCPServerResult;
 #[cfg(not(target_family = "wasm"))]
 pub mod reconnecting_peer;
 

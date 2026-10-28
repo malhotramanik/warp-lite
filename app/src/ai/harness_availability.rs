@@ -7,7 +7,6 @@ use warp_cli::agent::Harness;
 use warp_core::features::FeatureFlag;
 use warp_core::user_preferences::GetUserPreferences;
 use warp_errors::report_error;
-use warp_managed_secrets::ManagedSecretValue;
 use warp_managed_secrets::client::SecretOwner;
 use warpui::{Entity, ModelContext, RequestState, SingletonEntity};
 
@@ -20,7 +19,6 @@ use crate::server::retry_strategies::{
     OUT_OF_BAND_REQUEST_RETRY_STRATEGY, is_transient_graphql_or_http_error,
 };
 use crate::server::server_api::ServerApiProvider;
-use crate::server::server_api::managed_secrets::AppManagedSecretManager as ManagedSecretManager;
 use crate::server::team_scope::RequestTeamScope;
 use crate::workspaces::user_workspaces::{TeamScope, UserWorkspaces, UserWorkspacesEvent};
 
@@ -105,24 +103,6 @@ impl AuthSecretCacheKey {
 pub enum HarnessAvailabilityEvent {
     Changed,
     AuthSecretsChanged,
-    AuthSecretCreated {
-        harness: Harness,
-        name: String,
-    },
-    AuthSecretCreationFailed {
-        error: String,
-    },
-    AuthSecretDeleted {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-    },
-    AuthSecretDeletionFailed {
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        error: String,
-    },
 }
 
 pub struct HarnessAvailabilityModel {
@@ -316,125 +296,9 @@ impl HarnessAvailabilityModel {
             .unwrap_or(true)
     }
 
-    pub fn create_auth_secret<S: TeamScope + ?Sized>(
-        &mut self,
-        team_scope: &S,
-        harness: Harness,
-        name: String,
-        value: ManagedSecretValue,
-        owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let cache_key = AuthSecretCacheKey::new(team_scope, harness);
-        let request_team_scope = RequestTeamScope::from_scope(team_scope);
-        let manager = ManagedSecretManager::handle(ctx);
-        let create_future =
-            manager
-                .as_ref(ctx)
-                .create_secret(request_team_scope, owner, name, value, None);
-        ctx.spawn(create_future, move |me, result, ctx| match result {
-            Ok(secret) => {
-                let entry = AuthSecretEntry {
-                    name: secret.name.clone(),
-                    owner: secret_owner_from_space(&secret.owner),
-                };
-                me.insert_created_auth_secret_entry(cache_key, entry);
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretsChanged);
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreated {
-                    harness,
-                    name: secret.name,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to create harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretCreationFailed { error: msg });
-            }
-        });
-    }
 
-    pub fn delete_auth_secret<S: TeamScope + ?Sized>(
-        &mut self,
-        team_scope: &S,
-        harness: Harness,
-        name: String,
-        owner: SecretOwner,
-        ctx: &mut ModelContext<Self>,
-    ) {
-        let cache_key = AuthSecretCacheKey::new(team_scope, harness);
-        let request_team_scope = RequestTeamScope::from_scope(team_scope);
-        let manager = ManagedSecretManager::handle(ctx);
-        let delete_future =
-            manager
-                .as_ref(ctx)
-                .delete_secret(request_team_scope, owner.clone(), name.clone());
-        ctx.spawn(delete_future, move |me, result, ctx| match result {
-            Ok(()) => {
-                me.remove_deleted_auth_secret_entries(cache_key, &name, &owner);
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretsChanged);
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeleted {
-                    harness,
-                    name,
-                    owner,
-                });
-            }
-            Err(e) => {
-                let msg = e.to_string();
-                report_error!(e.context("Failed to delete harness auth secret"));
-                ctx.emit(HarnessAvailabilityEvent::AuthSecretDeletionFailed {
-                    harness,
-                    name,
-                    owner,
-                    error: msg,
-                });
-            }
-        });
-    }
 
-    fn insert_created_auth_secret_entry(
-        &mut self,
-        request_cache_key: AuthSecretCacheKey,
-        entry: AuthSecretEntry,
-    ) {
-        for (cache_key, state) in &mut self.auth_secrets {
-            if cache_key.harness == request_cache_key.harness
-                && cache_key_matches_owner(cache_key, &entry.owner)
-                && let AuthSecretFetchState::Loaded(entries) = state
-                && !entries
-                    .iter()
-                    .any(|existing| existing.name == entry.name && existing.owner == entry.owner)
-            {
-                entries.push(entry.clone());
-            }
-        }
-        match self.auth_secrets.get_mut(&request_cache_key) {
-            Some(AuthSecretFetchState::Loaded(entries))
-                if entries.iter().any(|existing| {
-                    existing.name == entry.name && existing.owner == entry.owner
-                }) => {}
-            Some(AuthSecretFetchState::Loaded(entries)) => entries.push(entry),
-            _ => {
-                self.auth_secrets
-                    .insert(request_cache_key, AuthSecretFetchState::Loaded(vec![entry]));
-            }
-        }
-    }
 
-    fn remove_deleted_auth_secret_entries(
-        &mut self,
-        request_cache_key: AuthSecretCacheKey,
-        name: &str,
-        owner: &SecretOwner,
-    ) {
-        for (cache_key, state) in &mut self.auth_secrets {
-            if cache_key.harness == request_cache_key.harness
-                && cache_key_matches_owner(cache_key, owner)
-                && let AuthSecretFetchState::Loaded(entries) = state
-            {
-                remove_deleted_auth_secret_entry(entries, name, owner);
-            }
-        }
-    }
     pub fn refresh(&self, ctx: &mut ModelContext<Self>) {
         // The endpoint queries `user`, which requires auth.
         if !AuthStateProvider::as_ref(ctx).get().is_logged_in() {
@@ -506,22 +370,7 @@ fn secret_owner_from_space(space: &warp_graphql::object::Space) -> SecretOwner {
     }
 }
 
-fn remove_deleted_auth_secret_entry(
-    entries: &mut Vec<AuthSecretEntry>,
-    name: &str,
-    owner: &SecretOwner,
-) {
-    entries.retain(|entry| entry.name.as_str() != name || &entry.owner != owner);
-}
 
-fn cache_key_matches_owner(cache_key: &AuthSecretCacheKey, owner: &SecretOwner) -> bool {
-    match owner {
-        SecretOwner::CurrentUser => true,
-        SecretOwner::Team { team_uid } => cache_key
-            .team_uid
-            .is_some_and(|cached_team_uid| cached_team_uid.uid() == *team_uid),
-    }
-}
 fn harness_to_graphql_harness(harness: Harness) -> Option<warp_graphql::ai::AgentHarness> {
     match harness {
         Harness::Oz => Some(warp_graphql::ai::AgentHarness::Oz),

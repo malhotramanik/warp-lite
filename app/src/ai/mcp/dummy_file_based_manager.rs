@@ -1,9 +1,7 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use uuid::Uuid;
 use warpui::{AppContext, Entity, ModelContext, SingletonEntity};
 
-use super::MCPProvider;
 use crate::ai::mcp::templatable_installation::TemplatableMCPServerInstallation;
 
 pub struct FileBasedMCPManager {}
@@ -21,9 +19,6 @@ impl FileBasedMCPManager {
         vec![]
     }
 
-    pub fn file_based_servers(&self) -> Vec<&TemplatableMCPServerInstallation> {
-        vec![]
-    }
 
 }
 

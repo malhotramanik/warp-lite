@@ -1,4 +1,3 @@
-use warp_cli::agent::Harness;
 use warp_core::settings::Setting;
 use warp_core::ui::theme::color::internal_colors;
 use warpui::elements::{
@@ -314,11 +313,6 @@ impl Input {
             ));
         }
         column.add_child(ChildView::new(&self.agent_status_view).finish());
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
-        }
         column.add_child(input);
 
         let mut outer_stack = Stack::new().with_constrain_absolute_children();
@@ -490,11 +484,6 @@ impl Input {
 
         column.add_child(self.render_cloud_mode_v2_top_row(app));
 
-        if let Some(panel) = self.queued_prompts_panel.as_ref()
-            && panel.as_ref(app).should_render(app)
-        {
-            column.add_child(ChildView::new(panel).finish());
-        }
 
         column.add_child(self.render_cloud_mode_v2_input_container(appearance, app));
 

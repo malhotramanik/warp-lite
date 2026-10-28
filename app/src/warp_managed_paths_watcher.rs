@@ -2,7 +2,6 @@ use std::path::{Path, PathBuf};
 #[cfg(not(target_family = "wasm"))]
 use std::{fs, sync::Arc, time::Duration};
 
-use dirs::home_dir;
 #[cfg(not(target_family = "wasm"))]
 use notify_debouncer_full::notify::{RecursiveMode, WatchFilter};
 use repo_metadata::RepositoryUpdate;
@@ -77,25 +76,12 @@ pub(crate) fn active_mcp_config_file_path() -> Option<PathBuf> {
     }
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WarpMcpConfigPath {
-    pub(crate) root_path: PathBuf,
-    pub(crate) config_path: PathBuf,
-}
 
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) fn warp_managed_skill_dirs() -> Vec<PathBuf> {
     warp_home_skills_dir().into_iter().collect()
 }
 
-#[cfg_attr(target_family = "wasm", allow(dead_code))]
-pub(crate) fn warp_managed_mcp_config_path() -> Option<WarpMcpConfigPath> {
-    Some(WarpMcpConfigPath {
-        root_path: home_dir()?,
-        config_path: active_mcp_config_file_path()?,
-    })
-}
 
 #[cfg_attr(target_family = "wasm", allow(dead_code))]
 pub(crate) fn repository_update_touches_path(update: &RepositoryUpdate, path: &Path) -> bool {

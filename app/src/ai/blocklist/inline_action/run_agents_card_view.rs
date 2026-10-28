@@ -490,21 +490,6 @@ impl RunAgentsCardView {
         ctx.subscribe_to_model(
             &HarnessAvailabilityModel::handle(ctx),
             |me, _, event, ctx| match event {
-                HarnessAvailabilityEvent::AuthSecretCreated { harness, name } => {
-                    oc::apply_created_auth_secret_if_matches(
-                        &mut me.orchestration_edit_state.orchestration_config_state,
-                        *harness,
-                        name,
-                        ctx,
-                    );
-                    oc::repopulate_all_pickers(
-                        &mut me.orchestration_edit_state.orchestration_config_state,
-                        &me.handles.pickers,
-                        ctx,
-                    );
-                    me.refresh_accept_button_state(ctx);
-                    ctx.notify();
-                }
                 HarnessAvailabilityEvent::Changed
                 | HarnessAvailabilityEvent::AuthSecretsChanged => {
                     oc::repopulate_all_pickers(
@@ -516,9 +501,6 @@ impl RunAgentsCardView {
                     me.maybe_auto_open_create_modal(ctx);
                     ctx.notify();
                 }
-                HarnessAvailabilityEvent::AuthSecretCreationFailed { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeleted { .. }
-                | HarnessAvailabilityEvent::AuthSecretDeletionFailed { .. } => {}
             },
         );
 

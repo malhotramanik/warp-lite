@@ -56,7 +56,6 @@ use settings::{Setting as _, ToggleableSetting};
 use string_offset::{ByteOffset, CharOffset};
 use vec1::Vec1;
 use vim::vim::{VimHandler, VimMode};
-use warp_cli::agent::Harness;
 use warp_completer::completer::{
     self, CompleterOptions, CompletionContext, CompletionsFallbackStrategy, Description,
     ExplicitTabCompletion, MatchStrategy, MatchType, PathSeparators, PreparedSuggestion,
@@ -133,7 +132,6 @@ use super::universal_developer_input::{
 use super::view::ambient_agent::{
     AmbientAgentViewModel, AmbientAgentViewModelEvent, is_cloud_agent_pre_first_exchange,
 };
-use super::view::queued_prompts_panel::{QueuedPromptsPanelEvent, QueuedPromptsPanelView};
 use super::view::{
     ExecuteCommandEvent, PADDING_LEFT as TERMINAL_VIEW_PADDING_LEFT, SyncInputType, TerminalAction,
 };
@@ -179,7 +177,6 @@ use crate::ai::blocklist::{
     QueuedQueryOrigin, SlashCommandRequest, ai_brand_color, ai_indicator_height,
     is_prompt_steering_enabled, render_ai_agent_mode_icon, render_ai_follow_up_icon,
 };
-use crate::ai::cloud_agent_settings::{AuthSecretPreference, CloudAgentSettings};
 use crate::ai::cloud_environments::CloudAmbientAgentEnvironment;
 use crate::ai::connected_self_hosted_workers::{
     ConnectedSelfHostedWorkersEvent, ConnectedSelfHostedWorkersModel,
@@ -1832,7 +1829,6 @@ pub struct Input {
     agent_status_view: ViewHandle<BlocklistAIStatusBar>,
     /// Optional queued-prompts panel rendered between `agent_status_view` and the input editor.
     /// Constructed in [`Input::new`] when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    queued_prompts_panel: Option<ViewHandle<QueuedPromptsPanelView>>,
     agent_view_controller: ModelHandle<AgentViewController>,
     agent_shortcut_view_model: ModelHandle<AgentShortcutViewModel>,
     ambient_agent_view_state: Option<AmbientAgentViewState>,
@@ -3839,31 +3835,6 @@ impl Input {
             )
         });
 
-        let queued_prompts_panel = FeatureFlag::QueueSlashCommand.is_enabled().then(|| {
-            let cli_subagent_controller = cli_subagent_controller.clone();
-            let host_editor = editor.clone();
-            let panel = ctx.add_typed_action_view(|ctx| {
-                QueuedPromptsPanelView::new(
-                    terminal_view_id,
-                    suggestions_mode_model.clone(),
-                    cli_subagent_controller,
-                    host_editor,
-                    ctx,
-                )
-            });
-            ctx.subscribe_to_view(&panel, |me, _, event, ctx| {
-                me.handle_queued_prompts_panel_event(event, ctx);
-            });
-            // Seed the host-pushed send permission; later changes flow through the
-            // shared-session role-change push in `TerminalView::on_self_role_updated`. Input
-            // emptiness is not pushed: the panel reads the host editor live.
-            let can_send_prompt = !model.lock().shared_session_status().is_reader();
-            panel.update(ctx, |panel, ctx| {
-                panel.set_can_send_prompt(can_send_prompt, ctx);
-            });
-            panel
-        });
-
         let deferred_remote_operations =
             DeferredRemoteOperations::new(model.lock().block_list().active_block_id().clone());
 
@@ -3950,7 +3921,6 @@ impl Input {
             is_editor_empty_on_last_edit: is_editor_empty,
             weak_view_handle: ctx.handle(),
             agent_status_view,
-            queued_prompts_panel,
             agent_view_controller,
             agent_input_footer,
             agent_shortcut_view_model,
@@ -4029,104 +3999,9 @@ impl Input {
         &self.agent_status_view
     }
 
-    fn handle_queued_prompts_panel_event(
-        &mut self,
-        event: &QueuedPromptsPanelEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            QueuedPromptsPanelEvent::SendNow {
-                conversation_id,
-                query_id,
-                text,
-                is_command,
-            } => {
-                self.send_queued_row_immediately(
-                    *conversation_id,
-                    *query_id,
-                    text.clone(),
-                    *is_command,
-                    QueuedPromptSendNowTrigger::SendNowButton,
-                    ctx,
-                );
-            }
-            QueuedPromptsPanelEvent::RowDeleted => {
-                self.focus_input_box(ctx);
-            }
-            QueuedPromptsPanelEvent::EditEnded => {
-                self.focus_input_box(ctx);
-            }
-        }
-    }
-
-    /// Dispatches a queued row immediately: commands execute in the terminal, prompts submit to
-    /// the conversation's current target. On dispatch, removes the fired row and refocuses the
-    /// input. Shared by the row's send-now button and empty-buffer Enter.
-    fn send_queued_row_immediately(
-        &mut self,
-        conversation_id: AIConversationId,
-        query_id: QueuedQueryId,
-        text: String,
-        is_command: bool,
-        trigger: QueuedPromptSendNowTrigger,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        // Read the origin before dispatch; the row is removed once it fires.
-        if QueuedQueryModel::as_ref(ctx).is_dispatch_blocked(conversation_id) {
-            return;
-        }
-        if QueuedQueryModel::as_ref(ctx)
-            .queue(conversation_id)
-            .iter()
-            .any(|row| row.id() == query_id && row.shared_session_prompt().is_some())
-        {
-            // "Send now" targets the clicked row specifically, which may not be the queue head
-            // (e.g. after reordering) -- passing `query_id` through dispatches that exact row
-            // instead of whatever currently happens to be at the head.
-            self.ai_controller.update(ctx, |controller, ctx| {
-                controller.dispatch_queued_warp_agent_prompt(conversation_id, Some(query_id), ctx);
-            });
-            return;
-        }
-        let origin = QueuedQueryModel::as_ref(ctx)
-            .queue(conversation_id)
-            .iter()
-            .find(|row| row.id() == query_id)
-            .map(|row| row.origin());
-        let dispatched = if is_command {
-            self.execute_queued_command(&text, conversation_id, ctx)
-        } else {
-            self.submit_queued_prompt_for_active_pane(text, conversation_id, query_id, ctx);
-            true
-        };
-        if !dispatched {
-            return;
-        }
-        if let Some(origin) = origin {
-            send_telemetry_from_ctx!(
-                TelemetryEvent::QueuedPromptSentNow {
-                    origin: origin.into(),
-                    trigger,
-                },
-                ctx
-            );
-        }
-        QueuedQueryModel::handle(ctx).update(ctx, |model, ctx| {
-            model.remove_fired_row(conversation_id, query_id, ctx);
-        });
-        self.focus_input_box(ctx);
-    }
-
-    /// The queued prompts panel, when [`FeatureFlag::QueueSlashCommand`] is enabled.
-    pub(crate) fn queued_prompts_panel(&self) -> Option<&ViewHandle<QueuedPromptsPanelView>> {
-        self.queued_prompts_panel.as_ref()
-    }
-
     /// Returns whether this input's queued-prompt inline editor is currently focused.
-    pub(crate) fn is_queued_prompt_inline_editor_focused(&self, ctx: &AppContext) -> bool {
-        self.queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).is_inline_edit_editor_focused(ctx))
+    pub(crate) fn is_queued_prompt_inline_editor_focused(&self, _ctx: &AppContext) -> bool {
+        false
     }
 
     /// Returns whether the active queued prompt is being edited inline.
@@ -13466,36 +13341,6 @@ impl Input {
                 self.inline_slash_commands_view.update(ctx, |view, ctx| {
                     view.accept_selected_item(false, ctx);
                 });
-            }
-            return;
-        } else if self
-            .queued_prompts_panel
-            .as_ref()
-            .is_some_and(|panel| panel.as_ref(ctx).enter_sends_queued_prompt(ctx))
-        {
-            // An empty-buffer Enter sends the top queued row, mirroring its send-now button.
-            // The locked initial cloud-mode head row is not sendable, so Enter does nothing
-            // while it sits at the head of the queue.
-            let conversation_id =
-                BlocklistAIHistoryModel::as_ref(ctx).active_conversation_id(self.terminal_view_id);
-            let top_row = conversation_id.and_then(|conversation_id| {
-                QueuedQueryModel::as_ref(ctx)
-                    .queue(conversation_id)
-                    .first()
-                    .filter(|row| !row.is_locked())
-                    .map(|row| (row.id(), row.text().to_owned(), row.is_command()))
-            });
-            if let (Some(conversation_id), Some((query_id, text, is_command))) =
-                (conversation_id, top_row)
-            {
-                self.send_queued_row_immediately(
-                    conversation_id,
-                    query_id,
-                    text,
-                    is_command,
-                    QueuedPromptSendNowTrigger::EnterOnEmptyInput,
-                    ctx,
-                );
             }
             return;
         } else if self.maybe_launch_cloud_handoff_request(ctx)

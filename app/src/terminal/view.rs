@@ -9,7 +9,6 @@ mod context_menu;
 pub mod init;
 pub mod inline_banner;
 pub mod load_ai_conversation;
-pub(crate) mod queued_prompts_panel;
 #[cfg(test)]
 #[path = "view/queued_prompts_tests.rs"]
 mod queued_prompts_tests;
@@ -5618,13 +5617,7 @@ impl TerminalView {
                     })
             });
         if editing_front_lrc_row {
-            let queued_prompts_panel = self.input.as_ref(ctx).queued_prompts_panel().cloned();
-            let Some(queued_prompts_panel) = queued_prompts_panel else {
-                return;
-            };
-            queued_prompts_panel.update(ctx, |panel, ctx| {
-                panel.commit_edit(ctx);
-            });
+            return;
         }
 
         let rows: Vec<(QueuedQueryId, String)> = QueuedQueryModel::as_ref(ctx)
