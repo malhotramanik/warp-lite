@@ -16,7 +16,6 @@ pub(crate) mod orchestration_child_tracker;
 pub(crate) mod orchestration_event_streamer;
 pub(crate) mod orchestration_events;
 pub(crate) mod orchestration_topology;
-mod passive_suggestions;
 pub(crate) mod pending_cli_harness_prompt_queue;
 pub(crate) mod queued_query;
 pub(super) use controller::RequestInput;
@@ -110,10 +109,6 @@ pub use input_mode_policy::{InputModePolicy, InputModePolicyHandle, PolicyConfig
 pub(crate) use input_model::BlocklistAIInputEvent;
 pub use input_model::{
     BlocklistAIInputModel, InputConfig, InputType, InputTypeAutoDetectionSource,
-};
-pub(crate) use passive_suggestions::{
-    LegacyPassiveSuggestionsEvent, LegacyPassiveSuggestionsModel, MaaPassiveSuggestionsEvent,
-    MaaPassiveSuggestionsModel, PassiveSuggestionsModels,
 };
 #[cfg(test)]
 pub(crate) use permissions::is_agent_mode_autonomy_allowed;
