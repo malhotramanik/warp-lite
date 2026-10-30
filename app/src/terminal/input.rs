@@ -15782,10 +15782,6 @@ impl View for Input {
             ctx.set.insert("WorkflowInfoBox");
         }
 
-        let _is_v2_model_selector_open = self
-            .agent_input_footer
-            .as_ref(app)
-            .is_v2_model_selector_open(app);
         let _is_v2_environment_selector_open = self
             .agent_input_footer
             .as_ref(app)

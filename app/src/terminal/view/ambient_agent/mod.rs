@@ -2,7 +2,6 @@ mod block;
 mod footer;
 mod loading_screen;
 mod model;
-mod model_selector;
 mod progress;
 mod progress_ui_state;
 mod team_required;
@@ -12,9 +11,6 @@ mod view_impl;
 pub use block::*;
 pub use footer::{ render_loading_footer};
 pub use model::{AmbientAgentViewModel, AmbientAgentViewModelEvent, Status};
-pub use model_selector::{
-    ModelSelector, ModelSelectorEvent,
-};
 pub use progress_ui_state::AmbientAgentProgressUIState;
 pub use team_required::{CloudAgentTeamRequiredView, CloudAgentTeamRequiredViewEvent};
 pub(crate) use team_required::{
