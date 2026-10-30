@@ -300,9 +300,6 @@ use crate::terminal::model::session::shell_quote_arg;
 use crate::terminal::package_installers::command_at_cursor_has_common_package_installer_prefix;
 use crate::terminal::prompt_render_helper::should_render_ps1_prompt;
 use crate::terminal::universal_developer_input::AtContextMenuDisabledReason;
-use crate::terminal::view::ambient_agent::{
-    cloud_agent_team_required_toast_message,
-};
 use crate::terminal::view::init::CAN_ATTACH_FILE_KEY;
 use crate::terminal::view::{
     AIQueryRouting, CodeDiffAction, file_attach_allowed_for_shared_session,
@@ -13192,7 +13189,7 @@ impl Input {
                 let blocker_message =
                     match cloud_agent_start_blocker(team_required, has_enabled_harness) {
                         Some(CloudAgentStartBlocker::TeamRequired) => {
-                            Some(cloud_agent_team_required_toast_message(ctx).to_string())
+                            Some("Cloud agents require a team.".to_string())
                         }
                         Some(CloudAgentStartBlocker::NoEnabledHarnesses) => Some(
                             "No agent harnesses are available. Contact your team admin."

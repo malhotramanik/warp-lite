@@ -2860,7 +2860,6 @@ pub struct TerminalView {
     /// Mouse state handle for the ambient agent cancel button in the pane header.
     ambient_agent_cancel_mouse_state: warpui::elements::MouseStateHandle,
 
-    cloud_agent_team_required_view: ViewHandle<ambient_agent::CloudAgentTeamRequiredView>,
 
     /// Environment setup mode selector modal for /create-environment command.
     environment_setup_mode_selector: ViewHandle<EnvironmentSetupModeSelector>,
@@ -4134,11 +4133,6 @@ impl TerminalView {
 
 
 
-        let cloud_agent_team_required_view =
-            ctx.add_typed_action_view(ambient_agent::CloudAgentTeamRequiredView::new);
-        ctx.subscribe_to_view(&cloud_agent_team_required_view, |me, _, event, ctx| {
-            me.handle_cloud_agent_team_required_view_event(event, ctx);
-        });
 
         let environment_setup_mode_selector =
             ctx.add_typed_action_view(EnvironmentSetupModeSelector::new);
@@ -4363,7 +4357,6 @@ impl TerminalView {
             manual_pty_shutdown_requested: false,
             pending_cloud_shell_recovery: None,
             pending_shell_replacement: None,
-            cloud_agent_team_required_view,
             environment_setup_mode_selector,
             is_environment_setup_mode_selector_open: false,
             pane_stack: None,
@@ -4859,18 +4852,6 @@ impl TerminalView {
             self.agent_view_controller.update(ctx, |controller, ctx| {
                 controller.exit_agent_view(ctx);
             });
-        }
-    }
-
-    fn handle_cloud_agent_team_required_view_event(
-        &mut self,
-        event: &ambient_agent::CloudAgentTeamRequiredViewEvent,
-        ctx: &mut ViewContext<Self>,
-    ) {
-        match event {
-            ambient_agent::CloudAgentTeamRequiredViewEvent::OpenTeamsSettings => {
-                ctx.emit(Event::OpenSettings(SettingsSection::Teams));
-            }
         }
     }
 
@@ -27092,23 +27073,6 @@ impl View for TerminalView {
             && sharer.is_inactivity_warning_modal_open()
         {
             stack.add_child(ChildView::new(sharer.inactivity_modal()).finish())
-        }
-
-        let cloud_agents_require_team = UserWorkspaces::as_ref(app).cloud_agents_require_team();
-        let (is_in_setup, is_configuring) = self
-            .ambient_agent_view_model
-            .as_ref()
-            .map(|model| {
-                let model = model.as_ref(app);
-                (model.is_in_setup(), model.is_configuring_ambient_agent())
-            })
-            .unwrap_or_default();
-        if ambient_agent::should_render_cloud_agent_team_required_view(
-            cloud_agents_require_team,
-            is_in_setup,
-            is_configuring,
-        ) {
-            stack.add_child(ChildView::new(&self.cloud_agent_team_required_view).finish());
         }
 
         if self.ssh_file_upload.as_ref(app).has_upload() {
