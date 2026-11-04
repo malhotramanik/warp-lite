@@ -849,6 +849,6 @@ copyright = "© 2025, Denver Technologies, Inc"
 identifier = "dev.warp.WarpOss"
 name = "WarpLite"
 resources = ["assets/onboarding"]
-icon = ["channels/oss/icon/no-padding/512x512.png", "channels/oss/icon/no-padding/icon.ico"]
+icon = ["channels/lite/icon/no-padding/icon.icns", "channels/lite/icon/no-padding/512x512.png", "channels/lite/icon/no-padding/icon.ico"]
 short_description = "A lightweight terminal built from Warp, without AI or cloud features."
 
